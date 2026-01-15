@@ -9,7 +9,7 @@
  * Version:         1.11.0
  *
  */
-#include "CM.h" // inlcudes all CAN MREX files
+#include "CAN_MREx.h" // inlcudes all CAN MREX files
 #include "VeDirectFrameHandler.h"
 #include "Arduino.h"
 #include <HardwareSerial.h>
@@ -36,8 +36,9 @@ uint16_t power_magnitude = 0; // Instantenous Power
 uint16_t state_of_charge = 0; // 0-100%. +/- 0.1%. If the SOC is 88.3% it is sent as 883 so 16 bits enough.
 uint8_t Ah_sign = 0; // 1 byte to indicate sign of Ah consumption. 
 uint32_t Amp_hours_consumed_magnitude = 0; 
-uint8_t recovered_energy_sign = 1; // negative
+//uint8_t recovered_energy_sign = 1; // negative
 uint32_t recovered_energy = 0; // how much energy was recovered from regenerative braking
+//uint32_t recovered_energy_challenge = 0;
 // variables not for OD
 int32_t ce = 0;
 int16_t power = 0;
@@ -46,7 +47,9 @@ uint16_t prev_power_sample = 0;
 uint16_t new_power_sample = 0;
 uint16_t power_sample = 0;
 uint16_t slice_area = 0;
-bool regen_mode = false;
+//bool regen_mode = false;
+bool prev_sample_1 = false;
+bool prev_sample_2 = false;
 unsigned long previousMillis = 0;
 unsigned long last_data_received_time = 0;
 const long interval = 1000; // 1s
@@ -58,6 +61,8 @@ unsigned int regen_brake_duration = 0;
 // User code end ---------------------------------------------------------
 
 void setup() {
+  pinMode(23, OUTPUT);
+  digitalWrite(23, HIGH);
   Serial.begin(115200); 
   delay(1000);
   Serial.println("Serial Coms started at 115200 baud");
@@ -81,8 +86,8 @@ void setup() {
   registerODEntry(0x2000, 0x05, 0, sizeof(state_of_charge), &state_of_charge); 
   registerODEntry(0x2000, 0x06, 0, sizeof(power_sign), &power_sign); 
   registerODEntry(0x2000, 0x07, 0, sizeof(power_magnitude), &power_magnitude);
-  registerODEntry(0x2000, 0x08, 0, sizeof(recovered_energy_sign), &recovered_energy_sign);
-  registerODEntry(0x2000, 0x09, 0, sizeof(recovered_energy), &recovered_energy);
+  //registerODEntry(0x2000, 0x08, 0, sizeof(recovered_energy_sign), &recovered_energy_sign);
+  registerODEntry(0x2000, 0x08, 0, sizeof(recovered_energy), &recovered_energy);
 
 
   configureTPDO(0, 0x180 + nodeID, 255, 100, 1000);  // TPDO 1, COB-ID, transType, inhibit, event
@@ -105,13 +110,12 @@ void setup() {
   PdoMapEntry tpdoEntries3[] = {   
       {0x2000, 0x06, 8}, 
       {0x2000, 0x07, 16},
-      {0x2000, 0x08, 8},
       {0x2000, 0x09, 32},
     };
 
     mapTPDO(0, tpdoEntries1, 3); //TPDO 1, entries, num entries
     mapTPDO(1, tpdoEntries2, 3); //TPDO 2, entries, num entries
-    mapTPDO(2, tpdoEntries3, 4); //TPDO 3, entries, num entries
+    mapTPDO(2, tpdoEntries3, 3); //TPDO 3, entries, num entries
 
   // --- Register RPDOs ---
   // This node simply puts the sensor values on the can bus. Only TPDOs need to be configured
@@ -152,7 +156,9 @@ void PrintData() {
 }
 
 // this function calculates the recovered energy
-void findRecoveredEnergy(){
+// at the moment, when power is positive, we stop accumulating the recovered energy
+// when power is flipped to positive, recovered energy will be zero, we need the last value of recovered energy to decrement
+/*void findRecoveredEnergy(){
 if(power < 0){
   power_sample = -power; // take absolute value. Sign needs to be sent separately.
   if (regen_mode == false){ // this means this power value is the first power value in regenerative braking mode
@@ -165,11 +171,51 @@ if(power < 0){
   }
   slice_area = ((prev_power_sample + new_power_sample)/2)*1; // the height, that is, interval between samples is 1 s. area of trapezium.
   recovered_energy += slice_area; // aggregate area of the trapeziums
+  recovered_energy_challenge += slice_area
   prev_power_sample = new_power_sample;
 }
 // if power not negative then we stop integrating
 else {
-  regen_mode = false;
+  recovered_energy_challenge -= slice_area
+  if (net_recovered_energy < 0){
+    net_recovered_energy = 0
+  }
+}
+}
+*/
+void findRecoveredEnergy(){
+if(power < 0){
+  power_sample = -power; // take absolute value. Sign needs to be sent separately.
+  if (prev_sample_1 == false){ // this means this power value is the first power value in regenerative braking mode
+  prev_power_sample = power_sample;
+  prev_sample_1 = true;
+  return;
+  }
+  else {
+    new_power_sample = power_sample; 
+  }
+  slice_area = ((prev_power_sample + new_power_sample)/2)*1; // the height, that is, interval between samples is 1 s. area of trapezium.
+  recovered_energy += slice_area; // aggregate area of the trapeziums
+  prev_power_sample = new_power_sample;
+}
+// if power not negative then we stop integrating
+else {
+  if (recovered_energy <= 0){
+    recovered_energy = 0;
+  } else {
+  power_sample = power;
+  if (prev_sample_2 == false){
+  prev_power_sample = power_sample;
+  prev_sample_2 = true;
+  return;
+  }
+  else {
+    new_power_sample = power_sample; 
+  }
+  slice_area = ((prev_power_sample + new_power_sample)/2)*1;
+  recovered_energy -= slice_area;
+  prev_power_sample = new_power_sample;
+  }
 }
 }
 
