@@ -156,9 +156,9 @@ void PrintData() {
 
 /*
 Okay let's start from the beginning. Locomotive turns on. Power is positive and recovered energy is 0 initially and it should stay as 0 (lines 193-194)
-Now when regen starts, power should be negative then line 178 onwards is executed. The recovered energy should go up.
+Now when regen starts, power should be negative then line 182 onwards is executed. The recovered energy should go up.
 Then we stop and start the loco again, it should now move using the recovered energy so the recovered energy should go down. 
-When we turn on the loco again, power is positive so we go to line 192, recovered energy should be some non zero positive value so line 195 onwards executed. We start decrementing that value.
+When we turn on the loco again, power is positive so we go to line 196, recovered energy should be some non zero positive value so line 200 onwards executed. We start decrementing that value.
 
 Now, questions remains, under what condition would recovered energy be negative? Because initially it's 0. If power is positive and it is initially 0 then we keep it as 0, and if non-zero and positive then we decrement it? 
 If the power is negative then it is incremented.
@@ -166,11 +166,15 @@ I don't know why the recovered energy would be negative. If we are decrementing,
 but that doesn't make physical sense like if there is no recovered energy what are we even using?
 
 Although recovered energy was unsigned before, the code was working fine. Was that because recovered energy never went to negative so it didn't matter if it was signed or unsigned?
-With the motors, we get a crazy number because recovered energy was declared as unsigned so acnegative number was not handled properly? But why would it be negative.
+With the motors, we get a crazy number because recovered energy was declared as unsigned so a negative number was not handled properly (wrapped around)? But why would it be negative.
 
-Like Arjuna said, we can actually have if (recovered_energy = 0) instead of (recovered_energy <= 0) then recovered energy can be unsigned and can be sent through CAN bus. 
+Like Arjuna said, we can actually have "if (recovered_energy = 0)" instead of (recovered_energy <= 0) then recovered energy can be unsigned and can be sent through CAN bus. 
 But based on what happened today that is overflow is because I am guessing recovered energy went to negative. So what I can do is have a different unsigned variable carry recovered energy over CAN Bus.
 Also for recovered energy calculation, I am taking absolute value of power so it's not like since power is negative the value of receovered energy will be negative.
+
+
+Wait no no no. There was no recovered energy today so why wasn't it just 0??? if there is no regen then recovered energy should remain as 0? 
+
 */
 
 void findRecoveredEnergy(){
