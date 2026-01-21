@@ -36,13 +36,13 @@ uint16_t power_magnitude = 0; // Instantenous Power
 uint16_t state_of_charge = 0; // 0-100%. +/- 0.1%. If the SOC is 88.3% it is sent as 883 so 16 bits enough.
 uint8_t Ah_sign = 0; // 1 byte to indicate sign of Ah consumption. 
 uint32_t Amp_hours_consumed_magnitude = 0; 
-//uint8_t recovered_energy_sign = 1; // negative
-uint32_t recovered_energy = 0; // how much energy was recovered from regenerative braking
-//uint32_t recovered_energy_challenge = 0;
+uint32_t recovered_energy_can = 0;
+
 // variables not for OD
 int32_t ce = 0;
 int16_t power = 0;
 int32_t current = 0;
+int32_t recovered_energy = 0; // how much energy was recovered from regenerative braking
 uint16_t prev_power_sample = 0;
 uint16_t new_power_sample = 0;
 uint16_t power_sample = 0;
@@ -86,8 +86,7 @@ void setup() {
   registerODEntry(0x2000, 0x05, 0, sizeof(state_of_charge), &state_of_charge); 
   registerODEntry(0x2000, 0x06, 0, sizeof(power_sign), &power_sign); 
   registerODEntry(0x2000, 0x07, 0, sizeof(power_magnitude), &power_magnitude);
-  //registerODEntry(0x2000, 0x08, 0, sizeof(recovered_energy_sign), &recovered_energy_sign);
-  registerODEntry(0x2000, 0x08, 0, sizeof(recovered_energy), &recovered_energy);
+  registerODEntry(0x2000, 0x08, 0, sizeof(recovered_energy_can), &recovered_energy_can);
 
 
   configureTPDO(0, 0x180 + nodeID, 255, 100, 1000);  // TPDO 1, COB-ID, transType, inhibit, event
@@ -155,40 +154,31 @@ void PrintData() {
     }
 }
 
-// this function calculates the recovered energy
-// at the moment, when power is positive, we stop accumulating the recovered energy
-// when power is flipped to positive, recovered energy will be zero, we need the last value of recovered energy to decrement
-/*void findRecoveredEnergy(){
-if(power < 0){
-  power_sample = -power; // take absolute value. Sign needs to be sent separately.
-  if (regen_mode == false){ // this means this power value is the first power value in regenerative braking mode
-  prev_power_sample = power_sample;
-  regen_mode = true;
-  return;
-  }
-  else {
-    new_power_sample = power_sample; 
-  }
-  slice_area = ((prev_power_sample + new_power_sample)/2)*1; // the height, that is, interval between samples is 1 s. area of trapezium.
-  recovered_energy += slice_area; // aggregate area of the trapeziums
-  recovered_energy_challenge += slice_area
-  prev_power_sample = new_power_sample;
-}
-// if power not negative then we stop integrating
-else {
-  recovered_energy_challenge -= slice_area
-  if (net_recovered_energy < 0){
-    net_recovered_energy = 0
-  }
-}
-}
+/*
+Okay let's start from the beginning. Locomotive turns on. Power is positive and recovered energy is 0 initially and it should stay as 0 (lines 193-194)
+Now when regen starts, power should be negative then line 178 onwards is executed. The recovered energy should go up.
+Then we stop and start the loco again, it should now move using the recovered energy so the recovered energy should go down. 
+When we turn on the loco again, power is positive so we go to line 192, recovered energy should be some non zero positive value so line 195 onwards executed. We start decrementing that value.
+
+Now, questions remains, under what condition would recovered energy be negative? Because initially it's 0. If power is positive and it is initially 0 then we keep it as 0, and if non-zero and positive then we decrement it? 
+If the power is negative then it is incremented.
+I don't know why the recovered energy would be negative. If we are decrementing, then there could be a possibility that it goes below 0 
+but that doesn't make physical sense like if there is no recovered energy what are we even using?
+
+Although recovered energy was unsigned before, the code was working fine. Was that because recovered energy never went to negative so it didn't matter if it was signed or unsigned?
+With the motors, we get a crazy number because recovered energy was declared as unsigned so acnegative number was not handled properly? But why would it be negative.
+
+Like Arjuna said, we can actually have if (recovered_energy = 0) instead of (recovered_energy <= 0) then recovered energy can be unsigned and can be sent through CAN bus. 
+But based on what happened today that is overflow is because I am guessing recovered energy went to negative. So what I can do is have a different unsigned variable carry recovered energy over CAN Bus.
+Also for recovered energy calculation, I am taking absolute value of power so it's not like since power is negative the value of receovered energy will be negative.
 */
+
 void findRecoveredEnergy(){
 if(power < 0){
   power_sample = -power; // take absolute value. Sign needs to be sent separately.
   if (prev_sample_1 == false){ // this means this power value is the first power value in regenerative braking mode
   prev_power_sample = power_sample;
-  prev_sample_1 = true;
+  prev_sample_1 = true; // flag set to true here so for the second sample onwards, line 173 onwards should be executed
   return;
   }
   else {
@@ -216,6 +206,12 @@ else {
   recovered_energy -= slice_area;
   prev_power_sample = new_power_sample;
   }
+}
+if (recovered_energy < 0){
+  recovered_energy_can = -recovered_energy;
+}
+else {
+  recovered_energy_can = recovered_energy;
 }
 }
 
