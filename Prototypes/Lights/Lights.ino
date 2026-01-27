@@ -80,6 +80,10 @@ void setup() {
 void loop() {
   //User Code begin loop() ----------------------------------------------------
   unsigned long  currentMillis = millis();
+  
+  // Check the Sensors regardless of the state?
+  checkSensors(saveSensorReadings);
+
   // --- Stopped mode (This is default starting point) ---
   if (nodeOperatingMode == 0x02){ 
     handleCAN(nodeID);
@@ -197,4 +201,34 @@ void off()
   digitalWrite(LIGHT_FWD, LOW);
   digitalWrite(LIGHT_REV, LOW);
   digitalWrite(LIGHT_PREOP, LOW);
+}
+
+
+// Function for Checking the Temperature and Air Quality of the Sensors
+// Assumes we are using the digital Output of the Smoke Detector
+// save: whether to save the OD entries 
+void checkSensors(bool save){
+
+  bool smokeEMCY;
+  bool heatEMCY;
+
+  uint16_t temp;
+
+  smoke = digitalRead(SMOKE_PIN); 
+  
+  temp = analogRead(HEAT_PIN);
+
+  /*
+  - Turn the thermistor reading into a celsius temperature (will need callibration)
+  - Use only integers
+  */
+
+  if (smokeEMCY){
+    sendEMCY(0, nodeID, "smoke")
+  }
+
+  if heatEMCY{
+    sendEMCY(0, nodeID, "hot! hot! hot!")
+  }
+
 }
