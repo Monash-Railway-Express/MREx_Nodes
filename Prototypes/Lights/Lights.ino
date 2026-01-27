@@ -3,9 +3,9 @@
  *
  * File:            Lights.ino
  * Organisation:    MREX
- * Author:          Aung Hpone Thant, Chiara Gillam
+ * Author:          Aung Hpone Thant, Chiara Gillam, Oscar Boulter
  * Date Created:    5/10/2025
- * Last Modified:   18/12/2025
+ * Last Modified:   27/01/2026
  * Version:         1.11.0
  *
  */
@@ -15,7 +15,8 @@
 
 // User code begin: ------------------------------------------------------
 // --- CAN MREx initialisation ---
-const uint8_t nodeID = 2;  // Change this to set your device's node ID
+const uint8_t nodeID = 4;  // Change this to set your device's node ID
+// Lights Node
 
 // --- Pin Definitions ---
 #define TX_GPIO_NUM GPIO_NUM_5 // Set GPIO pin for CAN Transmit
@@ -23,6 +24,8 @@ const uint8_t nodeID = 2;  // Change this to set your device's node ID
 #define LIGHT_PREOP 1
 #define LIGHT_FWD 2
 #define LIGHT_REV 3
+#define SMOKE_PIN 4 // arbitrary, change values when required
+#define HEAT_PIN 5
 enum {Off, PreOp, Neutral, Forward, Reverse} driveState = Off;
 
 
@@ -30,8 +33,14 @@ enum {Off, PreOp, Neutral, Forward, Reverse} driveState = Off;
 uint32_t dirMode32;
 uint8_t dirMode;
 
+// If we want to log internal tempature and air quality in the future
+uint8_t intTemp;
+uint8_t intAir;  
+
 //misc variables
 unsigned long nextPollTime; //used for non blocking delay to request the current motor direction from motor controller
+
+bool saveSensorReadings = false; //used for whether we are saving temperature readings as an OD
 
 // User code end ---------------------------------------------------------
 
@@ -46,7 +55,7 @@ void setup() {
 
   // User code Setup Begin: -------------------------------------------------
   // --- Register OD entries ---
- 
+  // tempature & smoke readings
 
   // --- Register TPDOs ---
   
@@ -58,6 +67,9 @@ void setup() {
   pinMode(LIGHT_PREOP, OUTPUT);
   pinMode(LIGHT_FWD, OUTPUT);
   pinMode(LIGHT_REV, OUTPUT);
+
+  pinMode(SMOKE_SIG, INPUT);
+  pinMode(HEAT_SIG, INPUT)
 
   // User code Setup end ------------------------------------------------------
 
