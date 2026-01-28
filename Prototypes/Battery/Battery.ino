@@ -461,7 +461,6 @@ else {
   recovered_energy_can = recovered_energy;
 }
 
-
 void updateODentries(){
     // iterate through all name-value pairs in the buffer. Find voltage, current, SOC, power in the buffer and assign the values to the variables in the object dictionary of the node.
     // find voltage, current, etc and update the OD variables with the values.
