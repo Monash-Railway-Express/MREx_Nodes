@@ -8,6 +8,10 @@
  * Last Modified:   18/12/2025
  * Version:         1.11.0
  *
+ *This code is for the lighting node (Node 4 on the loco). 
+ *LIGHTS_FWD will be the control for the white lights on the front and red on the back,
+ *LIGHTS_REV will be the control for the red lights on the front and white on the back
+ *LIGHTS_PREOP control the yellow lights on all faces of the loco.
  */
 
 
@@ -20,9 +24,9 @@ const uint8_t nodeID = 4;  // Change this to set your device's node ID
 // --- Pin Definitions ---
 #define TX_GPIO_NUM GPIO_NUM_5 // Set GPIO pin for CAN Transmit
 #define RX_GPIO_NUM GPIO_NUM_4 // Set GPIO pins for CAN Receive
-#define LIGHT_PREOP 1
-#define LIGHT_FWD 2
-#define LIGHT_REV 3
+#define LIGHT_PREOP 17
+#define LIGHT_FWD 15
+#define LIGHT_REV 16
 enum {Off, PreOp, Neutral, Forward, Reverse} driveState = Off;
 
 
@@ -125,64 +129,34 @@ void HandleOpMode()
   switch (driveState)
   {
     case Forward:
-      fwd_running();
+      digitalWrite(LIGHT_FWD, HIGH);
+      digitalWrite(LIGHT_REV, LOW);
+      digitalWrite(LIGHT_PREOP, HIGH);
       break;
     
     case Reverse:
-      rev_running();
+      digitalWrite(LIGHT_FWD, LOW);
+      digitalWrite(LIGHT_REV, HIGH);
+      digitalWrite(LIGHT_PREOP, HIGH);
       break;
 
     case PreOp:
-      idling();
+      digitalWrite(LIGHT_FWD, LOW);
+      digitalWrite(LIGHT_REV, LOW);
+      digitalWrite(LIGHT_PREOP, HIGH);
       break;
 
     case Neutral:
-      neutral();
+    digitalWrite(LIGHT_FWD, HIGH);
+    digitalWrite(LIGHT_REV, HIGH);
+    digitalWrite(LIGHT_PREOP, HIGH);
       break;
 
     case Off:
-      off();
+      digitalWrite(LIGHT_FWD, LOW);
+      digitalWrite(LIGHT_REV, LOW);
+      digitalWrite(LIGHT_PREOP, LOW);
       break;
   }
 }
 
-//Function for setting the lights for forward running
-void fwd_running()
-{
-  digitalWrite(LIGHT_FWD, HIGH);
-  digitalWrite(LIGHT_REV, LOW);
-  digitalWrite(LIGHT_PREOP, HIGH);
-
-}
-
-//Function for setting the lights for reverse running
-void rev_running()
-{
-  digitalWrite(LIGHT_FWD, LOW);
-  digitalWrite(LIGHT_REV, HIGH);
-  digitalWrite(LIGHT_PREOP, HIGH);
-
-}
-
-//Function that runs when the system is in preop state
-void idling()
-{
-  digitalWrite(LIGHT_FWD, LOW);
-  digitalWrite(LIGHT_REV, LOW);
-  digitalWrite(LIGHT_PREOP, HIGH);
-}
-
-//Function for the neutral state
-void neutral()
-{
-  digitalWrite(LIGHT_FWD, HIGH);
-  digitalWrite(LIGHT_REV, HIGH);
-  digitalWrite(LIGHT_PREOP, HIGH);
-}
-
-void off()
-{
-  digitalWrite(LIGHT_FWD, LOW);
-  digitalWrite(LIGHT_REV, LOW);
-  digitalWrite(LIGHT_PREOP, LOW);
-}
