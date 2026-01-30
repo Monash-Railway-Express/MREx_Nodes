@@ -22,8 +22,8 @@
 const uint8_t nodeID = 4;  // Change this to set your device's node ID
 
 // --- Pin Definitions ---
-#define TX_GPIO_NUM GPIO_NUM_5 // Set GPIO pin for CAN Transmit
-#define RX_GPIO_NUM GPIO_NUM_4 // Set GPIO pins for CAN Receive
+#define TX_GPIO_NUM GPIO_NUM_4 // Set GPIO pin for CAN Transmit
+#define RX_GPIO_NUM GPIO_NUM_5 // Set GPIO pins for CAN Receive
 #define LIGHT_PREOP 17
 #define LIGHT_FWD 15
 #define LIGHT_REV 16

@@ -61,6 +61,8 @@ const uint8_t nodeID = 5;  // Node 5 - Audio
 #define TX_GPIO_NUM GPIO_NUM_33 // Set GPIO pin for CAN Transmit
 #define RX_GPIO_NUM GPIO_NUM_32 // Set GPIO pins for CAN Receive
 
+#define STATUS_LED 5
+
 // --- OD definitions ---
 uint8_t horn = 0;
 
@@ -127,6 +129,7 @@ void setup() {
 
   // --- Set pin modes ---
   pinMode(DFBUSY, INPUT);
+  pinMode(STATUS_LED, OUTPUT);
 
   // User code Setup end ------------------------------------------------------
 
@@ -139,11 +142,13 @@ void loop() {
   // --- Stopped mode (This is default starting point) ---
   if (nodeOperatingMode == 0x02){ 
     handleCAN(nodeID);
+    digitalWrite(STATUS_LED, LOW);
   }
 
   // --- Pre operational state (This is where you can do checks and make sure that everything is okay) ---
   if (nodeOperatingMode == 0x80){ 
     handleCAN(nodeID);
+    digitalWrite(STATUS_LED, LOW);
     if (myDFPlayer.available()) {
       printDetail(myDFPlayer.readType(), myDFPlayer.read()); //Print the detail message from DFPlayer to handle different errors and states.
     }
@@ -153,6 +158,7 @@ void loop() {
   // --- Operational state (Normal operating mode) ---
   if (nodeOperatingMode == 0x01){ 
     handleCAN(nodeID);
+    digitalWrite(STATUS_LED, HIGH);
     HornLogic();
     if (myDFPlayer.available()) {
       printDetail(myDFPlayer.readType(), myDFPlayer.read()); //Print the detail message from DFPlayer to handle different errors and states.
@@ -170,6 +176,8 @@ void HornLogic()
 {
   //incredibly cobbled together edge detection. If anyone knows a better way, please feel free.
   HornState = (bool)horn;
+  Serial.print("Horn state:");
+  Serial.println(HornState);
   if(HornState && !prevHornState)
   {
     HornSFXRun = HIGH;
