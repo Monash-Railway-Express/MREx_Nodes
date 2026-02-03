@@ -167,15 +167,14 @@ void HandleOpMode()
 
 // Function for Checking the Temperature and Air Quality of the Sensors
 // Assume we are using the digital Output of the Smoke Detector
-// save: whether to save the OD entries 
-void checkSensors(bool save){
+void checkSensors(){
 
   bool smokeEMCY;
   bool heatEMCY;
 
   uint16_t temp;
 
-  smokeEMCY = digitalRead(SMOKE_PIN); 
+  smokeEMCY = (digitalRead(SMOKE_PIN) == HIGH); 
   
   temp = analogRead(HEAT_PIN);
 
@@ -186,13 +185,13 @@ void checkSensors(bool save){
   
 
   if (smokeEMCY){
-    Serial.println("Smoke Detected!")
-    sendEMCY(0, nodeID, 0x00505)
+    Serial.println("Smoke Error!");
+    sendEMCY(0, nodeID, 0x00505);
   }
 
-  if heatEMCY{
-    Serial.println("Temperature is Too High!")
-    sendEMCY(0, nodeID, 0x0506)
+  if (heatEMCY) {
+    Serial.println("Temperature Error!");
+    sendEMCY(0, nodeID, 0x00506);
   }
 
 }
