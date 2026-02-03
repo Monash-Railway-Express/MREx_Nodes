@@ -3,9 +3,9 @@
  *
  * File:            Lights.ino
  * Organisation:    MREX
- * Author:          Aung Hpone Thant, Chiara Gillam
+ * Author:          Aung Hpone Thant, Chiara Gillam, Oscar Boulter
  * Date Created:    5/10/2025
- * Last Modified:   18/12/2025
+ * Last Modified:   03/02/2025
  * Version:         1.11.0
  *
  */
@@ -23,12 +23,17 @@ const uint8_t nodeID = 4;  // Change this to set your device's node ID
 #define LIGHT_PREOP 1
 #define LIGHT_FWD 2
 #define LIGHT_REV 3
+#define SMOKE_PIN 4 // arbitrary, change values when required
+#define HEAT_PIN 5
 enum {Off, PreOp, Neutral, Forward, Reverse} driveState = Off;
 
 
 // --- OD definitions ---
 uint32_t dirMode32;
 uint8_t dirMode;
+
+uint8_t intTemp; // If we want to log internal tempature and air quality in the future
+uint8_t intAir;  
 
 //misc variables
 unsigned long nextPollTime; //used for non blocking delay to request the current motor direction from motor controller
@@ -76,12 +81,14 @@ void loop() {
 
   // --- Pre operational state (This is where you can do checks and make sure that everything is okay) ---
   if (nodeOperatingMode == 0x80){ 
+    checkSensors(); // check sensors always
     handleCAN(nodeID);
     driveState = PreOp;
   }
 
   // --- Operational state (Normal operating mode) ---
   if (nodeOperatingMode == 0x01){ 
+    checkSensors();
     handleCAN(nodeID);
     //request the state of the motor drive direction every 200ms
     if (currentMillis >= nextPollTime)
@@ -185,4 +192,37 @@ void off()
   digitalWrite(LIGHT_FWD, LOW);
   digitalWrite(LIGHT_REV, LOW);
   digitalWrite(LIGHT_PREOP, LOW);
+}
+
+
+// Function for Checking the Temperature and Air Quality of the Sensors
+// Assume we are using the digital Output of the Smoke Detector
+// save: whether to save the OD entries 
+void checkSensors(bool save){
+
+  bool smokeEMCY;
+  bool heatEMCY;
+
+  uint16_t temp;
+
+  smokeEMCY = digitalRead(SMOKE_PIN); 
+  
+  temp = analogRead(HEAT_PIN);
+
+  /*
+  - Turn the thermistor reading into a celsius temperature (will need callibration)
+  - Use only integers
+  */
+  
+
+  if (smokeEMCY){
+    Serial.println("Smoke Detected!")
+    sendEMCY(0, nodeID, 0x00505)
+  }
+
+  if heatEMCY{
+    Serial.println("Temperature is Too High!")
+    sendEMCY(0, nodeID, 0x0506)
+  }
+
 }
