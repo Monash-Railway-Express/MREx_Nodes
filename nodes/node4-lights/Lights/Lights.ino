@@ -182,7 +182,7 @@ void checkSensors(){
   - Turn the thermistor reading into a celsius temperature (will need callibration)
   - Use only integers
   */
-  
+  heatEMCY = false;
 
   if (smokeEMCY){
     Serial.println("Smoke Error!");
