@@ -31,8 +31,8 @@ const uint8_t nodeID = 3;  // Change this to set your device's node ID
 
 #define DIRECTION_MODE_PIN 4
 #define CHALLENGE_MODE_PIN 19
-#define CONDITION_MODE_PIN 5
-#define OP_MODE_PIN 14
+#define CONDITION_MODE_PIN 14
+#define OP_MODE_PIN 5
 
 
 // --- OD definitions ---
@@ -107,7 +107,7 @@ void loop() {
  
   // //User Code begin loop() ----------------------------------------------------
   //read operation mode state
-  int opMode = check5Switch(analogRead(OP_MODE_PIN));
+  int opMode = check3Switch(analogRead(OP_MODE_PIN));
   // --- Stopped mode (This is default starting point) ---
   if (nodeOperatingMode == 0x02){ 
     handleCAN(nodeID);
@@ -148,7 +148,7 @@ void loop() {
     }
 
 
-    //directionMode = check3Switch(analogRead(DIRECTION_MODE_PIN));
+    directionMode = check3Switch(analogRead(DIRECTION_MODE_PIN));
     //Serial.println(directionMode);
     HandleInputs();
     HandleHorn();
@@ -242,7 +242,7 @@ int check3Switch(int read){
     //Reverse
     return 2;
   }
-  else if(read<250){
+  else if(read>500){
     //Forward
     return 1;
   }
