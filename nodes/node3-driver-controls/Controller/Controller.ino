@@ -24,15 +24,15 @@ const uint8_t nodeID = 3;  // Change this to set your device's node ID
 #define SPEED_PIN 2
 
 
-#define BUTTON_1_PIN 45
+#define BUTTON_1_PIN 45   //Horn
 #define BUTTON_2_PIN 35
 #define SWITCH_1_PIN 36
 #define SWITCH_2_PIN 37
 
-#define DIRECTION_MODE_PIN 4
+#define DIRECTION_MODE_PIN 5
 #define CHALLENGE_MODE_PIN 19
-#define CONDITION_MODE_PIN 5
-#define OP_MODE_PIN 14
+#define CONDITION_MODE_PIN 14
+#define OP_MODE_PIN 4
 
 
 // --- OD definitions ---
@@ -98,57 +98,33 @@ void setup() {
   // --- Register RPDOs ---
  
   
-  // User code Setup end ------------------------------------------------------
+  // User code Setup end ---------------------------------------------------------
 }
 
 
 void loop() {
-  
- 
   // //User Code begin loop() ----------------------------------------------------
+  handleCAN(nodeID);
   //read operation mode state
-  int opMode = check5Switch(analogRead(OP_MODE_PIN));
+  int opMode = check3Switch(analogRead(OP_MODE_PIN));
+  sendToNewOpMode(opMode);
+  
   // --- Stopped mode (This is default starting point) ---
   if (nodeOperatingMode == 0x02){ 
-    handleCAN(nodeID);
     Serial.println("Stopped Mode");
-     //Serial.println(opMode);
-    if(opMode == 2){
-      sendAllNMT(0x80);
-      nodeOperatingMode = 0x80;
-    }
+    
   }
 
   // --- Pre operational state (This is where you can do checks and make sure that everything is okay) ---
   if (nodeOperatingMode == 0x80){ 
-    handleCAN(nodeID);
     Serial.println("Preop Mode");
-    //int opMode = check5Switch(analogRead(OP_MODE_PIN));
-     //Serial.println(opMode);
-    if(opMode == 1){
-      sendAllNMT(0x02);
-      nodeOperatingMode = 0x02;
-
-    }
-      
-    if(opMode == 3){
-      sendAllNMT(0x01);
-      nodeOperatingMode = 0x01;
-    }
   }
 
   // --- Operational state (Normal operating mode) ---
   if (nodeOperatingMode == 0x01){ 
-    handleCAN(nodeID);
-    //Serial.println("Normal Mode");
-    //int opMode = check5Switch(analogRead(OP_MODE_PIN));
-    if(opMode == 2){
-      sendAllNMT(0x80);
-      nodeOperatingMode = 0x80;
-    }
+    Serial.println("Normal Mode");
 
-
-    //directionMode = check3Switch(analogRead(DIRECTION_MODE_PIN));
+    directionMode = check3Switch(analogRead(DIRECTION_MODE_PIN));
     //Serial.println(directionMode);
     HandleInputs();
     HandleHorn();
@@ -159,20 +135,34 @@ void loop() {
   //User code end loop() --------------------------------------------------------
 }
 
+//function to go to stopped mode
+void sendToNewOpMode(int opMode){
+  if(opMode == 1){
+      sendAllNMT(0x02);
+      nodeOperatingMode = 0x02;
+    }
+    if(opMode == 3){
+      sendAllNMT(0x01);
+      nodeOperatingMode = 0x01;
+    }
+  if(opMode == 2){
+      sendAllNMT(0x80);
+      nodeOperatingMode = 0x80;
+    }
+}
+
 //function that is called to send NMT to all nodes.
-void sendAllNMT(uint8_t operatingMode)
-{
-  sendNMT(operatingMode, 0x01); //motor
+void sendAllNMT(uint8_t operatingMode){
+  //sendNMT(operatingMode, 0x01); //motor
   //sendNMT(operatingMode, 0x04); //lights
   //sendNMT(operatingMode, 0x05); //audio sys
 }
 
 //function where all inputs are read
-void HandleInputs()
-{
+void HandleInputs(){
 
   //=====Potentiometer Inputs=====
-  regenBrake = analogRead(BRAKE_PIN);
+  regenBrake = 0; //analogRead(BRAKE_PIN);
   desiredSpeed = analogRead(SPEED_PIN);
 
   //=====Button Inputs=====
@@ -184,12 +174,9 @@ void HandleInputs()
   switch2 = digitalRead(SWITCH_2_PIN);
 }
 
-
-
 //function that does edge detection on horn button and calls SDO write to the horn node
 //!!!NOTE: Horn is currently assigned to Button 1.!!!
-void HandleHorn()
-{
+void HandleHorn(){
   if(button1 != b1prev)
   {
     b1prev = button1;
@@ -202,80 +189,74 @@ void HandleHorn()
 //Used for debugging. Prints all inputs and their values
 void print_status(){
   //Check readings of brake and speed
-  Serial.print("Speed: ");
-  Serial.print(desiredSpeed);
-  Serial.print(" | Brake: ");
-  Serial.print(regenBrake);
+  // Serial.print("Speed: ");
+  // Serial.print(desiredSpeed);
+  // Serial.print(" | Brake: ");
+  // Serial.println(regenBrake);
 
   //Check buttons
-  Serial.print(" || Button 1: ");
-  Serial.print(button1);
-  Serial.print(" | Button 2: ");
-  Serial.print(button2);
+  // Serial.print(" || Button 1: ");
+  // Serial.print(button1);
+  // Serial.print(" | Button 2: ");
+  // Serial.println(button2);
 
   //Check switches
-  Serial.print(" || Switch 1: ");
-  Serial.print(switch1);
-  Serial.print(" | Switch 2: ");
-  Serial.println(switch2);
+  // Serial.print(" || Switch 1: ");
+  // Serial.print(switch1);
+  // Serial.print(" | Switch 2: ");
+  // Serial.println(switch2);
 
-  //Check position switches 
-  //directionMode = analogRead(DIRECTION_MODE_PIN);
-  //conditionMode = analogRead(CONDITION_MODE_PIN);
-  //challengeMode = analogRead(CHALLENGE_MODE_PIN);
+  //Check position switches 3-pos
+  directionMode = analogRead(DIRECTION_MODE_PIN);
+  Serial.print("|| Direction: ");
+  Serial.print(directionMode);
   operationMode = analogRead(OP_MODE_PIN);
+  Serial.print("| Operation: ");
+  Serial.print(operationMode);
 
-  // Serial.print("Direction: ");
-  // Serial.print(directionMode);
-  // Serial.print("\tCondition: ");
-  // Serial.println(conditionMode);
-  //Serial.print("Challenge: ");
-  //Serial.print(challengeMode);
-  //Serial.print("\t\tOperation: ");
-  //Serial.println(operationMode);
+  //Check position switches 5-pos
+  // conditionMode = analogRead(CONDITION_MODE_PIN);
+  // Serial.print("|| Condition: ");
+  // Serial.print(conditionMode);
+  // challengeMode = analogRead(CHALLENGE_MODE_PIN);
+  // Serial.print("| Challenge: ");
+  // Serial.println(challengeMode);
+  
 
 }
 
 int check3Switch(int read){
   //Serial.println(read);
-  if(read<100){
-    //Reverse
-    return 2;
-  }
-  else if(read<250){
-    //Forward
+  if(read<200){
+    //neutral and pre op
     return 1;
   }
+  else if(read>500){
+    //op and forward
+    return 3;
+  }
   else{
-    //Neutral
-    return 0;
+    //stopped and backward 
+    return 2;
   }
 }
  
  int check5Switch(int read) {
   //Serial.println(read);
-  if(read> 600 && read<1023){
-    //stopped
-    Serial.print("1  ");
-    //Serial.println(read);
-    return 1;
+  if(read> 10 && read<80){
+    return 4;
   }
-  else if(read>400 && read<600){
-    //pre op 
-    Serial.print("2  ");
-    //Serial.println(read);
-    return 2;
-  }
-  else if(read>200 && read<400){
-    //op
-    //Serial.print("3  ");
-    //Serial.println(read);
+  else if(read>80 && read<150){
     return 3;
   }
-  else{
-    Serial.print("errro  ");
-    Serial.println(read);
+  else if(read>150 && read<200){
+    return 2;
+  }
+  else if(read ==0){
     return 1;
+  }
+  else {
+    return 5;
   }
  }
 
