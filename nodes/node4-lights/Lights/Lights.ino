@@ -75,6 +75,9 @@ void setup() {
 void loop() {
   //User Code begin loop() ----------------------------------------------------
   unsigned long  currentMillis = millis();
+  
+  checkSensors(); // always check the sensors
+  
   // --- Stopped mode (This is default starting point) ---
   if (nodeOperatingMode == 0x02){ 
     handleCAN(nodeID);
@@ -83,14 +86,12 @@ void loop() {
 
   // --- Pre operational state (This is where you can do checks and make sure that everything is okay) ---
   if (nodeOperatingMode == 0x80){ 
-    checkSensors(); // check sensors always
     handleCAN(nodeID);
     driveState = PreOp;
   }
 
   // --- Operational state (Normal operating mode) ---
   if (nodeOperatingMode == 0x01){ 
-    checkSensors();
     handleCAN(nodeID);
     //request the state of the motor drive direction every 200ms
     if (currentMillis >= nextPollTime)
