@@ -3,9 +3,9 @@
  *
  * File:            Lights.ino
  * Organisation:    MREX
- * Author:          Aung Hpone Thant, Chiara Gillam
+ * Author:          Aung Hpone Thant, Chiara Gillam, Oscar Boulter
  * Date Created:    5/10/2025
- * Last Modified:   18/12/2025
+ * Last Modified:   03/02/2025
  * Version:         1.11.0
  *
  *This code is for the lighting node (Node 4 on the loco). 
@@ -33,6 +33,9 @@ enum {Off, PreOp, Neutral, Forward, Reverse} driveState = Off;
 // --- OD definitions ---
 uint32_t dirMode32;
 uint8_t dirMode;
+
+uint8_t intTemp; // If we want to log internal tempature and air quality in the future
+uint8_t intAir;  
 
 //misc variables
 unsigned long nextPollTime; //used for non blocking delay to request the current motor direction from motor controller
@@ -80,12 +83,14 @@ void loop() {
 
   // --- Pre operational state (This is where you can do checks and make sure that everything is okay) ---
   if (nodeOperatingMode == 0x80){ 
+    checkSensors(); // check sensors always
     handleCAN(nodeID);
     driveState = PreOp;
   }
 
   // --- Operational state (Normal operating mode) ---
   if (nodeOperatingMode == 0x01){ 
+    checkSensors();
     handleCAN(nodeID);
     //request the state of the motor drive direction every 200ms
     if (currentMillis >= nextPollTime)
@@ -160,3 +165,33 @@ void HandleOpMode()
   }
 }
 
+// Function for Checking the Temperature and Air Quality of the Sensors
+// Assume we are using the digital Output of the Smoke Detector
+void checkSensors(){
+
+  bool smokeEMCY;
+  bool heatEMCY;
+
+  uint16_t temp;
+
+  smokeEMCY = (digitalRead(SMOKE_PIN) == HIGH); 
+  
+  temp = analogRead(HEAT_PIN);
+
+  /*
+  - Turn the thermistor reading into a celsius temperature (will need callibration)
+  - Use only integers
+  */
+  heatEMCY = false;
+
+  if (smokeEMCY){
+    Serial.println("Smoke Error!");
+    sendEMCY(0, nodeID, 0x00505);
+  }
+
+  if (heatEMCY) {
+    Serial.println("Temperature Error!");
+    sendEMCY(0, nodeID, 0x00506);
+  }
+
+}
