@@ -162,7 +162,7 @@ void sendAllNMT(uint8_t operatingMode){
 void HandleInputs(){
 
   //=====Potentiometer Inputs=====
-  regenBrake = 0; //analogRead(BRAKE_PIN);
+  regenBrake = analogRead(BRAKE_PIN);
   desiredSpeed = analogRead(SPEED_PIN);
 
   //=====Button Inputs=====
@@ -189,10 +189,10 @@ void HandleHorn(){
 //Used for debugging. Prints all inputs and their values
 void print_status(){
   //Check readings of brake and speed
-  // Serial.print("Speed: ");
-  // Serial.print(desiredSpeed);
-  // Serial.print(" | Brake: ");
-  // Serial.println(regenBrake);
+   //Serial.print("Speed: ");
+   //Serial.print(desiredSpeed);
+   //Serial.print(" | Brake: ");
+   //Serial.println(regenBrake);
 
   //Check buttons
   // Serial.print(" || Button 1: ");
@@ -201,26 +201,26 @@ void print_status(){
   // Serial.println(button2);
 
   //Check switches
-  // Serial.print(" || Switch 1: ");
-  // Serial.print(switch1);
-  // Serial.print(" | Switch 2: ");
-  // Serial.println(switch2);
+  //  Serial.print(" || Switch 1: ");
+  //  Serial.print(switch1);
+  //  Serial.print(" | Switch 2: ");
+  //  Serial.println(switch2);
 
   //Check position switches 3-pos
-  directionMode = analogRead(DIRECTION_MODE_PIN);
+  int directionModeRaw = analogRead(DIRECTION_MODE_PIN);
   Serial.print("|| Direction: ");
-  Serial.print(directionMode);
-  operationMode = analogRead(OP_MODE_PIN);
+  Serial.print(check3Switch(directionModeRaw));
+  int operationModeRaw = analogRead(OP_MODE_PIN);
   Serial.print("| Operation: ");
-  Serial.print(operationMode);
+  Serial.print(check3Switch(operationModeRaw));
 
   //Check position switches 5-pos
-  // conditionMode = analogRead(CONDITION_MODE_PIN);
-  // Serial.print("|| Condition: ");
-  // Serial.print(conditionMode);
-  // challengeMode = analogRead(CHALLENGE_MODE_PIN);
-  // Serial.print("| Challenge: ");
-  // Serial.println(challengeMode);
+   int conModeRaw = analogRead(CONDITION_MODE_PIN);
+   Serial.print("|| Condition: ");
+   Serial.print(check5Switch(conModeRaw));
+   int challModeRaw = analogRead(CHALLENGE_MODE_PIN);
+   Serial.print("| Challenge: ");
+   Serial.println(check5Switch(challModeRaw));
   
 
 }
@@ -242,18 +242,17 @@ int check3Switch(int read){
 }
  
  int check5Switch(int read) {
-  //Serial.println(read);
-  if(read> 10 && read<80){
-    return 4;
+  if(read < 150){
+    return 1;
   }
-  else if(read>80 && read<150){
-    return 3;
-  }
-  else if(read>150 && read<200){
+  else if(read<300){
     return 2;
   }
-  else if(read ==0){
-    return 1;
+  else if(read<400){
+    return 3;
+  }
+  else if(read<600){
+    return 4;
   }
   else {
     return 5;
