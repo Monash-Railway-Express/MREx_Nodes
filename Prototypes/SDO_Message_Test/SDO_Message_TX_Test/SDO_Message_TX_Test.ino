@@ -16,7 +16,7 @@ const uint8_t nodeID = 3;  // Change this to set your device's node ID
 
 // --- OD definitions ---
 
-#define b1 20
+#define b1 23
 
 bool prevHornBtnState;
 
@@ -48,7 +48,7 @@ void setup() {
 
 
   // --- Set pin modes ---
-  pinMode(b1, INPUT);
+  pinMode(b1, INPUT_PULLUP);
 
   // User code Setup end ------------------------------------------------------
   
@@ -74,7 +74,6 @@ void loop() {
     handleCAN(nodeID);
     handleButtons();
   }
-
   //User code end loop() --------------------------------------------------------
 }
 
@@ -84,13 +83,13 @@ void handleButtons()
   curFrameTime = millis();
   if(curFrameTime >= b1Reenable)
   {
-    if(prevHornBtnState != digitalRead(b1))
+    if(prevHornBtnState != !digitalRead(b1))
     {
       Serial.print("Horn State Change: ");
-      Serial.println(digitalRead(b1));
-      hornState = (uint8_t)digitalRead(b1);
+      Serial.println(!digitalRead(b1));
+      hornState = (uint8_t)(!digitalRead(b1));
       executeSDOWrite(nodeID, 5,0x6065,0x00,sizeof(hornState), &hornState);
-      prevHornBtnState = digitalRead(b1);
+      prevHornBtnState = !digitalRead(b1);
     }
     b1Reenable = curFrameTime + 50;
   }

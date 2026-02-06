@@ -58,10 +58,11 @@ USE 16 bit .wav files for horn. Using MP3 adds small silences at start and end o
 const uint8_t nodeID = 5;  // Node 5 - Audio
 
 // --- Pin Definitions ---
-#define TX_GPIO_NUM GPIO_NUM_33 // Set GPIO pin for CAN Transmit
-#define RX_GPIO_NUM GPIO_NUM_32 // Set GPIO pins for CAN Receive
+#define TX_GPIO_NUM GPIO_NUM_35 // Set GPIO pin for CAN Transmit
+#define RX_GPIO_NUM GPIO_NUM_36 // Set GPIO pins for CAN Receive
 
 #define STATUS_LED 5
+#define PREOP_LED 4
 
 // --- OD definitions ---
 uint8_t horn = 0;
@@ -70,7 +71,7 @@ uint8_t horn = 0;
 #define DFBUSY 13 //used to check if DFPlayer is playing tracks or not. Connect to BUSY pin on DFPlayer. If High, its free.
 #if (defined(ARDUINO_AVR_UNO) || defined(ESP8266))   // Using a soft serial port
 #include <SoftwareSerial.h>
-SoftwareSerial softSerial(/*rx =*/12, /*tx =*/14);
+SoftwareSerial softSerial(/*rx =*/17, /*tx =*/16);
 #define FPSerial softSerial
 #else
 #define FPSerial Serial1
@@ -130,6 +131,7 @@ void setup() {
   // --- Set pin modes ---
   pinMode(DFBUSY, INPUT);
   pinMode(STATUS_LED, OUTPUT);
+  pinMode(PREOP_LED, OUTPUT);
 
   // User code Setup end ------------------------------------------------------
 
@@ -143,12 +145,14 @@ void loop() {
   if (nodeOperatingMode == 0x02){ 
     handleCAN(nodeID);
     digitalWrite(STATUS_LED, LOW);
+    digitalWrite(PREOP_LED, LOW);
   }
 
   // --- Pre operational state (This is where you can do checks and make sure that everything is okay) ---
   if (nodeOperatingMode == 0x80){ 
     handleCAN(nodeID);
     digitalWrite(STATUS_LED, LOW);
+    digitalWrite(PREOP_LED, HIGH);
     if (myDFPlayer.available()) {
       printDetail(myDFPlayer.readType(), myDFPlayer.read()); //Print the detail message from DFPlayer to handle different errors and states.
     }
