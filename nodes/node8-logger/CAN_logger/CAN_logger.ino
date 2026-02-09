@@ -26,6 +26,7 @@
 #include <ESPAsyncWebServer.h> // ESP Async WebServer by ESP32Async
 #include <AsyncTCP.h> // Async TCP by ESP32Async
 #include "FS.h"
+#include <ArduinoJson.h> // ArduinoJson by Benoit Blanchon
 
 const char* SSID = "MREx CAN Logger";
 const char* PASSWORD = "YesWeCAN";
@@ -33,8 +34,9 @@ const char* URL = "10.0.0.1";
 IPAddress LOCAL(10, 0, 0, 1);
 IPAddress GATEWAY(10, 0, 0, 1);
 IPAddress SUBNET(255, 255, 255, 0);
-AsyncWebServer server(80);
 const char* FILEPATH = "/files";
+AsyncWebServer server(80);
+AsyncWebSocket ws("/ws");
 
 // RTC
 DFRobot_DS3231M rtc;
@@ -120,6 +122,19 @@ void setup() {
 
   server.serveStatic(FILEPATH, SD, "/");
 
+  ws.onEvent([](AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type,
+                void *arg, uint8_t *data, size_t len) {
+    if (type == WS_EVT_CONNECT) {
+      Serial.printf("Client connected: %u\n", client->id());
+    } else if (type == WS_EVT_DISCONNECT) {
+      Serial.printf("Client disconnected: %u\n", client->id());
+    } else if (type == WS_EVT_DATA) {
+      Serial.printf("Received data from client %u\n", client->id());
+      // Optional: echo or parse incoming data
+    }
+  });
+
+  server.addHandler(&ws);
   server.begin();
   
   Serial.println("Webserver started.");
@@ -164,6 +179,29 @@ void loop() {
   // Periodic flush
   if (millis() - lastFlush > 500 && bufferIndex > 0) {
     flushBuffer();
+  }
+
+  // Simulate a CAN frame every second
+  static unsigned long lastSend = 0;
+  if (millis() - lastSend > 1000) {
+    lastSend = millis();
+
+    // Create JSON message
+    DynamicJsonDocument doc(128);
+    doc["ts"] = millis();
+    doc["id"] = "0x123";
+    JsonArray data = doc.createNestedArray("data");
+    data.add(0x01);
+    data.add(0x02);
+    data.add(0x03);
+    data.add(0x04);
+
+    String json;
+    serializeJson(doc, json);
+
+    // Send to all connected clients
+    ws.textAll(json);
+    Serial.println("Sent: " + json);
   }
 }
 
