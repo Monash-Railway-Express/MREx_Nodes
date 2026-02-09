@@ -21,7 +21,17 @@
 #include <SD.h>
 #include <Wire.h>
 #include "driver/twai.h"
-#include "DFRobot_DS3231M.h"
+#include "DFRobot_DS3231M.h" // https://github.com/DFRobot/DFRobot_DS3231M
+#include <WiFi.h>
+#include <ESPAsyncWebServer.h> // ESP Async WebServer by ESP32Async
+#include <AsyncTCP.h> // Async TCP by ESP32Async
+
+const char* SSID = "MREx CAN Logger";
+const char* PASSWORD = "YesWeCAN";
+IPAddress LOCAL(10, 0, 0, 1);
+IPAddress GATEWAY(10, 0, 0, 1);
+IPAddress SUBNET(255, 255, 255, 0);
+AsyncWebServer server(80);
 
 // RTC
 DFRobot_DS3231M rtc;
@@ -93,6 +103,24 @@ void setup() {
     while (1);
   }
   Serial.println("CAN logging started");
+  
+  WiFi.mode(WIFI_AP);
+  WiFi.softAP(SSID, PASSWORD);
+  WiFi.softAPConfig(LOCAL, GATEWAY, SUBNET);
+  delay(100);
+
+  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
+    request->send(200, "text/plain", "Hello from the MREx CAN logger.");
+  });
+
+  server.begin();
+  
+  Serial.println("Webserver started.");
+  Serial.print("SSID: ");
+  Serial.println(SSID);
+  Serial.print("Password: ");
+  Serial.println(PASSWORD);
+  Serial.print("URL: 10.0.0.1");
 }
 
 void loop() {
