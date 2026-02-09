@@ -130,7 +130,8 @@ void setup() {
       Serial.printf("Client disconnected: %u\n", client->id());
     } else if (type == WS_EVT_DATA) {
       Serial.printf("Received data from client %u\n", client->id());
-      // Optional: echo or parse incoming data
+      data[len] = 0;
+      Serial.println((char *) data);
     }
   });
 
