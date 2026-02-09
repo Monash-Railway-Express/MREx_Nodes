@@ -29,10 +29,12 @@
 
 const char* SSID = "MREx CAN Logger";
 const char* PASSWORD = "YesWeCAN";
+const char* URL = "10.0.0.1";
 IPAddress LOCAL(10, 0, 0, 1);
 IPAddress GATEWAY(10, 0, 0, 1);
 IPAddress SUBNET(255, 255, 255, 0);
 AsyncWebServer server(80);
+const char* FILEPATH = "/files";
 
 // RTC
 DFRobot_DS3231M rtc;
@@ -116,7 +118,7 @@ void setup() {
     request->send(200, "text/plain", response);
   });
 
-  server.serveStatic("/files", SD, "/");
+  server.serveStatic(FILEPATH, SD, "/");
 
   server.begin();
   
@@ -125,7 +127,8 @@ void setup() {
   Serial.println(SSID);
   Serial.print("Password: ");
   Serial.println(PASSWORD);
-  Serial.print("URL: 10.0.0.1");
+  Serial.print("URL: ");
+  Serial.println(URL);
 }
 
 void loop() {
@@ -201,17 +204,14 @@ String listDir(fs::FS &fs, const char *dirname, uint8_t levels) {
   File file = root.openNextFile();
   while (file) {
     if (file.isDirectory()) {
-      listing += "  DIR : ";
-      listing += file.name();
-      listing += "\n";
       if (levels) {
         listDir(fs, file.path(), levels - 1);
       }
     } else {
-      listing += "  FILE: ";
+      listing += URL;
+      listing += FILEPATH;
+      listing += dirname;
       listing += file.name();
-      listing += "  SIZE: ";
-      listing += file.size();
       listing += "\n";
     }
     file = root.openNextFile();
