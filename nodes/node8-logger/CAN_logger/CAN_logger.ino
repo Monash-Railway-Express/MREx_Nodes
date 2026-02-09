@@ -25,6 +25,7 @@
 #include <WiFi.h>
 #include <ESPAsyncWebServer.h> // ESP Async WebServer by ESP32Async
 #include <AsyncTCP.h> // Async TCP by ESP32Async
+#include "FS.h"
 
 const char* SSID = "MREx CAN Logger";
 const char* PASSWORD = "YesWeCAN";
@@ -110,8 +111,11 @@ void setup() {
   delay(100);
 
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
+    String 
     request->send(200, "text/plain", "Hello from the MREx CAN logger.");
   });
+
+  server.serveStatic("/files", SD, "/");
 
   server.begin();
   
@@ -121,6 +125,7 @@ void setup() {
   Serial.print("Password: ");
   Serial.println(PASSWORD);
   Serial.print("URL: 10.0.0.1");
+  listDir(SD, "/",1000);
 }
 
 void loop() {
@@ -178,4 +183,35 @@ void flushBuffer() {
   logFile.flush();
   bufferIndex = 0;
   lastFlush = millis();
+}
+
+void listDir(fs::FS &fs, const char *dirname, uint8_t levels) {
+  Serial.printf("Listing directory: %s\n", dirname);
+
+  File root = fs.open(dirname);
+  if (!root) {
+    Serial.println("Failed to open directory");
+    return;
+  }
+  if (!root.isDirectory()) {
+    Serial.println("Not a directory");
+    return;
+  }
+
+  File file = root.openNextFile();
+  while (file) {
+    if (file.isDirectory()) {
+      Serial.print("  DIR : ");
+      Serial.println(file.name());
+      if (levels) {
+        listDir(fs, file.path(), levels - 1);
+      }
+    } else {
+      Serial.print("  FILE: ");
+      Serial.print(file.name());
+      Serial.print("  SIZE: ");
+      Serial.println(file.size());
+    }
+    file = root.openNextFile();
+  }
 }
