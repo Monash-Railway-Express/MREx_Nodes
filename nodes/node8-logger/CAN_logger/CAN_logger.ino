@@ -111,8 +111,9 @@ void setup() {
   delay(100);
 
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
-    String 
-    request->send(200, "text/plain", "Hello from the MREx CAN logger.");
+    String response = "Hello from the MREx CAN logger.\n";
+    response += listDir(SD, "/",1000);
+    request->send(200, "text/plain", response);
   });
 
   server.serveStatic("/files", SD, "/");
@@ -125,7 +126,6 @@ void setup() {
   Serial.print("Password: ");
   Serial.println(PASSWORD);
   Serial.print("URL: 10.0.0.1");
-  listDir(SD, "/",1000);
 }
 
 void loop() {
@@ -185,33 +185,37 @@ void flushBuffer() {
   lastFlush = millis();
 }
 
-void listDir(fs::FS &fs, const char *dirname, uint8_t levels) {
-  Serial.printf("Listing directory: %s\n", dirname);
+String listDir(fs::FS &fs, const char *dirname, uint8_t levels) {
+  String listing = "Listing directory: ";
+  listing += dirname;
+  listing += "\n";
 
   File root = fs.open(dirname);
   if (!root) {
-    Serial.println("Failed to open directory");
-    return;
+    return "Failed to open directory";
   }
   if (!root.isDirectory()) {
-    Serial.println("Not a directory");
-    return;
+    return "Not a directory";
   }
 
   File file = root.openNextFile();
   while (file) {
     if (file.isDirectory()) {
-      Serial.print("  DIR : ");
-      Serial.println(file.name());
+      listing += "  DIR : ";
+      listing += file.name();
+      listing += "\n";
       if (levels) {
         listDir(fs, file.path(), levels - 1);
       }
     } else {
-      Serial.print("  FILE: ");
-      Serial.print(file.name());
-      Serial.print("  SIZE: ");
-      Serial.println(file.size());
+      listing += "  FILE: ";
+      listing += file.name();
+      listing += "  SIZE: ";
+      listing += file.size();
+      listing += "\n";
     }
     file = root.openNextFile();
   }
+
+  return listing;
 }
