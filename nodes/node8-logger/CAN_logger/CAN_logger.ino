@@ -116,6 +116,7 @@ void setup() {
 
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
     String response = "Hello from the MREx CAN logger.\n";
+    response += "Live feed - requires a WebSocket client: ws://10.0.0.1/ws\n";
     response += listDir(SD, "/",1000);
     request->send(200, "text/plain", response);
   });
@@ -143,8 +144,11 @@ void setup() {
   Serial.println(SSID);
   Serial.print("Password: ");
   Serial.println(PASSWORD);
-  Serial.print("URL: ");
+  Serial.print("HTTP: https://");
   Serial.println(URL);
+  Serial.print("WebSocket: ws://");
+  Serial.print(URL);
+  Serial.println("/ws");
 }
 
 void loop() {
