@@ -2,9 +2,9 @@
 
 
 #include <WiFi.h>
-#include <ESPAsyncWebServer.h>
-#include <AsyncTCP.h>
-#include <ArduinoJson.h>
+#include <ESPAsyncWebServer.h> // ESP Async WebServer by ESP32Async
+#include <AsyncTCP.h> // Async TCP by ESP32Async
+#include <ArduinoJson.h> // ArduinoJson by Benoit Blanchon
 
 AsyncWebServer server(80);
 AsyncWebSocket ws("/ws");

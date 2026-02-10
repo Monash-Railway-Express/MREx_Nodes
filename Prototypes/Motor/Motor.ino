@@ -11,7 +11,7 @@
  */
 
 
-#include "CM.h" // inlcudes all CAN MREX files
+#include <CAN_MREx.h> // inlcudes all CAN MREX files
 #include <Arduino.h>
 
 // User code begin: ------------------------------------------------------
@@ -73,8 +73,6 @@ void setup() {
     {0x3012, 0x00, 16}    // Example: index 0x2001, subindex 0, 8 bits
   };
   mapRPDO(0, rpdoEntries, 2);
-
-  nodeOperatingMode = 0x01;
 
   // --- Set pin modes ---
   ledcAttach(MOTOR_PIN, freq, resolution);
