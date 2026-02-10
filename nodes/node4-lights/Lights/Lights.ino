@@ -27,6 +27,8 @@ const uint8_t nodeID = 4;  // Change this to set your device's node ID
 #define LIGHT_PREOP 17
 #define LIGHT_FWD 15
 #define LIGHT_REV 16
+#define SMOKE_PIN 4 // arbitrary, change values when required
+#define HEAT_PIN 5
 enum {Off, PreOp, Neutral, Forward, Reverse} driveState = Off;
 
 
@@ -34,7 +36,8 @@ enum {Off, PreOp, Neutral, Forward, Reverse} driveState = Off;
 uint32_t dirMode32;
 uint8_t dirMode;
 
-uint8_t intTemp; // If we want to log internal tempature and air quality in the future
+// If we want to log internal tempature and air quality in the future
+uint8_t intTemp; 
 uint8_t intAir;  
 
 //misc variables
@@ -65,6 +68,9 @@ void setup() {
   pinMode(LIGHT_PREOP, OUTPUT);
   pinMode(LIGHT_FWD, OUTPUT);
   pinMode(LIGHT_REV, OUTPUT);
+
+  pinMode(SMOKE_SIG, INPUT);
+  pinMode(HEAT_SIG, INPUT);
 
   // User code Setup end ------------------------------------------------------
 
