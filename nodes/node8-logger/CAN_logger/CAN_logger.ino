@@ -212,17 +212,24 @@ void loop() {
 
 void flushBuffer() {
   for (int i = 0; i < bufferIndex; i++) {
+    char id[20];
+    sprintf(id, "%lX", buffer[i].id);
+
     String row;
     row += buffer[i].timestamp;
     row += ",0x";
-    row += buffer[i].id, HEX;
+    row += id;
     row += ",";
     row += buffer[i].dlc;
     for (int j = 0; j < 8; j++) {
       row += ",";
       if (j < buffer[i].dlc) {
         row += "0x";
-        row += buffer[i].data[j], HEX;
+        char str[5];
+        sprintf(str, "%02lX", buffer[i].data[j]);
+        row += str;
+      } else {
+        row += "0x00";
       }
     }
     logFile.println(row);
