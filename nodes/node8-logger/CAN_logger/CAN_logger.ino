@@ -182,45 +182,47 @@ void loop() {
     flushBuffer();
   }
 
-  // Simulate a CAN frame every second
-  static unsigned long lastSend = 0;
-  if (millis() - lastSend > 1000) {
-    lastSend = millis();
+//   // Simulate a CAN frame every second
+//   static unsigned long lastSend = 0;
+//   if (millis() - lastSend > 1000) {
+//     lastSend = millis();
 
-    // Create JSON message
-    DynamicJsonDocument doc(128);
-    doc["ts"] = millis();
-    doc["id"] = "0x123";
-    JsonArray data = doc.createNestedArray("data");
-    data.add(0x01);
-    data.add(0x02);
-    data.add(0x03);
-    data.add(0x04);
+//     // Create JSON message
+//     DynamicJsonDocument doc(128);
+//     doc["ts"] = millis();
+//     doc["id"] = "0x123";
+//     JsonArray data = doc.createNestedArray("data");
+//     data.add(0x01);
+//     data.add(0x02);
+//     data.add(0x03);
+//     data.add(0x04);
 
-    String json;
-    serializeJson(doc, json);
+//     String json;
+//     serializeJson(doc, json);
 
-    // Send to all connected clients
-    ws.textAll(json);
-    Serial.println("Sent: " + json);
-  }
+//     // Send to all connected clients
+//     ws.textAll(json);
+//     Serial.println("Sent: " + json);
+//   }
 }
 
 void flushBuffer() {
   for (int i = 0; i < bufferIndex; i++) {
-    logFile.print(buffer[i].timestamp);
-    logFile.print(",0x");
-    logFile.print(buffer[i].id, HEX);
-    logFile.print(",");
-    logFile.print(buffer[i].dlc);
+    String row;
+    row += buffer[i].timestamp;
+    row += ",0x";
+    row += buffer[i].id, HEX;
+    row += ",";
+    row += buffer[i].dlc;
     for (int j = 0; j < 8; j++) {
-      logFile.print(",");
+      row += ",";
       if (j < buffer[i].dlc) {
-        logFile.print("0x");
-        logFile.print(buffer[i].data[j], HEX);
+        row += "0x";
+        row += buffer[i].data[j], HEX;
       }
     }
-    logFile.println();
+    logFile.println(row);
+    ws.textAll(row);
   }
   logFile.flush();
   bufferIndex = 0;
