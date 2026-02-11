@@ -25,7 +25,7 @@ uint32_t current_can = 0;
 uint16_t voltage_can = 0;
 uint32_t power_can = 0;
 uint16_t soc_can = 0;
-uint32_t recovered_energy_can = 0;
+int32_t recovered_energy_can = 0;
 
 const unsigned long interval = 1000;
 unsigned long  previousMillis = 0;

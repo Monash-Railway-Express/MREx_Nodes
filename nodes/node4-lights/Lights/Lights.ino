@@ -3,11 +3,15 @@
  *
  * File:            Lights.ino
  * Organisation:    MREX
- * Author:          Aung Hpone Thant, Chiara Gillam
+ * Author:          Aung Hpone Thant, Chiara Gillam, Oscar Boulter
  * Date Created:    5/10/2025
- * Last Modified:   18/12/2025
+ * Last Modified:   03/02/2025
  * Version:         1.11.0
  *
+ *This code is for the lighting node (Node 4 on the loco). 
+ *LIGHTS_FWD will be the control for the white lights on the front and red on the back,
+ *LIGHTS_REV will be the control for the red lights on the front and white on the back
+ *LIGHTS_PREOP control the yellow lights on all faces of the loco.
  */
 
 
@@ -18,17 +22,23 @@
 const uint8_t nodeID = 4;  // Change this to set your device's node ID
 
 // --- Pin Definitions ---
-#define TX_GPIO_NUM GPIO_NUM_5 // Set GPIO pin for CAN Transmit
-#define RX_GPIO_NUM GPIO_NUM_4 // Set GPIO pins for CAN Receive
-#define LIGHT_PREOP 1
-#define LIGHT_FWD 2
-#define LIGHT_REV 3
+#define TX_GPIO_NUM GPIO_NUM_4 // Set GPIO pin for CAN Transmit
+#define RX_GPIO_NUM GPIO_NUM_5 // Set GPIO pins for CAN Receive
+#define LIGHT_PREOP 17
+#define LIGHT_FWD 15
+#define LIGHT_REV 16
+#define SMOKE_PIN 4 // arbitrary, change values when required
+#define HEAT_PIN 5
 enum {Off, PreOp, Neutral, Forward, Reverse} driveState = Off;
 
 
 // --- OD definitions ---
 uint32_t dirMode32;
 uint8_t dirMode;
+
+// If we want to log internal tempature and air quality in the future
+uint8_t intTemp; 
+uint8_t intAir;  
 
 //misc variables
 unsigned long nextPollTime; //used for non blocking delay to request the current motor direction from motor controller
@@ -59,6 +69,9 @@ void setup() {
   pinMode(LIGHT_FWD, OUTPUT);
   pinMode(LIGHT_REV, OUTPUT);
 
+  pinMode(SMOKE_SIG, INPUT);
+  pinMode(HEAT_SIG, INPUT);
+
   // User code Setup end ------------------------------------------------------
 
 
@@ -68,6 +81,9 @@ void setup() {
 void loop() {
   //User Code begin loop() ----------------------------------------------------
   unsigned long  currentMillis = millis();
+  
+  checkSensors(); // always check the sensors
+  
   // --- Stopped mode (This is default starting point) ---
   if (nodeOperatingMode == 0x02){ 
     handleCAN(nodeID);
@@ -125,64 +141,64 @@ void HandleOpMode()
   switch (driveState)
   {
     case Forward:
-      fwd_running();
+      digitalWrite(LIGHT_FWD, HIGH);
+      digitalWrite(LIGHT_REV, LOW);
+      digitalWrite(LIGHT_PREOP, HIGH);
       break;
     
     case Reverse:
-      rev_running();
+      digitalWrite(LIGHT_FWD, LOW);
+      digitalWrite(LIGHT_REV, HIGH);
+      digitalWrite(LIGHT_PREOP, HIGH);
       break;
 
     case PreOp:
-      idling();
+      digitalWrite(LIGHT_FWD, LOW);
+      digitalWrite(LIGHT_REV, LOW);
+      digitalWrite(LIGHT_PREOP, HIGH);
       break;
 
     case Neutral:
-      neutral();
+    digitalWrite(LIGHT_FWD, HIGH);
+    digitalWrite(LIGHT_REV, HIGH);
+    digitalWrite(LIGHT_PREOP, HIGH);
       break;
 
     case Off:
-      off();
+      digitalWrite(LIGHT_FWD, LOW);
+      digitalWrite(LIGHT_REV, LOW);
+      digitalWrite(LIGHT_PREOP, LOW);
       break;
   }
 }
 
-//Function for setting the lights for forward running
-void fwd_running()
-{
-  digitalWrite(LIGHT_FWD, HIGH);
-  digitalWrite(LIGHT_REV, LOW);
-  digitalWrite(LIGHT_PREOP, HIGH);
+// Function for Checking the Temperature and Air Quality of the Sensors
+// Assume we are using the digital Output of the Smoke Detector
+void checkSensors(){
 
-}
+  bool smokeEMCY;
+  bool heatEMCY;
 
-//Function for setting the lights for reverse running
-void rev_running()
-{
-  digitalWrite(LIGHT_FWD, LOW);
-  digitalWrite(LIGHT_REV, HIGH);
-  digitalWrite(LIGHT_PREOP, HIGH);
+  uint16_t temp;
 
-}
+  smokeEMCY = (digitalRead(SMOKE_PIN) == HIGH); 
+  
+  temp = analogRead(HEAT_PIN);
 
-//Function that runs when the system is in preop state
-void idling()
-{
-  digitalWrite(LIGHT_FWD, LOW);
-  digitalWrite(LIGHT_REV, LOW);
-  digitalWrite(LIGHT_PREOP, HIGH);
-}
+  /*
+  - Turn the thermistor reading into a celsius temperature (will need callibration)
+  - Use only integers
+  */
+  heatEMCY = false;
 
-//Function for the neutral state
-void neutral()
-{
-  digitalWrite(LIGHT_FWD, HIGH);
-  digitalWrite(LIGHT_REV, HIGH);
-  digitalWrite(LIGHT_PREOP, HIGH);
-}
+  if (smokeEMCY){
+    Serial.println("Smoke Error!");
+    sendEMCY(0, nodeID, 0x00505);
+  }
 
-void off()
-{
-  digitalWrite(LIGHT_FWD, LOW);
-  digitalWrite(LIGHT_REV, LOW);
-  digitalWrite(LIGHT_PREOP, LOW);
+  if (heatEMCY) {
+    Serial.println("Temperature Error!");
+    sendEMCY(0, nodeID, 0x00506);
+  }
+
 }
