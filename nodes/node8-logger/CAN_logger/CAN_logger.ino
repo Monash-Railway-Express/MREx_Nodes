@@ -27,6 +27,7 @@
 #include <AsyncTCP.h> // Async TCP by ESP32Async
 #include "FS.h"
 #include <ArduinoJson.h> // ArduinoJson by Benoit Blanchon
+#include "wshtml.h"
 
 const char* SSID = "MREx CAN Logger";
 const char* PASSWORD = "YesWeCAN";
@@ -119,6 +120,10 @@ void setup() {
     response += "Live feed - requires a WebSocket client: ws://10.0.0.1/ws\n";
     response += listDir(SD, "/",1000);
     request->send(200, "text/plain", response);
+  });
+
+  server.on("/feed", HTTP_GET, [](AsyncWebServerRequest *request) {
+    request->send(200, "text/html", wshtml);
   });
 
   server.serveStatic(FILEPATH, SD, "/");
