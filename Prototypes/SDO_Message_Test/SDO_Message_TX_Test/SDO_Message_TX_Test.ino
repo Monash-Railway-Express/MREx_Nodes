@@ -90,7 +90,8 @@ void handleButtons()
       hornState = (uint8_t)(!digitalRead(b1));
       executeSDOWrite(nodeID, 5,0x6065,0x00,sizeof(hornState), &hornState);
       prevHornBtnState = !digitalRead(b1);
+      b1Reenable = curFrameTime + 300;
     }
-    b1Reenable = curFrameTime + 50;
+    
   }
 }
