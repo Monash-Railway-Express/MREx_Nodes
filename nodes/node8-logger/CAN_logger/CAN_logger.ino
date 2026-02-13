@@ -116,10 +116,11 @@ void setup() {
   delay(100);
 
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
-    String response = "Hello from the MREx CAN logger.\n";
-    response += "Live feed - requires a WebSocket client: ws://10.0.0.1/ws\n";
-    response += listDir(SD, "/",1000);
-    request->send(200, "text/plain", response);
+    String response = "<!DOCTYPE html><html lang=\"en\"><head><title>MREx CAN Logger</title><head><body>";
+    response += "<h1>Hello from the MREx CAN logger.</h1><p>Live feed: <a href=\"http://10.0.0.1/feed\">http://10.0.0.1/feed</a> (WebSocket: ws://10.0.0.1/ws)</p><h2>Directory listing</h2><ul>";
+    response += listDir(SD, "/", 1000);
+    response += "</ul></body></html>";
+    request->send(200, "text/html", response);
   });
 
   server.on("/feed", HTTP_GET, [](AsyncWebServerRequest *request) {
@@ -245,31 +246,37 @@ void flushBuffer() {
   lastFlush = millis();
 }
 
-String listDir(fs::FS &fs, const char *dirname, uint8_t levels) {
-  String listing = "Listing directory: ";
-  listing += dirname;
-  listing += "\n";
+String listDir(fs::FS &fs, String dirname, uint8_t levels) {
+  String listing = "";
 
   File root = fs.open(dirname);
   if (!root) {
-    return "Failed to open directory";
+    return "";
   }
   if (!root.isDirectory()) {
-    return "Not a directory";
+    return "";
   }
 
   File file = root.openNextFile();
   while (file) {
     if (file.isDirectory()) {
       if (levels) {
-        listDir(fs, file.path(), levels - 1);
+        String newDirname = file.path();
+        newDirname += "/";
+        listing += listDir(fs, newDirname, levels - 1);
       }
     } else {
-      listing += URL;
-      listing += FILEPATH;
-      listing += dirname;
-      listing += file.name();
-      listing += "\n";
+      String path = "http://";
+      path += URL;
+      path += FILEPATH;
+      path += dirname;
+      path += file.name();
+
+      listing += "<li><a href=\"";
+      listing += path;
+      listing += "\">";
+      listing += path;
+      listing += "</a></li>";
     }
     file = root.openNextFile();
   }

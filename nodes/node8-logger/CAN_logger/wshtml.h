@@ -2,7 +2,7 @@ const String wshtml = R"wshtml(
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>Web Socket Client Example</title>
+    <title>Live Feed - MREx CAN Logger</title>
     <script type="text/javascript">
         window.onload = function () {
             var conn;
