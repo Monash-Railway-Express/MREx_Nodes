@@ -5,7 +5,7 @@
  * Organisation:    MREX
  * Author:          Aung Hpone Thant, Chiara Gillam, Oscar Boulter
  * Date Created:    5/10/2025
- * Last Modified:   03/02/2025
+ * Last Modified:   26/02/2025
  * Version:         1.11.0
  *
  *This code is for the lighting node (Node 4 on the loco). 
@@ -28,7 +28,8 @@ const uint8_t nodeID = 4;  // Change this to set your device's node ID
 #define LIGHT_FWD 15
 #define LIGHT_REV 16
 #define SMOKE_PIN 4 // arbitrary, change values when required
-#define HEAT_PIN 5
+#define TEMPERATURE_F_PIN 5
+#define TEMPERATURE_R_PIN 6
 enum {Off, PreOp, Neutral, Forward, Reverse} driveState = Off;
 
 
@@ -179,26 +180,58 @@ void checkSensors(){
   bool smokeEMCY;
   bool heatEMCY;
 
-  uint16_t temp;
+  uint16_t tempF;
+  uint16_t tempR;
 
   smokeEMCY = (digitalRead(SMOKE_PIN) == HIGH); 
   
-  temp = analogRead(HEAT_PIN);
+  tempF = analogRead(TEMPERATURE_F_PIN);
+  tempR = analogRead(TEMPERATURE_R_PIN);
 
   /*
   - Turn the thermistor reading into a celsius temperature (will need callibration)
   - Use only integers
+  - Assuming MCP970X Thermistor
+    Vout = Tc * Ta + V0c
+
+    V0c: 400mV / 500mV
+
+    Tc: 10.0 / 19.5      Depending on model
+
+    Ta: The Temperature (C)
   */
-  heatEMCY = false;
+  
+  int Voltage0 = 156 // 500mv Converted to 0-1029 Scale
+  int Temperature_Coef = 31 // 10mV Converted to 0-1029 Scale
+
+  tempF = ( tempF - Voltage0 ) / Temperature_Coef
+
+  tempR = ( tempR - Voltage0 ) / Temperature_Coef
+
+
+  //Debugging
+  Serial.println("Temperature:")
+  Serial.print("  R: ")
+  Serial.print(tempR)
+  Serial.print("  F: ")
+  Serial.print(tempF)
+
+  heatF_EMCY = tempF > 70;
+  heatR_EMCY = tempR > 70;
 
   if (smokeEMCY){
     Serial.println("Smoke Error!");
     sendEMCY(0, nodeID, 0x00505);
   }
 
-  if (heatEMCY) {
-    Serial.println("Temperature Error!");
+  if (heatF_EMCY) {
+    Serial.println("Temperature F Error!");
     sendEMCY(0, nodeID, 0x00506);
+  }
+
+    if (heatR_EMCY) {
+    Serial.println("Temperature R Error!");
+    sendEMCY(0, nodeID, 0x00507);
   }
 
 }
