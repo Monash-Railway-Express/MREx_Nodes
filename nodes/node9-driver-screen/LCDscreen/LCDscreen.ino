@@ -23,8 +23,8 @@
 // -----------------------------------------------------------------------------
 const uint8_t nodeID = 9;   // Screen node
 
-#define TX_GPIO_NUM GPIO_NUM_5
-#define RX_GPIO_NUM GPIO_NUM_4
+#define TX_GPIO_NUM GPIO_NUM_1
+#define RX_GPIO_NUM GPIO_NUM_2
 
 // -----------------------------------------------------------------------------
 // TFT / LVGL setup (screen visual library)
@@ -569,4 +569,4 @@ void loop() {
 
   lv_timer_handler();
   delay(5);
-}
+} 
