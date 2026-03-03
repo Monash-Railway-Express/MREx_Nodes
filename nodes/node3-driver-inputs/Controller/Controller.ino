@@ -156,6 +156,8 @@ void sendAllNMT(uint8_t operatingMode){
   //sendNMT(operatingMode, 0x01); //motor
   //sendNMT(operatingMode, 0x04); //lights
   //sendNMT(operatingMode, 0x05); //audio sys
+    sendNMT(operatingMode, 0x09); //LCD screen
+
 }
 
 //function where all inputs are read
