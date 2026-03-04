@@ -15,7 +15,7 @@
  */
 
 
-#include <CAN_MREx.h> // inlcudes all CAN MREX files
+//#include <CAN_MREx.h> // inlcudes all CAN MREX files
 
 // User code begin: ------------------------------------------------------
 // --- CAN MREx initialisation ---
@@ -38,8 +38,8 @@ uint32_t dirMode32;
 uint8_t dirMode;
 
 // If we want to log internal tempature and air quality in the future
-uint8_t intTemp; 
-uint8_t intAir;  
+uint16_t tempF;
+uint16_t tempR; 
 
 //misc variables
 unsigned long nextPollTime; //used for non blocking delay to request the current motor direction from motor controller
@@ -57,10 +57,17 @@ void setup() {
 
   // User code Setup Begin: -------------------------------------------------
   // --- Register OD entries ---
- 
+  registerODEntry(0x1004, 0x00, 2, sizeof(tempF), &tempF);
+  registerODEntry(0x1004, 0x01, 2, sizeof(tempR), &tempR);
 
   // --- Register TPDOs ---
-  
+  configureTPDO(0, 0x184 + nodeID, 255, 100, 100);
+
+  PdoMapEntry tpdoEntries[] = {
+      {0x1004, 0x00, 16},  // Example: index 0x2000, subindex 1, 16 bits
+      {0x1004, 0x01, 16}    // Example: index 0x2001, subindex 0, 8 bits
+    };
+  mapTPDO(0, tpdoEntries, 2);
 
   // --- Register RPDOs ---
 
@@ -70,8 +77,9 @@ void setup() {
   pinMode(LIGHT_FWD, OUTPUT);
   pinMode(LIGHT_REV, OUTPUT);
 
-  pinMode(SMOKE_SIG, INPUT);
-  pinMode(HEAT_SIG, INPUT);
+  pinMode(SMOKE_PIN, INPUT);
+  pinMode(TEMPERATURE_F_PIN, INPUT);
+  pinMode(TEMPERATURE_R_PIN, INPUT);
 
   // User code Setup end ------------------------------------------------------
 
@@ -178,7 +186,8 @@ void HandleOpMode()
 void checkSensors(){
 
   bool smokeEMCY;
-  bool heatEMCY;
+  bool heatF_EMCY;
+  bool heatR_EMCY;
 
   uint16_t tempF;
   uint16_t tempR;
@@ -201,20 +210,20 @@ void checkSensors(){
     Ta: The Temperature (C)
   */
   
-  int Voltage0 = 156 // 500mv Converted to 0-1029 Scale
-  int Temperature_Coef = 31 // 10mV Converted to 0-1029 Scale
+  int Voltage0 = 156; // 500mv Converted to 0-1029 Scale
+  int Temperature_Coef = 31; // 10mV Converted to 0-1029 Scale
 
-  tempF = ( tempF - Voltage0 ) / Temperature_Coef
+  tempF = ( tempF - Voltage0 ) / Temperature_Coef;
 
-  tempR = ( tempR - Voltage0 ) / Temperature_Coef
+  tempR = ( tempR - Voltage0 ) / Temperature_Coef;
 
 
   //Debugging
-  Serial.println("Temperature:")
-  Serial.print("  R: ")
-  Serial.print(tempR)
-  Serial.print("  F: ")
-  Serial.print(tempF)
+  Serial.println("Temperature:");
+  Serial.print("  R: ");
+  Serial.print(tempR);
+  Serial.print("  F: ");
+  Serial.print(tempF);
 
   heatF_EMCY = tempF > 70;
   heatR_EMCY = tempR > 70;
