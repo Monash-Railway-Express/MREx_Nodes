@@ -59,6 +59,9 @@ CANFrame buffer[BUFFER_SIZE];
 int bufferIndex = 0;
 unsigned long lastFlush = 0;
 
+int8_t proportion1 = 0;
+JsonDocument muntDoc;
+
 void setup() {
   Serial.begin(115200);
   Wire.begin();
@@ -123,11 +126,42 @@ void setup() {
     request->send(200, "text/html", response);
   });
 
+  server.on(AsyncURIMatcher::exact(FILEPATH), HTTP_GET, [](AsyncWebServerRequest *request) {
+    request->send(200, "text/plain", listDir(SD, "/", 1000));
+  });
+
   server.on("/feed", HTTP_GET, [](AsyncWebServerRequest *request) {
     request->send(200, "text/html", wshtml);
   });
 
   server.serveStatic(FILEPATH, SD, "/");
+
+  server.on("/munt", HTTP_GET, [](AsyncWebServerRequest *request) {
+    String response;
+    serializeJson(muntDoc, response);
+    request->send(200, "application/json", response);
+  });
+
+  server.on("/munt", HTTP_PATCH, [](AsyncWebServerRequest *request) {
+    JsonDocument responseDoc;
+    JsonArray responseArray = responseDoc.to<JsonArray>();
+
+    if (request->hasParam("body", true)) {
+      JsonDocument requestDoc;
+      deserializeJson(requestDoc, request->getParam("body", true)->value());
+      for (JsonPair pair : requestDoc.as<JsonObject>()) {
+        String key = pair.key().c_str();
+        JsonVariant muntValue = muntDoc[key];
+        if (!muntValue.isNull()) {
+          responseArray.add(key);
+        }
+      }
+    }
+
+    String response;
+    serializeJson(responseDoc, response);
+    request->send(202, "application/json", response);
+  });
 
   ws.onEvent([](AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type,
                 void *arg, uint8_t *data, size_t len) {
@@ -155,9 +189,14 @@ void setup() {
   Serial.print("WebSocket: ws://");
   Serial.print(URL);
   Serial.println("/ws");
+  Serial.print("MUNT: https://");
+  Serial.print(URL);
+  Serial.println("/munt");
 }
 
 void loop() {
+  proportion1--;
+  muntDoc["proportion1"] = proportion1;
   twai_message_t message;
   if (twai_receive(&message, pdMS_TO_TICKS(10)) == ESP_OK) {
     rtc.getNowTime();
@@ -234,8 +273,6 @@ void flushBuffer() {
         char str[5];
         sprintf(str, "%02lX", buffer[i].data[j]);
         row += str;
-      } else {
-        row += "0x00";
       }
     }
     logFile.println(row);
