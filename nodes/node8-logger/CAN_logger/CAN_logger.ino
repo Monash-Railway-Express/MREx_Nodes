@@ -28,6 +28,13 @@
 #include "FS.h"
 #include <ArduinoJson.h> // ArduinoJson by Benoit Blanchon
 #include "wshtml.h"
+#include <CAN_MREx.h>
+
+const uint8_t nodeID = 8;  // Change this to set your device's node ID
+
+// --- Pin Definitions ---
+#define TX_GPIO_NUM GPIO_NUM_5 // Set GPIO pin for CAN Transmit
+#define RX_GPIO_NUM GPIO_NUM_4 // Set GPIO pins for CAN Receive
 
 const char* SSID = "MREx CAN Logger";
 const char* PASSWORD = "YesWeCAN";
@@ -58,9 +65,43 @@ struct CANFrame {
 CANFrame buffer[BUFFER_SIZE];
 int bufferIndex = 0;
 unsigned long lastFlush = 0;
+unsigned long lastUpdate = 0;
 
-int8_t proportion1 = 0;
-JsonDocument muntDoc;
+struct Parameter {
+  String key;
+  bool sign;
+  uint8_t targetNode;
+  uint16_t index;
+  uint8_t subindex;
+  size_t size;
+};
+struct Parameter parameters[] = {
+  {"kProportional1", 0, 14, 0x60F6, 0x00, sizeof(uint8_t)},
+  {"kIntegral1", 0, 14, 0x60F6, 0x01, sizeof(uint8_t)},
+  {"kDerivative1", 0, 14, 0x60F6, 0x02, sizeof(uint8_t)},
+  {"kProportional2", 0, 14, 0x60F6, 0x03, sizeof(uint8_t)},
+  {"kIntegral2", 0, 14, 0x60F6, 0x04, sizeof(uint8_t)},
+  {"kDerivative2", 0, 14, 0x60F6, 0x05, sizeof(uint8_t)},
+  {"kProportional3", 0, 14, 0x60F6, 0x06, sizeof(uint8_t)},
+  {"kIntegral3", 0, 14, 0x60F6, 0x07, sizeof(uint8_t)},
+  {"kDerivative3", 0, 14, 0x60F6, 0x08, sizeof(uint8_t)},
+  {"kProportional4", 0, 14, 0x60F6, 0x09, sizeof(uint8_t)},
+  {"kIntegral4", 0, 14, 0x60F6, 0x0A, sizeof(uint8_t)},
+  {"kDerivative4", 0, 14, 0x60F6, 0x0B, sizeof(uint8_t)},
+  {"kProportional5", 0, 14, 0x60F6, 0x0C, sizeof(uint8_t)},
+  {"kIntegral5", 0, 14, 0x60F6, 0x0D, sizeof(uint8_t)},
+  {"kDerivative5", 0, 14, 0x60F6, 0x0E, sizeof(uint8_t)},
+};
+const int num_parameters = 15;
+
+int getParameterIdx(String key) {
+  for (int i = 0; i < num_parameters; i++) {
+    if (parameters[i].key == key) {
+      return i;
+    }
+  }
+  return -1;
+}
 
 void setup() {
   Serial.begin(115200);
@@ -73,10 +114,13 @@ void setup() {
   }
 
     // SD init
-  if (!SD.begin(SD_CS)) {
+  while (!SD.begin(SD_CS)) {
     Serial.println("SD init failed");
-    while (1);
   }
+  Serial.print(SD.usedBytes());
+  Serial.print(" bytes out of ");
+  Serial.println(SD.totalBytes());
+  Serial.println(" used on SD card.");
 
   // File name init
   int testNumber = 0;
@@ -100,17 +144,21 @@ void setup() {
     Serial.println("Failed to open log file");
     while (1);
   }
+  
+  //Initialize CANMREX protocol
+  initCANMREX(TX_GPIO_NUM, RX_GPIO_NUM, nodeID); // this or below
 
-  // CAN init
-  twai_general_config_t g_config = TWAI_GENERAL_CONFIG_DEFAULT(GPIO_NUM_5, GPIO_NUM_4, TWAI_MODE_NORMAL);
-  twai_timing_config_t t_config = TWAI_TIMING_CONFIG_500KBITS();
-  twai_filter_config_t f_config = TWAI_FILTER_CONFIG_ACCEPT_ALL();
+  // // CAN init
+  // twai_general_config_t g_config = TWAI_GENERAL_CONFIG_DEFAULT(GPIO_NUM_5, GPIO_NUM_4, TWAI_MODE_NORMAL);
+  // twai_timing_config_t t_config = TWAI_TIMING_CONFIG_500KBITS();
+  // twai_filter_config_t f_config = TWAI_FILTER_CONFIG_ACCEPT_ALL();
 
-  if (twai_driver_install(&g_config, &t_config, &f_config) != ESP_OK ||
-      twai_start() != ESP_OK) {
-    Serial.println("CAN init failed");
-    while (1);
-  }
+  // if (twai_driver_install(&g_config, &t_config, &f_config) != ESP_OK ||
+  //     twai_start() != ESP_OK) {
+  //   Serial.println("CAN init failed");
+  //   while (1);
+  // }
+  
   Serial.println("CAN logging started");
   
   WiFi.mode(WIFI_AP);
@@ -137,6 +185,18 @@ void setup() {
   server.serveStatic(FILEPATH, SD, "/");
 
   server.on("/munt", HTTP_GET, [](AsyncWebServerRequest *request) {
+    JsonDocument muntDoc;
+    for (int i = 0; i < num_parameters; i++) {
+      struct Parameter parameter = parameters[i];
+      if (parameter.sign) {
+        int32_t value = executeSDORead(nodeID, parameter.targetNode, parameter.index, parameter.subindex);
+        muntDoc[parameter.key] = value;
+      } else {
+        uint32_t value = executeSDORead(nodeID, parameter.targetNode, parameter.index, parameter.subindex);
+        muntDoc[parameter.key] = value;
+      }
+    }
+
     String response;
     serializeJson(muntDoc, response);
     request->send(200, "application/json", response);
@@ -151,9 +211,18 @@ void setup() {
       deserializeJson(requestDoc, request->getParam("body", true)->value());
       for (JsonPair pair : requestDoc.as<JsonObject>()) {
         String key = pair.key().c_str();
-        JsonVariant muntValue = muntDoc[key];
-        if (!muntValue.isNull()) {
-          responseArray.add(key);
+        for (int i = 0; i < num_parameters; i++) {
+          struct Parameter parameter = parameters[i];
+          if (parameter.key == key) {
+            responseArray.add(key);
+            if (parameter.sign) {
+              int32_t requestValue = pair.value(); // implicit cast
+              executeSDOWrite(nodeID, parameter.targetNode, parameter.index, parameter.subindex, parameter.size, &requestValue);
+            } else {
+              uint32_t requestValue = pair.value(); // implicit cast
+              executeSDOWrite(nodeID, parameter.targetNode, parameter.index, parameter.subindex, parameter.size, &requestValue);
+            }
+          }
         }
       }
     }
@@ -195,8 +264,7 @@ void setup() {
 }
 
 void loop() {
-  proportion1--;
-  muntDoc["proportion1"] = proportion1;
+  // handleCAN(nodeID); // causes unnecessary logging delays
   twai_message_t message;
   if (twai_receive(&message, pdMS_TO_TICKS(10)) == ESP_OK) {
     rtc.getNowTime();
