@@ -156,7 +156,7 @@ void sendAllNMT(uint8_t operatingMode){
   //sendNMT(operatingMode, 0x01); //motor
   //sendNMT(operatingMode, 0x04); //lights
   //sendNMT(operatingMode, 0x05); //audio sys
-    sendNMT(operatingMode, 0x09); //LCD screen
+  //sendNMT(operatingMode, 0x09); //LCD screen
 
 }
 
@@ -191,44 +191,44 @@ void HandleHorn(){
 //Used for debugging. Prints all inputs and their values
 void print_status(){
   //Check readings of brake and speed
-   //Serial.print("Speed: ");
-   //Serial.print(desiredSpeed);
-   //Serial.print(" | Brake: ");
-   //Serial.println(regenBrake);
+  //  Serial.print("Speed: ");
+  //  Serial.print(desiredSpeed);
+  //  Serial.print(" | Brake: ");
+  //  Serial.println(regenBrake);
 
   //Check buttons
-  // Serial.print(" || Button 1: ");
-  // Serial.print(button1);
-  // Serial.print(" | Button 2: ");
-  // Serial.println(button2);
+  //  Serial.print(" || Button 1: ");
+  //  Serial.print(button1);
+  //  Serial.print(" | Button 2: ");
+  //  Serial.println(button2);
 
   //Check switches
-  //  Serial.print(" || Switch 1: ");
-  //  Serial.print(switch1);
-  //  Serial.print(" | Switch 2: ");
-  //  Serial.println(switch2);
+    // Serial.print(" || Switch 1: ");
+    // Serial.print(switch1);
+    // Serial.print(" | Switch 2: ");
+    // Serial.println(switch2);
 
   //Check position switches 3-pos
   int directionModeRaw = analogRead(DIRECTION_MODE_PIN);
-  Serial.print("|| Direction: ");
-  Serial.print(check3Switch(directionModeRaw));
+  // Serial.print("|| Direction: ");
+  // Serial.print(check3Switch(directionModeRaw));
   int operationModeRaw = analogRead(OP_MODE_PIN);
-  Serial.print("| Operation: ");
-  Serial.print(check3Switch(operationModeRaw));
+  // Serial.print("| Operation: ");
+  // Serial.print(check3Switch(operationModeRaw));
 
   //Check position switches 5-pos
    int conModeRaw = analogRead(CONDITION_MODE_PIN);
-   Serial.print("|| Condition: ");
-   Serial.print(check5Switch(conModeRaw));
+  //  Serial.print("|| Condition: ");
+  //  Serial.print(check5Switch(conModeRaw));
    int challModeRaw = analogRead(CHALLENGE_MODE_PIN);
-   Serial.print("| Challenge: ");
-   Serial.println(check5Switch(challModeRaw));
+  //  Serial.print("| Challenge: ");
+  //  Serial.println(check5Switch(challModeRaw));
   
 
 }
 
 int check3Switch(int read){
-  //Serial.println(read);
+  Serial.println(read);
   if(read<200){
     //neutral and pre op
     return 1;
