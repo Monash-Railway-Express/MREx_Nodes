@@ -81,9 +81,7 @@ void printDetail(uint8_t type, int value);
 
 //user variables
 bool HornState;
-bool HornSFXRun;
-bool prevHornState;
-unsigned long nextInputCheck; //time to check for input 
+uint8_t hornStateMNo = 1; //for horn state machine
 
 // User code end ---------------------------------------------------------
 
@@ -104,6 +102,8 @@ void setup() {
   
 
   // --- Register RPDOs ---
+
+  delay(1000);
 
   // --- DFPlayer Setup ---
   #if (defined ESP32)
@@ -165,7 +165,7 @@ void loop() {
     digitalWrite(STATUS_LED, HIGH);
     HornLogic();
     if (myDFPlayer.available()) {
-      printDetail(myDFPlayer.readType(), myDFPlayer.read()); //Print the detail message from DFPlayer to handle different errors and states.
+      //printDetail(myDFPlayer.readType(), myDFPlayer.read()); //Print the detail message from DFPlayer to handle different errors and states.
     }
   }
 
@@ -173,37 +173,43 @@ void loop() {
 }
 
 /*handles logic for playing horn.
-It plays the start of a horn sfx, loops the middle part as long as the button is held, then when it is released,
-plays the end part. Simply done to attempt to make the horn sound more realistic. 
+The horn has 2 parts: A middle part and an end part. The middle part loops indefinitely as long as the button is held, 
+and the end part plays only when the button is released. Similar to how it is done in video games. It is just
+there to make the horn sound more "real", but can be removed if its too buggy and we just leave the middle loop part.
 */
 void HornLogic()
 {
-  //incredibly cobbled together edge detection. If anyone knows a better way, please feel free.
   HornState = (bool)horn;
-  Serial.print("Horn state:");
-  Serial.println(HornState);
-  if(HornState && !prevHornState)
-  {
-    HornSFXRun = HIGH;
-    //play the start segment of the horn
-    myDFPlayer.play(3);
-    prevHornState = HornState;
-  }
-  else if(!HornState && prevHornState)
-  {
-    HornSFXRun = LOW;
-    myDFPlayer.play(5);
-    prevHornState = HornState;
-  }
+  //Serial.print("Horn state:");
+  //Serial.println(HornState);
 
-  if(HornSFXRun)
+  switch (hornStateMNo)
   {
-    //if DFBUSY pin is High, the player is idling.
-    if(digitalRead(DFBUSY))
-    {
-      myDFPlayer.play(4);
-    } 
-  }
+    //State 1: Horn Off
+    case 1:
+      //1--->2
+      if(HornState)
+      {
+        //play the looping segment of the horn
+        myDFPlayer.loop(4);
+        hornStateMNo = 2;
+      }
+      
+      break;
+
+    //State 2: Horn Started
+    case 2:
+
+      //2--->1
+      if(!HornState)
+      {
+        myDFPlayer.play(5);
+        hornStateMNo = 1;
+      }
+      
+      break;
+  } 
+
 }
 
 //error reporting script that came with the DFPlayer example code

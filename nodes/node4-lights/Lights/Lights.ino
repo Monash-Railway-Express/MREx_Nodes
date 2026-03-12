@@ -3,9 +3,9 @@
  *
  * File:            Lights.ino
  * Organisation:    MREX
- * Author:          Aung Hpone Thant, Chiara Gillam
+ * Author:          Aung Hpone Thant, Chiara Gillam, Oscar Boulter
  * Date Created:    5/10/2025
- * Last Modified:   18/12/2025
+ * Last Modified:   26/02/2025
  * Version:         1.11.0
  *
  *This code is for the lighting node (Node 4 on the loco). 
@@ -15,7 +15,7 @@
  */
 
 
-#include <CAN_MREx.h> // inlcudes all CAN MREX files
+//#include <CAN_MREx.h> // inlcudes all CAN MREX files
 
 // User code begin: ------------------------------------------------------
 // --- CAN MREx initialisation ---
@@ -27,12 +27,19 @@ const uint8_t nodeID = 4;  // Change this to set your device's node ID
 #define LIGHT_PREOP 17
 #define LIGHT_FWD 15
 #define LIGHT_REV 16
+#define SMOKE_PIN 4 // arbitrary, change values when required
+#define TEMPERATURE_F_PIN 5
+#define TEMPERATURE_R_PIN 6
 enum {Off, PreOp, Neutral, Forward, Reverse} driveState = Off;
 
 
 // --- OD definitions ---
 uint32_t dirMode32;
 uint8_t dirMode;
+
+// If we want to log internal tempature and air quality in the future
+uint16_t tempF;
+uint16_t tempR; 
 
 //misc variables
 unsigned long nextPollTime; //used for non blocking delay to request the current motor direction from motor controller
@@ -50,10 +57,17 @@ void setup() {
 
   // User code Setup Begin: -------------------------------------------------
   // --- Register OD entries ---
- 
+  registerODEntry(0x1004, 0x00, 2, sizeof(tempF), &tempF);
+  registerODEntry(0x1004, 0x01, 2, sizeof(tempR), &tempR);
 
   // --- Register TPDOs ---
-  
+  configureTPDO(0, 0x184 + nodeID, 255, 100, 100);
+
+  PdoMapEntry tpdoEntries[] = {
+      {0x1004, 0x00, 16},  // Example: index 0x2000, subindex 1, 16 bits
+      {0x1004, 0x01, 16}    // Example: index 0x2001, subindex 0, 8 bits
+    };
+  mapTPDO(0, tpdoEntries, 2);
 
   // --- Register RPDOs ---
 
@@ -62,6 +76,10 @@ void setup() {
   pinMode(LIGHT_PREOP, OUTPUT);
   pinMode(LIGHT_FWD, OUTPUT);
   pinMode(LIGHT_REV, OUTPUT);
+
+  pinMode(SMOKE_PIN, INPUT);
+  pinMode(TEMPERATURE_F_PIN, INPUT);
+  pinMode(TEMPERATURE_R_PIN, INPUT);
 
   // User code Setup end ------------------------------------------------------
 
@@ -72,6 +90,9 @@ void setup() {
 void loop() {
   //User Code begin loop() ----------------------------------------------------
   unsigned long  currentMillis = millis();
+  
+  checkSensors(); // always check the sensors
+  
   // --- Stopped mode (This is default starting point) ---
   if (nodeOperatingMode == 0x02){ 
     handleCAN(nodeID);
@@ -160,3 +181,66 @@ void HandleOpMode()
   }
 }
 
+// Function for Checking the Temperature and Air Quality of the Sensors
+// Assume we are using the digital Output of the Smoke Detector
+void checkSensors(){
+
+  bool smokeEMCY;
+  bool heatF_EMCY;
+  bool heatR_EMCY;
+
+  uint16_t tempF;
+  uint16_t tempR;
+
+  smokeEMCY = (digitalRead(SMOKE_PIN) == HIGH); 
+  
+  tempF = analogRead(TEMPERATURE_F_PIN);
+  tempR = analogRead(TEMPERATURE_R_PIN);
+
+  /*
+  - Turn the thermistor reading into a celsius temperature (will need callibration)
+  - Use only integers
+  - Assuming MCP970X Thermistor
+    Vout = Tc * Ta + V0c
+
+    V0c: 400mV / 500mV
+
+    Tc: 10.0 / 19.5      Depending on model
+
+    Ta: The Temperature (C)
+  */
+  
+  int Voltage0 = 156; // 500mv Converted to 0-1029 Scale
+  int Temperature_Coef = 31; // 10mV Converted to 0-1029 Scale
+
+  tempF = ( tempF - Voltage0 ) / Temperature_Coef;
+
+  tempR = ( tempR - Voltage0 ) / Temperature_Coef;
+
+
+  //Debugging
+  Serial.println("Temperature:");
+  Serial.print("  R: ");
+  Serial.print(tempR);
+  Serial.print("  F: ");
+  Serial.print(tempF);
+
+  heatF_EMCY = tempF > 70;
+  heatR_EMCY = tempR > 70;
+
+  if (smokeEMCY){
+    Serial.println("Smoke Error!");
+    sendEMCY(0, nodeID, 0x00505);
+  }
+
+  if (heatF_EMCY) {
+    Serial.println("Temperature F Error!");
+    sendEMCY(0, nodeID, 0x00506);
+  }
+
+    if (heatR_EMCY) {
+    Serial.println("Temperature R Error!");
+    sendEMCY(0, nodeID, 0x00507);
+  }
+
+}
