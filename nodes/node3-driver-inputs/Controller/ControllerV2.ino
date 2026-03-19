@@ -20,8 +20,8 @@ const uint8_t nodeID = 3;  // Change this to set your device's node ID
 #define TX_GPIO_NUM GPIO_NUM_40 // Set GPIO pin for CAN Transmit
 #define RX_GPIO_NUM GPIO_NUM_41 // Set GPIO pins for CAN Receive
 
-#define BRAKE_PIN 1
-#define SPEED_PIN 2
+#define BRAKE_PIN 14
+#define SPEED_PIN 19
 
 #define BUTTON_1_PIN 45   //Horn
 #define BUTTON_2_PIN 35
@@ -29,8 +29,8 @@ const uint8_t nodeID = 3;  // Change this to set your device's node ID
 #define SWITCH_2_PIN 37
 
 #define DIRECTION_MODE_PIN 5
-#define CHALLENGE_MODE_PIN 19
-#define CONDITION_MODE_PIN 14
+#define CHALLENGE_MODE_PIN 1
+#define CONDITION_MODE_PIN 2
 #define OP_MODE_PIN 4
 
 // --- OD definitions ---
@@ -172,10 +172,10 @@ void sendToNewOpMode(int opMode) {
 
 // function that is called to send NMT to all nodes
 void sendAllNMT(uint8_t operatingMode) {
-  sendNMT(operatingMode, 0x01); // motor
+  //sendNMT(operatingMode, 0x01); // motor
   //sendNMT(operatingMode, 0x04); // lights
   //sendNMT(operatingMode, 0x05); // audio sys
-  //sendNMT(operatingMode, 0x09); // LCD screen
+  sendNMT(operatingMode, 0x09); // LCD screen
 }
 
 

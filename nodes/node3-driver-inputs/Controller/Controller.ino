@@ -127,7 +127,7 @@ void loop() {
     directionMode = check3Switch(analogRead(DIRECTION_MODE_PIN));
     //Serial.println(directionMode);
     HandleInputs();
-    HandleHorn();
+    //HandleHorn();
     print_status();
 
   }
