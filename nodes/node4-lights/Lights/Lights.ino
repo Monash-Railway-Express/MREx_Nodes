@@ -14,7 +14,6 @@
  *LIGHTS_PREOP control the yellow lights on all faces of the loco.
  */
 
-
 #include <CAN_MREx.h> // inlcudes all CAN MREX files
 
 // User code begin: ------------------------------------------------------
@@ -36,6 +35,8 @@ uint8_t dirMode;
 
 //misc variables
 unsigned long nextPollTime; //used for non blocking delay to request the current motor direction from motor controller
+
+
 
 // User code end ---------------------------------------------------------
 
@@ -63,6 +64,9 @@ void setup() {
   pinMode(LIGHT_FWD, OUTPUT);
   pinMode(LIGHT_REV, OUTPUT);
 
+
+  //run lights self test. Flash all lights
+  LightsSelfTest();
   // User code Setup end ------------------------------------------------------
 
 
@@ -109,19 +113,43 @@ void HandleDirStates()
   dirMode = (uint8_t)dirMode32;
 
   //switches the drive state based on the motor direction
-  //TODO: clarify codes and implement accordingly. Currently using 0 for fwd and 1 for rev
-  if(dirMode == 0)
+  //TODO: clarify codes and implement accordingly. Currently using 3 for fwd and 1 for rev.
+  if(dirMode == 2)
   {
     driveState = Neutral;
   }
-  if(dirMode == 1)
+  if(dirMode == 3)
   {
     driveState = Forward;
   }
-  if(dirMode == 2)
+  if(dirMode == 1)
   {
     driveState = Reverse;
   }
+}
+
+//function that flashes all lights on power on. 
+void LightsSelfTest()
+{
+  digitalWrite(LIGHT_PREOP, LOW);
+  digitalWrite(LIGHT_FWD, HIGH);
+  digitalWrite(LIGHT_REV, LOW);
+  delay(200);
+  digitalWrite(LIGHT_PREOP, HIGH);
+  digitalWrite(LIGHT_FWD, LOW);
+  digitalWrite(LIGHT_REV, LOW);
+  delay(200);
+  digitalWrite(LIGHT_PREOP, LOW);
+  digitalWrite(LIGHT_FWD, LOW);
+  digitalWrite(LIGHT_REV, HIGH);
+  delay(200);
+  digitalWrite(LIGHT_PREOP, HIGH);
+  digitalWrite(LIGHT_FWD, HIGH);
+  digitalWrite(LIGHT_REV, HIGH);
+  delay(500);
+  digitalWrite(LIGHT_PREOP, LOW);
+  digitalWrite(LIGHT_FWD, LOW);
+  digitalWrite(LIGHT_REV, LOW);
 }
 
 void HandleOpMode()
