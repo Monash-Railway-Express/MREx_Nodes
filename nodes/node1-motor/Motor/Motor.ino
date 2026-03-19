@@ -132,10 +132,18 @@ void loop() {
       serviceBrake = 1;
     }
 
+    // Get direction mode
+    uint32_t directionMode = executeSDORead(nodeID, 3, 0x6060, 0x00);
+    if (directionMode == 1) {
+      digitalWrite(REVERSING_PIN, LOW);
+    } else if (directionMode == 3) {
+      digitalWrite(REVERSING_PIN, HIGH);
+    }
+
     // Apply PWM outputs
     ledcWrite(MOTOR_PIN, motorpwmValue);
     ledcWrite(REGEN_BRAKE_PIN, brakepwmValue);
-    digitalWrite(REVERSING_PIN, HIGH);
+    // executeSDOWrite(nodeID, 2, 0x3012, 0x01, sizeof(serviceBrake), &serviceBrake);
 
     // Debug output
     Serial.print("Motor value: ");
@@ -144,6 +152,8 @@ void loop() {
     Serial.println(brakepwmValue);
     Serial.print("Service brake: ");
     Serial.println(serviceBrake);
+    Serial.print("Direction mode: ");
+    Serial.println(directionMode);
   }
 }
 
