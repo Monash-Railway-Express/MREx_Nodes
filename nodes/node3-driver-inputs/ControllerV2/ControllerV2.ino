@@ -17,8 +17,8 @@
 const uint8_t nodeID = 3;  // Change this to set your device's node ID
 
 // --- Pin Definitions ---
-#define TX_GPIO_NUM GPIO_NUM_40 // Set GPIO pin for CAN Transmit
-#define RX_GPIO_NUM GPIO_NUM_41 // Set GPIO pins for CAN Receive
+#define TX_GPIO_NUM GPIO_NUM_41 // Set GPIO pin for CAN Transmit
+#define RX_GPIO_NUM GPIO_NUM_42 // Set GPIO pins for CAN Receive
 
 #define BRAKE_PIN 14
 #define SPEED_PIN 19
@@ -172,9 +172,10 @@ void sendToNewOpMode(int opMode) {
 
 // function that is called to send NMT to all nodes
 void sendAllNMT(uint8_t operatingMode) {
-  //sendNMT(operatingMode, 0x01); // motor
-  //sendNMT(operatingMode, 0x04); // lights
-  //sendNMT(operatingMode, 0x05); // audio sys
+  sendNMT(operatingMode, 0x01); // motor
+  sendNMT(operatingMode, 0x02); // brakes
+  sendNMT(operatingMode, 0x04); // lights
+  sendNMT(operatingMode, 0x05); // audio sys
   sendNMT(operatingMode, 0x09); // LCD screen
 }
 
@@ -182,8 +183,8 @@ void sendAllNMT(uint8_t operatingMode) {
 // function where all inputs are read
 void HandleInputs() {
   // ===== Potentiometer Inputs =====
-  regenBrake = analogRead(BRAKE_PIN);
-  desiredSpeed = analogRead(SPEED_PIN);
+  regenBrake   = 1023 - analogRead(BRAKE_PIN);
+  desiredSpeed = 1023 - analogRead(SPEED_PIN);
 
   // ===== Button Inputs =====
   button1 = digitalRead(BUTTON_1_PIN);
