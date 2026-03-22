@@ -18,6 +18,15 @@ void setup() {
   Serial.println("Brakes node started (Node 2)");
 
   initCANMREX(TX_GPIO_NUM, RX_GPIO_NUM, nodeID);
+  xTaskCreatePinnedToCore(
+    CAN_Task,
+    "CAN Task",
+    4096,
+    &nodeID,   // <--- passed into pvParameters
+    3,
+    NULL,
+    0
+  );
 
   pinMode(SERVICE_BRAKE_PIN, OUTPUT);
   pinMode(LED_LIGHT, OUTPUT);
@@ -32,7 +41,6 @@ void setup() {
 
 void loop() {
   // Always process CAN traffic (including NMT state changes)
-  handleCAN(nodeID);
 
   uint8_t out; // variable for brake pin output
 
