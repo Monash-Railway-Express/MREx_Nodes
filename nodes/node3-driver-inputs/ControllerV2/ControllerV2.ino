@@ -14,7 +14,7 @@
 
 // User code begin: ------------------------------------------------------
 // --- CAN MREx initialisation ---
-const uint8_t nodeID = 3;  // Change this to set your device's node ID
+uint8_t nodeID = 3;  // Change this to set your device's node ID
 
 // --- Pin Definitions ---
 #define TX_GPIO_NUM GPIO_NUM_41 // Set GPIO pin for CAN Transmit
@@ -96,6 +96,16 @@ void setup() {
   // Initialize CANMREX protocol
   initCANMREX(TX_GPIO_NUM, RX_GPIO_NUM, nodeID);
 
+  xTaskCreatePinnedToCore(
+    CAN_Task,
+    "CAN Task",
+    4096,
+    &nodeID,   // <--- passed into pvParameters
+    3,
+    NULL,
+    0
+  );
+
   // User code Setup Begin: -------------------------------------------------
   // --- Register OD entries ---
   registerODEntry(0x60FF, 0x00, 2, sizeof(desiredSpeed), &desiredSpeed);
@@ -117,7 +127,6 @@ void setup() {
 
 
 void loop() {
-  handleCAN(nodeID);
 
   // CONDITION MODE 5-position switch now acts as OP MODE
   int opMode = map5PosTo3State(analogRead(CONDITION_MODE_PIN));
