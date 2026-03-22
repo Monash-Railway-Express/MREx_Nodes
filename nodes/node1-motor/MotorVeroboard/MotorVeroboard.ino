@@ -1,12 +1,12 @@
 /**
- * CAN MREX main (Template) file 
+ * Motor node ino file 
  *
- * File:            main.ino
+ * File:            MotorVeroboard.ino
  * Organisation:    MREX
  * Author:          Chiara Gillam
- * Date Created:    5/08/2025
- * Last Modified:   1/10/2025
- * Version:         1.10.2
+ * Date Created:    1/03/2026
+ * Last Modified:   22/03/2026
+ * Version:         1.0.1
  *
  */
 
@@ -16,7 +16,7 @@
 
 // User code begin: ------------------------------------------------------
 // --- CAN MREx initialisation ---
-const uint8_t nodeID = 1;  // Change this to set your device's node ID
+uint8_t nodeID = 1;  // Change this to set your device's node ID
 
 // --- Pin Definitions ---
 #define TX_GPIO_NUM GPIO_NUM_4 // Set GPIO pin for CAN Transmit
@@ -50,6 +50,15 @@ void setup() {
   
   //Initialize CANMREX protocol
   initCANMREX(TX_GPIO_NUM, RX_GPIO_NUM, nodeID);
+  xTaskCreatePinnedToCore(
+    CAN_Task,
+    "CAN Task",
+    4096,
+    &nodeID,   // <--- passed into pvParameters
+    3,
+    NULL,
+    0
+  );
 
   // User code Setup Begin: -------------------------------------------------
   // --- Register OD entries ---
@@ -91,17 +100,14 @@ void loop() {
   //User Code begin loop() ----------------------------------------------------
   // --- Stopped mode (This is default starting point) ---
   if (nodeOperatingMode == 0x02){ 
-    handleCAN(nodeID);
   }
 
   // --- Pre operational state (This is where you can do checks and make sure that everything is okay) ---
   if (nodeOperatingMode == 0x80){ 
-    handleCAN(nodeID);
   }
 
   // --- Operational state (Normal operating mode) ---
   if (nodeOperatingMode == 0x01){ 
-  handleCAN(nodeID);
   unsigned long currentMillis = millis();
   if (currentMillis - previousMillis >= interval) {
     previousMillis = currentMillis;
