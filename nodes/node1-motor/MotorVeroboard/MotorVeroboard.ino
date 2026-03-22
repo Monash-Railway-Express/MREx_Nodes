@@ -19,10 +19,11 @@
 const uint8_t nodeID = 1;  // Change this to set your device's node ID
 
 // --- Pin Definitions ---
-#define TX_GPIO_NUM GPIO_NUM_48 // Set GPIO pin for CAN Transmit
-#define RX_GPIO_NUM GPIO_NUM_47 // Set GPIO pins for CAN Receive
-#define REGEN_BRAKE_PIN GPIO_NUM_5
-#define MOTOR_PIN GPIO_NUM_4
+#define TX_GPIO_NUM GPIO_NUM_4 // Set GPIO pin for CAN Transmit
+#define RX_GPIO_NUM GPIO_NUM_5 // Set GPIO pins for CAN Receive
+#define REGEN_BRAKE_PIN GPIO_NUM_13
+#define MOTOR_PIN GPIO_NUM_14
+#define REVERSING_PIN GPIO_NUM_10
 
 // --- OD definitions ---
 uint16_t desiredSpeed = 0;
@@ -77,6 +78,7 @@ void setup() {
   // --- Set pin modes ---
   ledcAttach(MOTOR_PIN, freq, resolution);
   ledcAttach(REGEN_BRAKE_PIN, freq, resolution);
+  pinMode(REVERSING_PIN, OUTPUT);
 
 
   // User code Setup end ------------------------------------------------------
@@ -130,9 +132,18 @@ void loop() {
       serviceBrake = 1;
     }
 
+    // Get direction mode
+    uint32_t directionMode = executeSDORead(nodeID, 3, 0x6060, 0x00);
+    if (directionMode == 1) {
+      digitalWrite(REVERSING_PIN, LOW);
+    } else if (directionMode == 3) {
+      digitalWrite(REVERSING_PIN, HIGH);
+    }
+
     // Apply PWM outputs
     ledcWrite(MOTOR_PIN, motorpwmValue);
     ledcWrite(REGEN_BRAKE_PIN, brakepwmValue);
+    // executeSDOWrite(nodeID, 2, 0x3012, 0x01, sizeof(serviceBrake), &serviceBrake);
 
     // Debug output
     Serial.print("Motor value: ");
@@ -141,6 +152,8 @@ void loop() {
     Serial.println(brakepwmValue);
     Serial.print("Service brake: ");
     Serial.println(serviceBrake);
+    Serial.print("Direction mode: ");
+    Serial.println(directionMode);
   }
 }
 
