@@ -1,12 +1,12 @@
 /**
- * CAN MREX main (Template) file 
+ * CAN MREX Motor Veroboard file 
  *
- * File:            main.ino
+ * File:            MotorVeroboard.ino
  * Organisation:    MREX
  * Author:          Chiara Gillam
  * Date Created:    5/08/2025
  * Last Modified:   1/10/2025
- * Version:         1.10.2
+ * Version:         1.0.0
  *
  */
 
