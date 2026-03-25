@@ -24,9 +24,9 @@ uint8_t nodeID = 3;  // Change this to set your device's node ID
 #define SPEED_PIN 19
 
 #define BUTTON_1_PIN 45   //Horn
-#define BUTTON_2_PIN 35
-#define SWITCH_1_PIN 36   //Location Annoucement
-#define SWITCH_2_PIN 37   //Parking Brake
+#define BUTTON_2_PIN 35   
+#define SWITCH_1_PIN 36   //Parking Brake 
+#define SWITCH_2_PIN 37   //Location Annoucement
 
 #define DIRECTION_MODE_PIN 5
 #define CHALLENGE_MODE_PIN 1
@@ -38,9 +38,9 @@ uint16_t regenBrake = 0;
 uint16_t desiredSpeed = 0;
 uint8_t button1 = 0;
 uint8_t button2 = 0;
-uint8_t switch1 = 0;
-uint8_t switch2 = 0;
-uint8_t directionMode = 0;
+uint8_t switch1 = 0; //parking 
+uint8_t switch2 = 0;  // loc ann
+uint8_t directionMode = 0;  
 uint8_t conditionMode = 0;
 uint8_t challengeMode = 0;
 uint8_t operationMode = 0;
@@ -52,9 +52,9 @@ const long interval = 100; // 100 milliseconds
 // previous state variables (used for edge detection)
 bool b1prev = HIGH; 
 bool b2prev = HIGH; 
-bool s1prev; 
-bool s2prev; 
-int opModePrev;
+bool s1prev = HIGH; 
+bool s2prev = HIGH;
+int opModePrev = 1; 
 
 // Function prototypes
 void sendToNewOpMode(int opMode);
@@ -72,24 +72,21 @@ void setup() {
   Serial.begin(115200);
   delay(1000);
   Serial.println("Serial Coms started at 115200 baud");
+  analogReadResolution(10);
 
+  //Inputs from componments  
   pinMode(BRAKE_PIN, INPUT);
   pinMode(SPEED_PIN, INPUT);
+  
   pinMode(BUTTON_1_PIN, INPUT_PULLUP);
   pinMode(BUTTON_2_PIN, INPUT_PULLUP);
   pinMode(SWITCH_1_PIN, INPUT_PULLUP);
   pinMode(SWITCH_2_PIN, INPUT_PULLUP);
 
-  // These two old 3-position pins are no longer used for mode logic,
-  // but left here in case hardware is still connected
   pinMode(DIRECTION_MODE_PIN, INPUT);
   pinMode(OP_MODE_PIN, INPUT);
-
-  // These 5-position switch pins now do the actual work
   pinMode(CHALLENGE_MODE_PIN, INPUT);
   pinMode(CONDITION_MODE_PIN, INPUT);
-
-  analogReadResolution(10);
   
   // Initialize CANMREX protocol
   initCANMREX(TX_GPIO_NUM, RX_GPIO_NUM, nodeID);
@@ -110,6 +107,7 @@ void setup() {
   registerODEntry(0x3012, 0x00, 2, sizeof(regenBrake), &regenBrake);
   registerODEntry(0x6060, 0x00, 2, sizeof(directionMode), &directionMode);
 
+
   // --- Register TPDOs ---
   configureTPDO(0, 0x180 + nodeID, 255, 100, 100);  // COB-ID, transType, inhibit, event
   
@@ -120,39 +118,41 @@ void setup() {
   mapTPDO(0, tpdoEntries, 2);
 
   // --- Register RPDOs ---
+
   // User code Setup end ---------------------------------------------------------
 }
 
 
 void loop() {
+  unsigned long currentMillis = millis();
+  if (currentMillis - previousMillis >= interval) {
+    previousMillis = currentMillis;
 
-  // CONDITION MODE 5-position switch now acts as OP MODE
-  int opMode = map5PosTo3State(analogRead(CONDITION_MODE_PIN));
-  
-  //Updating Op mode 
-  if(opModePrev != opMode)
-  {
-    sendToNewOpMode(opMode);
-    opModePrev = opMode;
-    Serial.println("State change");
-  }
+    int opMode = map5PosTo3State(analogRead(CONDITION_MODE_PIN));
 
-  // --- Operational state ---
-  if (nodeOperatingMode == 0x01) { 
+    // Updating Op mode 
+    if((opModePrev != opMode) && (opMode != 101))
+    {
+      sendToNewOpMode(opMode);
+      opModePrev = opMode;
+    }
 
-    // CHALLENGE MODE 5-position switch now acts as DIRECTION MODE
-    directionMode = map5PosTo3State(analogRead(CHALLENGE_MODE_PIN));
+    // --- Operational state ---
+    if (nodeOperatingMode == 0x01) { 
 
-    HandleHorn();
-    print_status();
+      //HandleHorn(); //You can guess what this does
+      HandleInputs();
+      print_status();
+      //HandleParking();
+    }
   }
 }
 
 
 // function to go to stopped / pre-op / operational mode
 void sendToNewOpMode(int opMode) {
-  //Checks if 
-  if(!checkMajorEMCY() || !checkMinorEMCY()){
+  //Checks if EMCY 
+  //if(!checkMajorEMCY() || !checkMinorEMCY()){
 
       if (opMode == 1) {
       sendAllNMT(0x02);
@@ -170,20 +170,18 @@ void sendToNewOpMode(int opMode) {
       Serial.println("Preop Mode");
 
     }
-  }
+  //}
   
 }
 
-
 // function that is called to send NMT to all nodes
 void sendAllNMT(uint8_t operatingMode) {
-  sendNMT(operatingMode, 0x01); // motor
-  sendNMT(operatingMode, 0x02); // brakes
-  sendNMT(operatingMode, 0x04); // lights
-  sendNMT(operatingMode, 0x05); // audio sys
-  sendNMT(operatingMode, 0x09); // LCD screen
+  //sendNMT(operatingMode, 0x01); // motor
+  //sendNMT(operatingMode, 0x02); // brakes
+  //sendNMT(operatingMode, 0x04); // lights
+  //sendNMT(operatingMode, 0x05); // audio sys
+  //sendNMT(operatingMode, 0x09); // LCD screen
 }
-
 
 // function where all inputs are read
 void HandleInputs() {
@@ -204,18 +202,6 @@ void HandleInputs() {
   conditionMode = check5Switch(analogRead(CONDITION_MODE_PIN));
 }
 
-
-// function that does edge detection on horn button and calls SDO write to horn node
-// NOTE: Horn is currently assigned to Button 1
-void HandleHorn() {
-  if (button1 != b1prev) {
-    b1prev = button1;
-    uint8_t invertedBtn1 = (uint8_t)!button1;
-    executeSDOWrite(nodeID, 5, 0x6065, 0x00, sizeof(button1), &invertedBtn1);
-  }
-}
-
-
 // Used for debugging. Prints all inputs and their values
 void print_status() {
   // Check readings of brake and speed
@@ -231,30 +217,55 @@ void print_status() {
   // Serial.println(button2);
 
   // Check switches
-  // Serial.print(" || Switch 1: ");
-  // Serial.print(switch1);
-  // Serial.print(" | Switch 2: ");
-  // Serial.println(switch2);
+  Serial.print(" || Switch 1: ");
+  Serial.print(switch1);
+  Serial.print(" | Switch 2: ");
+  Serial.println(switch2);
 
-  // New mapped control readings
-  int challengeModeRaw = analogRead(CHALLENGE_MODE_PIN);
-  int conditionModeRaw = analogRead(CONDITION_MODE_PIN);
 
-  Serial.print("Challenge raw: ");
-  Serial.print(challengeModeRaw);
-  Serial.print(" | Challenge pos5: ");
-  Serial.print(check5Switch(challengeModeRaw));
-  Serial.print(" | Direction mapped: ");
-  Serial.print(map5PosTo3State(challengeModeRaw));
+  // Serial.print("Op_mode raw: ");
+  // Serial.print(analogRead(OP_MODE_PIN));
+  // Serial.print(" | Op_mode pos3: ");
+  // Serial.print(check3Switch(analogRead(OP_MODE_PIN)));
 
-  Serial.print(" || Condition raw: ");
-  Serial.print(conditionModeRaw);
-  Serial.print(" | Condition pos5: ");
-  Serial.print(check5Switch(conditionModeRaw));
-  Serial.print(" | OpMode mapped: ");
-  Serial.println(map5PosTo3State(conditionModeRaw));
+  // Serial.print(" || Direction raw: ");
+  // Serial.print(analogRead(DIRECTION_MODE_PIN));
+  // Serial.print(" | Condition pos3: ");
+  // Serial.print(check3Switch(analogRead(DIRECTION_MODE_PIN)));
+
+  // Serial.print("Challenge raw: ");
+  // Serial.print(analogRead(CHALLENGE_MODE_PIN));
+  // Serial.print(" | Challenge pos5: ");
+  // Serial.print(check5Switch(CHALLENGE_MODE_PIN));
+
+  // Serial.print(" || Condition raw: ");
+  // Serial.print(analogRead(CONDITION_MODE_PIN));
+  // Serial.print(" | Condition pos5: ");
+  // Serial.print(check5Switch(analogRead(CONDITION_MODE_PIN)));
+  
+  // Mapping 3 to 5 - Back up test Code
+  // Serial.print(" | OpMode mapped: ");
+  // Serial.println(map5PosTo3State(conditionModeRaw));
 }
 
+
+// function that does edge detection on horn button and calls SDO write to horn node
+// NOTE: Horn is currently assigned to Button 1
+void HandleHorn() {
+  if (button1 != b1prev) {
+    b1prev = button1;
+    uint8_t invertedBtn1 = (uint8_t)!button1;
+    executeSDOWrite(nodeID, 5, 0x6065, 0x00, sizeof(button1), &invertedBtn1);
+  }
+}
+
+void HandleParking() {
+  if (switch1 != s1prev) {
+    s1prev = switch1;
+    uint8_t invertedBtn1 = (uint8_t)!button1;
+    executeSDOWrite(nodeID, 2, 0x6065, 0x00, sizeof(button1), &invertedBtn1);
+  }
+}
 
 // old 3-position switch checker
 int check3Switch(int read) {
@@ -276,20 +287,24 @@ int check3Switch(int read) {
 
 // 5-position switch checker
 int check5Switch(int read) {
-  if (read < 150) {
+  //Serial.println(read);
+  if (read > 0 && read < 50) {
     return 1;
   }
-  else if (read < 300) {
+  else if (read > 100 && read < 250) {
     return 2;
   }
-  else if (read < 400) {
+  else if (read > 300 && read < 450) {
     return 3;
   }
-  else if (read < 600) {
+  else if (read > 500 && read < 650) {
     return 4;
   }
-  else {
+  else if (read > 700 && read < 850) {
     return 5;
+  }
+  else {
+    return 101;
   }
 }
 
@@ -307,7 +322,10 @@ int map5PosTo3State(int read) {
   else if (pos == 3) {
     return 2;
   }
-  else {
+  else if (pos == 4 || pos == 5) {
     return 3;
+  }
+  else {
+    return 101;
   }
 }
