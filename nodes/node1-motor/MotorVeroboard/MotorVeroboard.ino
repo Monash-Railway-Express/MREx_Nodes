@@ -37,7 +37,11 @@ const long interval = 100; // 100 milliseconds
 // setting PWM properties
 const int freq = 5000;
 const int resolution = 8;
- 
+
+//Other variables
+// Locks motor when both motor and brakes are applied and only releases when
+// Both are 0
+uint8_t motor_lockout = 1; 
 
 
 // User code end ---------------------------------------------------------
@@ -100,10 +104,14 @@ void loop() {
   //User Code begin loop() ----------------------------------------------------
   // --- Stopped mode (This is default starting point) ---
   if (nodeOperatingMode == 0x02){ 
+    ledcWrite(MOTOR_PIN, 0);
+    ledcWrite(REGEN_BRAKE_PIN, 0);q
   }
 
   // --- Pre operational state (This is where you can do checks and make sure that everything is okay) ---
   if (nodeOperatingMode == 0x80){ 
+    ledcWrite(MOTOR_PIN, 0);
+    ledcWrite(REGEN_BRAKE_PIN, 0);
   }
 
   // --- Operational state (Normal operating mode) ---
@@ -112,12 +120,19 @@ void loop() {
   if (currentMillis - previousMillis >= interval) {
     previousMillis = currentMillis;
 
+    if (desiredSpeed > 10 && regenBrake > 10) {
+    motor_lockout = 1;   // lock motor
+    }
+    else if (desiredSpeed <= 10 && regenBrake <= 10) {
+        motor_lockout = 0;   // unlock motor
+    }
+
     // Declare variables outside the conditional blocks
     uint8_t motorpwmValue = 0;
     uint8_t brakepwmValue = 0;
 
     // Decision logic
-    if(desiredSpeed > 10 && regenBrake <= 10){
+    if(desiredSpeed > 10 && regenBrake <= 10 && motor_lockout == 0){
       motorpwmValue = desiredSpeed >> 2;
       brakepwmValue = 0;
       serviceBrake = 0;
@@ -139,12 +154,13 @@ void loop() {
     }
 
     // Get direction mode
-    uint32_t directionMode = executeSDORead(nodeID, 3, 0x6060, 0x00);
+    // uint32_t directionMode = executeSDORead(nodeID, 3, 0x6060, 0x00); // CHANGE THIS SO YOU CAN ONLY CHANGE IN PREOP
     if (directionMode == 1) {
       digitalWrite(REVERSING_PIN, LOW);
     } else if (directionMode == 3) {
       digitalWrite(REVERSING_PIN, HIGH);
-    }
+
+    
 
     // Apply PWM outputs
     ledcWrite(MOTOR_PIN, motorpwmValue);

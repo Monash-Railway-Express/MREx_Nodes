@@ -12,6 +12,11 @@ unreleased
 ### Changed 
 - Changed to suit CM 1.13.0
 
+### Added
+- Added motor lockout so the train doesnt jerk when both throttle and brake input are given and brake is taken away
+- Added safety states to preop and stopped
+
+
 ## [1.0.0] - 2026-03-22
 ### Added 
 - added first instance of MotorVeroboard.ino
