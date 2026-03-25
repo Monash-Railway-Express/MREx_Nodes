@@ -11,6 +11,8 @@ unreleased
 ## [1.0.2] - 2026-03-24
 ### Changed 
 - Cleaned main loop for changing op mode
+- Fixed reliablity in main loop with op mode input with timing non blocking function and deadbanding
+- Added new parking brake SDO function call   
 
 unreleased
 ## [1.0.1] - 2026-03-

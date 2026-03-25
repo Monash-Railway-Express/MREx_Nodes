@@ -7,14 +7,14 @@
  * Organisation:    MREX
  * Author:          Chiara Gillam, Audrey Tasevki, Kang Yee, Nicholas Rowe, Aditya Dinesh Kumar
  * Date Created:    5/08/2025
- * Last Modified:   3/24/2025
+ * Last Modified:   3/25/2025
  * Version:         1.0.2
  *
  */
 
 // User code begin: ------------------------------------------------------
 // --- CAN MREx initialisation ---
-uint8_t nodeID = 3;  // Change this to set your device's node ID
+uint8_t nodeID = 3;
 
 // --- Pin Definitions ---
 #define TX_GPIO_NUM GPIO_NUM_41 // Set GPIO pin for CAN Transmit
@@ -45,16 +45,16 @@ uint8_t conditionMode = 0;
 uint8_t challengeMode = 0;
 uint8_t operationMode = 0;
 
-// OPTIONAL: timing for a non blocking function occuring every two seconds
-unsigned long previousMillis = 0;
-const long interval = 100; // 100 milliseconds
-
 // previous state variables (used for edge detection)
 bool b1prev = HIGH; 
 bool b2prev = HIGH; 
 bool s1prev = HIGH; 
 bool s2prev = HIGH;
 int opModePrev = 1; 
+
+//Timing for a non blocking function occuring every two seconds
+unsigned long previousMillis = 0;
+const long interval = 100; // 100 milliseconds
 
 // Function prototypes
 void sendToNewOpMode(int opMode);
@@ -106,7 +106,8 @@ void setup() {
   registerODEntry(0x60FF, 0x00, 2, sizeof(desiredSpeed), &desiredSpeed);
   registerODEntry(0x3012, 0x00, 2, sizeof(regenBrake), &regenBrake);
   registerODEntry(0x6060, 0x00, 2, sizeof(directionMode), &directionMode);
-
+  registerODEntry(0x6061, 0x00, 2, sizeof(conditionMode), &conditionMode);
+  registerODEntry(0x6062, 0x00, 2, sizeof(challengeMode), &challengeMode);
 
   // --- Register TPDOs ---
   configureTPDO(0, 0x180 + nodeID, 255, 100, 100);  // COB-ID, transType, inhibit, event
@@ -116,9 +117,7 @@ void setup() {
     {0x3012, 0x00, 16}
   };
   mapTPDO(0, tpdoEntries, 2);
-
   // --- Register RPDOs ---
-
   // User code Setup end ---------------------------------------------------------
 }
 
