@@ -12,6 +12,9 @@ unreleased
 ### Changed 
 - Changed to suit CM 1.13.0
 
+### Added
+- Added the service brake controls from driver controls
+
 ## [1.0.0] - 2026-03-22
 ### Added 
 - added first instance of Brakes.ino
