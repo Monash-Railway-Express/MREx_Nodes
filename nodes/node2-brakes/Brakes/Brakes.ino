@@ -1,6 +1,6 @@
 #include "CAN_MREx.h"
 
-const uint8_t nodeID = 2; // brakes node id is 2
+uint8_t nodeID = 2; // brakes node id is 2
 
 #define TX_GPIO_NUM GPIO_NUM_18
 #define RX_GPIO_NUM GPIO_NUM_19
@@ -9,7 +9,7 @@ const uint8_t nodeID = 2; // brakes node id is 2
 uint8_t lastOut = 255 ;// remembers what the brake output was last time
 // manually set it high at the start because when the code runs it will se a change and print a message
 
-
+uint8_t mcServiceBrakeRequest = 1; // 1 brakes on 0 brakes off
 
 
 void setup() {
@@ -34,6 +34,8 @@ void setup() {
   // Fail-safe startup: APPLY brakes in the beginning (no power to coil)
   digitalWrite(SERVICE_BRAKE_PIN, LOW);
 
+  registerODEntry(0x3012, 0x01, 2, sizeof(mcServiceBrakeRequest), &mcServiceBrakeRequest);
+
   // IMPORTANT: Do NOT force operational mode here. ONLY for testing
   // nodeOperatingMode should be controlled by NMT messages on the CAN network.
   // nodeOperatingMode = 0x01; 
@@ -51,7 +53,7 @@ void loop() {
 
   }
   // OPERATIONAL (0x01) => RELEASE friction brakes => relay ON
-  else if (nodeOperatingMode == 0x01) {
+  else if (nodeOperatingMode == 0x01 && mcServiceBrakeRequest == 0) {
     out = HIGH;  // relay energised -> 24V -> brake RELEASED
     digitalWrite(LED_LIGHT,HIGH);
   }
