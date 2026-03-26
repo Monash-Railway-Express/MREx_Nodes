@@ -26,7 +26,7 @@ uint8_t nodeID = 1;  // Change this to set your device's node ID
 #define REVERSING_PIN GPIO_NUM_10
 
 // --- OD definitions ---
-uint16_t desiredSpeed = 0;
+uint16_t od_motor_command = 0;
 uint16_t regenBrake = 0;
 uint8_t serviceBrake = 0;
 
@@ -66,7 +66,7 @@ void setup() {
 
   // User code Setup Begin: -------------------------------------------------
   // --- Register OD entries ---
-  registerODEntry(0x60FF, 0x00, 2, sizeof(desiredSpeed), &desiredSpeed);
+  registerODEntry(0x60FF, 0x00, 2, sizeof(od_motor_command), &od_motor_command);
   registerODEntry(0x3012, 0x00, 2, sizeof(regenBrake), &regenBrake);
   registerODEntry(0x3012, 0x01, 2, sizeof(serviceBrake), &serviceBrake);
 
@@ -120,10 +120,10 @@ void loop() {
   if (currentMillis - previousMillis >= interval) {
     previousMillis = currentMillis;
 
-    if (desiredSpeed > 10 && regenBrake > 10) {
+    if (od_motor_command > 10 && regenBrake > 10) {
     motor_lockout = 1;   // lock motor
     }
-    else if (desiredSpeed <= 10 && regenBrake <= 10) {
+    else if (od_motor_command <= 10 && regenBrake <= 10) {
         motor_lockout = 0;   // unlock motor
     }
 
@@ -132,17 +132,17 @@ void loop() {
     uint8_t brakepwmValue = 0;
 
     // Decision logic
-    if(desiredSpeed > 10 && regenBrake <= 10 && motor_lockout == 0){
-      motorpwmValue = desiredSpeed >> 2;
+    if(od_motor_command > 10 && regenBrake <= 10 && motor_lockout == 0){
+      motorpwmValue = od_motor_command >> 2;
       brakepwmValue = 0;
       serviceBrake = 0;
     }
-    else if(desiredSpeed > 10 && regenBrake > 10){
+    else if(od_motor_command > 10 && regenBrake > 10){
       motorpwmValue = 0;
       brakepwmValue = regenBrake >> 2;
       serviceBrake = 0;
     }
-    else if(desiredSpeed <= 10 && regenBrake > 10){
+    else if(od_motor_command <= 10 && regenBrake > 10){
       motorpwmValue = 0;
       brakepwmValue = regenBrake >> 2;
       serviceBrake = 1;
@@ -150,7 +150,7 @@ void loop() {
     else{
       motorpwmValue = 0;
       brakepwmValue = 0;
-      serviceBrake = 1;
+      serviceBrake = 0;
     }
 
     // Get direction mode
@@ -161,11 +161,9 @@ void loop() {
       digitalWrite(REVERSING_PIN, HIGH);
 
     
-
     // Apply PWM outputs
     ledcWrite(MOTOR_PIN, motorpwmValue);
     ledcWrite(REGEN_BRAKE_PIN, brakepwmValue);
-    // executeSDOWrite(nodeID, 2, 0x3012, 0x01, sizeof(serviceBrake), &serviceBrake);
 
     // Debug output
     Serial.print("Motor value: ");
