@@ -138,6 +138,10 @@ void loop() {
       opModePrev = opMode;
     }
 
+    if (nodeOperatingMode == 0x80) { 
+      HandleDirection();
+    }
+
     // --- Operational state ---
     if (nodeOperatingMode == 0x01) { 
 
@@ -145,7 +149,6 @@ void loop() {
       HandleInputs();
       //print_status();
       HandleParking();
-      HandleDirection();
     }
   }
 }
@@ -178,11 +181,11 @@ void sendToNewOpMode(int opMode) {
 
 // function that is called to send NMT to all nodes
 void sendAllNMT(uint8_t operatingMode) {
-  //sendNMT(operatingMode, 0x01); // motor
-  //sendNMT(operatingMode, 0x02); // brakes
-  //sendNMT(operatingMode, 0x04); // lights
-  //sendNMT(operatingMode, 0x05); // audio sys
-  //sendNMT(operatingMode, 0x09); // LCD screen
+  sendNMT(operatingMode, 0x01); // motor
+  sendNMT(operatingMode, 0x02); // brakes
+  sendNMT(operatingMode, 0x04); // lights
+  sendNMT(operatingMode, 0x05); // audio sys
+  sendNMT(operatingMode, 0x09); // LCD screen
 }
 
 // function where all inputs are read
@@ -205,7 +208,7 @@ void HandleInputs() {
   switch2 = digitalRead(SWITCH_2_PIN);
 
   // Store raw 5-position states too if you want to use them elsewhere later
-  directionMode = map5PosTo3State(analogRead(CHALLENGE_MODE_PIN));
+  
   //conditionMode = check5Switch(analogRead(CONDITION_MODE_PIN));
 }
 
@@ -260,6 +263,7 @@ void print_status() {
 // NOTE: Horn is currently assigned to Button 1
 void HandleHorn() {
   if (button1 != b1prev) {
+    directionMode = map5PosTo3State(analogRead(CHALLENGE_MODE_PIN));
     b1prev = button1;
     uint8_t invertedBtn1 = (uint8_t)!button1;
     executeSDOWrite(nodeID, 5, 0x6065, 0x00, sizeof(button1), &invertedBtn1);
