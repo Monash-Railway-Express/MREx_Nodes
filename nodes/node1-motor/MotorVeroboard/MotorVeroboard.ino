@@ -4,9 +4,9 @@
  * File:            MotorVeroboard.ino
  * Organisation:    MREX
  * Author:          Chiara Gillam
- * Date Created:    5/08/2025
- * Last Modified:   1/10/2025
- * Version:         1.0.0
+ * Date Created:    1/03/2026
+ * Last Modified:   22/03/2026
+ * Version:         1.0.1
  *
  */
 
@@ -16,7 +16,7 @@
 
 // User code begin: ------------------------------------------------------
 // --- CAN MREx initialisation ---
-const uint8_t nodeID = 1;  // Change this to set your device's node ID
+uint8_t nodeID = 1;  // Change this to set your device's node ID
 
 // --- Pin Definitions ---
 #define TX_GPIO_NUM GPIO_NUM_4 // Set GPIO pin for CAN Transmit
@@ -26,9 +26,10 @@ const uint8_t nodeID = 1;  // Change this to set your device's node ID
 #define REVERSING_PIN GPIO_NUM_10
 
 // --- OD definitions ---
-uint16_t desiredSpeed = 0;
+uint16_t od_motor_command = 0;
 uint16_t regenBrake = 0;
 uint8_t serviceBrake = 0;
+uint8_t directionMode = 1;
 
 //OPTIONAL: timing for a non blocking function occuring every two seconds
 unsigned long previousMillis = 0;
@@ -37,7 +38,11 @@ const long interval = 100; // 100 milliseconds
 // setting PWM properties
 const int freq = 5000;
 const int resolution = 8;
- 
+
+//Other variables
+// Locks motor when both motor and brakes are applied and only releases when
+// Both are 0
+uint8_t motor_lockout = 1; 
 
 
 // User code end ---------------------------------------------------------
@@ -50,13 +55,22 @@ void setup() {
   
   //Initialize CANMREX protocol
   initCANMREX(TX_GPIO_NUM, RX_GPIO_NUM, nodeID);
+  xTaskCreatePinnedToCore(
+    CAN_Task,
+    "CAN Task",
+    4096,
+    &nodeID,   // <--- passed into pvParameters
+    3,
+    NULL,
+    0
+  );
 
   // User code Setup Begin: -------------------------------------------------
   // --- Register OD entries ---
-  registerODEntry(0x60FF, 0x00, 2, sizeof(desiredSpeed), &desiredSpeed);
+  registerODEntry(0x60FF, 0x00, 2, sizeof(od_motor_command), &od_motor_command);
   registerODEntry(0x3012, 0x00, 2, sizeof(regenBrake), &regenBrake);
   registerODEntry(0x3012, 0x01, 2, sizeof(serviceBrake), &serviceBrake);
-
+  registerODEntry(0x6060, 0x00, 2, sizeof(directionMode), &directionMode);
 
   // --- Register TPDOs ---
   configureTPDO(0, 0x180 + nodeID, 255, 100, 100);  // COB-ID, transType, inhibit, event
@@ -71,7 +85,7 @@ void setup() {
 
   PdoMapEntry rpdoEntries[] = {
     {0x60FF, 0x00, 16},  // Example: index 0x2000, subindex 1, 16 bits
-    {0x3012, 0x00, 16}    // Example: index 0x2001, subindex 0, 8 bits
+    {0x3012, 0x00, 16}    // Example: index 0x2001, subindex 0, 16 bits
   };
   mapRPDO(0, rpdoEntries, 2);
 
@@ -91,37 +105,45 @@ void loop() {
   //User Code begin loop() ----------------------------------------------------
   // --- Stopped mode (This is default starting point) ---
   if (nodeOperatingMode == 0x02){ 
-    handleCAN(nodeID);
+    ledcWrite(MOTOR_PIN, 0);
+    ledcWrite(REGEN_BRAKE_PIN, 0);
   }
 
   // --- Pre operational state (This is where you can do checks and make sure that everything is okay) ---
   if (nodeOperatingMode == 0x80){ 
-    handleCAN(nodeID);
+    ledcWrite(MOTOR_PIN, 0);
+    ledcWrite(REGEN_BRAKE_PIN, 0);
   }
 
   // --- Operational state (Normal operating mode) ---
   if (nodeOperatingMode == 0x01){ 
-  handleCAN(nodeID);
   unsigned long currentMillis = millis();
   if (currentMillis - previousMillis >= interval) {
     previousMillis = currentMillis;
+
+    if (od_motor_command > 10 && regenBrake > 10) {
+    motor_lockout = 1;   // lock motor
+    }
+    else if (od_motor_command <= 10 && regenBrake <= 10) {
+        motor_lockout = 0;   // unlock motor
+    }
 
     // Declare variables outside the conditional blocks
     uint8_t motorpwmValue = 0;
     uint8_t brakepwmValue = 0;
 
     // Decision logic
-    if(desiredSpeed > 10 && regenBrake <= 10){
-      motorpwmValue = desiredSpeed >> 2;
+    if(od_motor_command > 10 && regenBrake <= 10 && motor_lockout == 0){
+      motorpwmValue = od_motor_command >> 2;
       brakepwmValue = 0;
       serviceBrake = 0;
     }
-    else if(desiredSpeed > 10 && regenBrake > 10){
+    else if(od_motor_command > 10 && regenBrake > 10){
       motorpwmValue = 0;
       brakepwmValue = regenBrake >> 2;
       serviceBrake = 0;
     }
-    else if(desiredSpeed <= 10 && regenBrake > 10){
+    else if(od_motor_command <= 10 && regenBrake > 10){
       motorpwmValue = 0;
       brakepwmValue = regenBrake >> 2;
       serviceBrake = 1;
@@ -129,21 +151,20 @@ void loop() {
     else{
       motorpwmValue = 0;
       brakepwmValue = 0;
-      serviceBrake = 1;
+      serviceBrake = 0;
     }
 
     // Get direction mode
-    uint32_t directionMode = executeSDORead(nodeID, 3, 0x6060, 0x00);
+    // uint32_t directionMode = executeSDORead(nodeID, 3, 0x6060, 0x00); // CHANGE THIS SO YOU CAN ONLY CHANGE IN PREOP
     if (directionMode == 1) {
       digitalWrite(REVERSING_PIN, LOW);
     } else if (directionMode == 3) {
       digitalWrite(REVERSING_PIN, HIGH);
     }
-
+    
     // Apply PWM outputs
     ledcWrite(MOTOR_PIN, motorpwmValue);
     ledcWrite(REGEN_BRAKE_PIN, brakepwmValue);
-    // executeSDOWrite(nodeID, 2, 0x3012, 0x01, sizeof(serviceBrake), &serviceBrake);
 
     // Debug output
     Serial.print("Motor value: ");

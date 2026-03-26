@@ -8,9 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ---
 
 unreleased
-## [1.0.1] - 2026-03-
+## [1.0.1] - 2026-03-22
 ### Changed 
 - Changed to suit CM 1.13.0
+
+### Added
+- Added motor lockout so the train doesnt jerk when both throttle and brake input are given and brake is taken away
+- Added safety states to preop and stopped
+
 
 ## [1.0.0] - 2026-03-22
 ### Added 
