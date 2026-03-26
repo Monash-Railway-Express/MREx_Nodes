@@ -29,6 +29,7 @@ uint8_t nodeID = 1;  // Change this to set your device's node ID
 uint16_t od_motor_command = 0;
 uint16_t regenBrake = 0;
 uint8_t serviceBrake = 0;
+uint8_t directionMode = 1;
 
 //OPTIONAL: timing for a non blocking function occuring every two seconds
 unsigned long previousMillis = 0;
@@ -69,7 +70,7 @@ void setup() {
   registerODEntry(0x60FF, 0x00, 2, sizeof(od_motor_command), &od_motor_command);
   registerODEntry(0x3012, 0x00, 2, sizeof(regenBrake), &regenBrake);
   registerODEntry(0x3012, 0x01, 2, sizeof(serviceBrake), &serviceBrake);
-
+  registerODEntry(0x6060, 0x00, 2, sizeof(directionMode), &directionMode);
 
   // --- Register TPDOs ---
   configureTPDO(0, 0x180 + nodeID, 255, 100, 100);  // COB-ID, transType, inhibit, event
@@ -84,7 +85,7 @@ void setup() {
 
   PdoMapEntry rpdoEntries[] = {
     {0x60FF, 0x00, 16},  // Example: index 0x2000, subindex 1, 16 bits
-    {0x3012, 0x00, 16}    // Example: index 0x2001, subindex 0, 8 bits
+    {0x3012, 0x00, 16}    // Example: index 0x2001, subindex 0, 16 bits
   };
   mapRPDO(0, rpdoEntries, 2);
 
@@ -105,7 +106,7 @@ void loop() {
   // --- Stopped mode (This is default starting point) ---
   if (nodeOperatingMode == 0x02){ 
     ledcWrite(MOTOR_PIN, 0);
-    ledcWrite(REGEN_BRAKE_PIN, 0);q
+    ledcWrite(REGEN_BRAKE_PIN, 0);
   }
 
   // --- Pre operational state (This is where you can do checks and make sure that everything is okay) ---
@@ -159,7 +160,7 @@ void loop() {
       digitalWrite(REVERSING_PIN, LOW);
     } else if (directionMode == 3) {
       digitalWrite(REVERSING_PIN, HIGH);
-
+    }
     
     // Apply PWM outputs
     ledcWrite(MOTOR_PIN, motorpwmValue);
