@@ -5,8 +5,8 @@
  * Organisation:    MREX
  * Author:          Aung Hpone Thant, Chiara Gillam
  * Date Created:    5/10/2025
- * Last Modified:   18/12/2025
- * Version:         1.11.0
+ * Last Modified:   26/03/2026
+ * Version:         1.1
  *
  *This code is for the lighting node (Node 4 on the loco). 
  *LIGHTS_FWD will be the control for the white lights on the front and red on the back,
@@ -18,7 +18,7 @@
 
 // User code begin: ------------------------------------------------------
 // --- CAN MREx initialisation ---
-const uint8_t nodeID = 4;  // Change this to set your device's node ID
+uint8_t nodeID = 4;  // Change this to set your device's node ID
 
 // --- Pin Definitions ---
 #define TX_GPIO_NUM GPIO_NUM_5 // Set GPIO pin for CAN Transmit
@@ -48,7 +48,16 @@ void setup() {
   
   //Initialize CANMREX protocol
   initCANMREX(TX_GPIO_NUM, RX_GPIO_NUM, nodeID);
-
+  xTaskCreatePinnedToCore(
+      CAN_Task,
+      "CAN Task",
+      6144,
+      &nodeID,
+      3,
+      NULL,
+      0
+    );
+  enableHeartbeatMonitoring(true);
   // User code Setup Begin: -------------------------------------------------
   // --- Register OD entries ---
  
@@ -78,19 +87,19 @@ void loop() {
   unsigned long  currentMillis = millis();
   // --- Stopped mode (This is default starting point) ---
   if (nodeOperatingMode == 0x02){ 
-    handleCAN(nodeID);
+    //handleCAN(nodeID);
     driveState = Off;
   }
 
   // --- Pre operational state (This is where you can do checks and make sure that everything is okay) ---
   if (nodeOperatingMode == 0x80){ 
-    handleCAN(nodeID);
+    //handleCAN(nodeID);
     driveState = PreOp;
   }
 
   // --- Operational state (Normal operating mode) ---
   if (nodeOperatingMode == 0x01){ 
-    handleCAN(nodeID);
+    //handleCAN(nodeID);
     //request the state of the motor drive direction every 200ms
     if (currentMillis >= nextPollTime)
     {
