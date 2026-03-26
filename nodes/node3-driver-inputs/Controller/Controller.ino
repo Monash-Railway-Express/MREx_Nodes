@@ -38,18 +38,20 @@ uint16_t regenBrake = 0;
 uint16_t desiredSpeed = 0;
 uint8_t button1 = 0;
 uint8_t button2 = 0;
-uint8_t switch1 = 0; //parking 
+uint8_t switch1 = 0; //parking (1)=on and (0)=off
 uint8_t switch2 = 0;  // loc ann
 uint8_t directionMode = 0;  
 uint8_t conditionMode = 0;
 uint8_t challengeMode = 0;
 uint8_t operationMode = 0;
+uint8_t mcServiceBrakeRequest = 1;
 
 // previous state variables (used for edge detection)
 bool b1prev = HIGH; 
 bool b2prev = HIGH; 
-bool s1prev = HIGH; 
+bool s1prev = HIGH; // parking - initally on (1) 
 bool s2prev = HIGH;
+int dirprev = 2; 
 int opModePrev = 1; 
 
 //Timing for a non blocking function occuring every two seconds
@@ -139,10 +141,11 @@ void loop() {
     // --- Operational state ---
     if (nodeOperatingMode == 0x01) { 
 
-      //HandleHorn(); //You can guess what this does
+      //HandleHorn(); 
       HandleInputs();
-      print_status();
-      //HandleParking();
+      //print_status();
+      HandleParking();
+      HandleDirection();
     }
   }
 }
@@ -187,6 +190,11 @@ void HandleInputs() {
   // ===== Potentiometer Inputs =====
   regenBrake   = 1023 - analogRead(BRAKE_PIN);
   desiredSpeed = 1023 - analogRead(SPEED_PIN);
+  Serial.print("Brake: ");
+  Serial.print(regenBrake);
+  Serial.print("   ||   Throttle: ");
+  Serial.println(desiredSpeed);
+
 
   // ===== Button Inputs =====
   button1 = digitalRead(BUTTON_1_PIN);
@@ -197,8 +205,8 @@ void HandleInputs() {
   switch2 = digitalRead(SWITCH_2_PIN);
 
   // Store raw 5-position states too if you want to use them elsewhere later
-  challengeMode = check5Switch(analogRead(CHALLENGE_MODE_PIN));
-  conditionMode = check5Switch(analogRead(CONDITION_MODE_PIN));
+  directionMode = map5PosTo3State(analogRead(CHALLENGE_MODE_PIN));
+  //conditionMode = check5Switch(analogRead(CONDITION_MODE_PIN));
 }
 
 // Used for debugging. Prints all inputs and their values
@@ -232,10 +240,10 @@ void print_status() {
   // Serial.print(" | Condition pos3: ");
   // Serial.print(check3Switch(analogRead(DIRECTION_MODE_PIN)));
 
-  // Serial.print("Challenge raw: ");
-  // Serial.print(analogRead(CHALLENGE_MODE_PIN));
-  // Serial.print(" | Challenge pos5: ");
-  // Serial.print(check5Switch(CHALLENGE_MODE_PIN));
+  Serial.print("Challenge raw: ");
+  Serial.print(analogRead(CHALLENGE_MODE_PIN));
+  Serial.print(" | Challenge pos5: ");
+  Serial.print(map5PosTo3State(analogRead(CHALLENGE_MODE_PIN)));
 
   // Serial.print(" || Condition raw: ");
   // Serial.print(analogRead(CONDITION_MODE_PIN));
@@ -260,9 +268,24 @@ void HandleHorn() {
 
 void HandleParking() {
   if (switch1 != s1prev) {
+    //1 is brake on - 0 is off
     s1prev = switch1;
-    uint8_t invertedBtn1 = (uint8_t)!button1;
-    executeSDOWrite(nodeID, 2, 0x6065, 0x00, sizeof(button1), &invertedBtn1);
+    executeSDOWrite(nodeID, 2, 0x3012, 0x01, sizeof(switch1), &switch1);
+    Serial.print("Sending Parking");
+    Serial.println(switch1);
+  }
+}
+
+void HandleDirection() {
+  // Test values 
+  // Serial.println(directionMode);
+  // Serial.println(dirprev);
+  if ((directionMode != dirprev) && directionMode != 101) {
+    // 1 is forawrd, 2 is neutral, 3 is back 
+    dirprev = directionMode;
+    executeSDOWrite(nodeID, 1, 0x6060, 0x00, sizeof(directionMode), &directionMode);
+    Serial.print("Sending direction");
+    Serial.println(directionMode);
   }
 }
 
@@ -287,7 +310,7 @@ int check3Switch(int read) {
 // 5-position switch checker
 int check5Switch(int read) {
   //Serial.println(read);
-  if (read > 0 && read < 50) {
+  if (read >= 0 && read < 50) {
     return 1;
   }
   else if (read > 100 && read < 250) {
