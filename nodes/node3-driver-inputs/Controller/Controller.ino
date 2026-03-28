@@ -51,7 +51,7 @@ bool b1prev = HIGH;
 bool b2prev = HIGH; 
 bool s1prev = HIGH; // parking - initally on (1) 
 bool s2prev = HIGH;
-int dirprev = 2; 
+int dirprev = 101; 
 int opModePrev = 1; 
 
 //Timing for a non blocking function occuring every two seconds
@@ -281,6 +281,7 @@ void HandleParking() {
 }
 
 void HandleDirection() {
+  directionMode = map5PosTo3State(analogRead(CHALLENGE_MODE_PIN));
   // Test values 
   // Serial.println(directionMode);
   // Serial.println(dirprev);
