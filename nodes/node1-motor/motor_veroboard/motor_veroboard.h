@@ -9,6 +9,12 @@
 #define MOTOR_PIN GPIO_NUM_14
 #define REVERSING_PIN GPIO_NUM_10
 
+// Enum for operating modes
+enum OperatingMode : uint8_t {
+    MODE_STOPPED       = 0x02,
+    MODE_PREOP         = 0x80,
+    MODE_OPERATIONAL   = 0x01
+};
 
 // --- Function Prototypes
 void StoppedMode();

@@ -21,6 +21,7 @@
 
 #include <CAN_MREx.h> // inlcudes all CAN MREX files
 #include <Arduino.h>
+#include "motor_veroboard.h"
 
 // User code begin: ------------------------------------------------------
 
@@ -36,14 +37,6 @@ uint8_t od_direction_mode = 1;
 // --- Setting PWM properties ---
 const int freq = 5000;
 const int resolution = 8;
-
-// Enum for operating modes
-enum OperatingMode : uint8_t {
-    MODE_STOPPED       = 0x02,
-    MODE_PREOP         = 0x80,
-    MODE_OPERATIONAL   = 0x01
-};
-
 
 // User code end ---------------------------------------------------------
 void setup() {
@@ -133,9 +126,9 @@ void PreOpMode(){
   ledcWrite(REGEN_BRAKE_PIN, 0);
   
   // Set direction mode 
-  if (direction_mode == 1) {
+  if (od_direction_mode == 1) {
     digitalWrite(REVERSING_PIN, LOW);
-  } else if (direction_mode == 3) {
+  } else if (od_direction_mode == 3) {
     digitalWrite(REVERSING_PIN, HIGH);
   }
 
@@ -163,50 +156,46 @@ void OperationalMode() {
       motor_lockout = 0;
     }
 
+
     uint8_t motorpwmValue = 0;
     uint8_t brakepwmValue = 0;
-
     if (od_motor_command > 10 && od_regen_brake <= 10 && motor_lockout == 0) {
       motorpwmValue = od_motor_command >> 2;
       brakepwmValue = 0;
-      service_brake = 0;
     }
     else if (od_motor_command > 10 && od_regen_brake > 10) {
       motorpwmValue = 0;
       brakepwmValue = od_regen_brake >> 2;
-      service_brake = 0;
     }
     else if (od_motor_command <= 10 && od_regen_brake > 10) {
       motorpwmValue = 0;
       brakepwmValue = od_regen_brake >> 2;
-      service_brake = 1;
     }
     else {
       motorpwmValue = 0;
       brakepwmValue = 0;
-      service_brake = 0;
     }
 
     ledcWrite(MOTOR_PIN, motorpwmValue);
     ledcWrite(REGEN_BRAKE_PIN, brakepwmValue);
 
-    DebugOperationalOutput(motorpwmValue, brakepwmValue, service_brake);
+    DebugOperationalOutput(motorpwmValue, brakepwmValue, od_service_brake);
 
   }
 }
 
 
-void DebugOperationalOutput(uint8_t motorpwmValue, uint8_t brakepwmValue, uint8_t service_brake) {
+void DebugOperationalOutput(uint8_t motorpwmValue, uint8_t brakepwmValue, uint8_t od_service_brake) {
   Serial.print("Motor value: ");
   Serial.println(motorpwmValue);
   Serial.print("Brake value: ");
   Serial.println(brakepwmValue);
   Serial.print("Service brake: ");
-  Serial.println(service_brake);
+  Serial.println(od_service_brake);
 }
 
 
 void DebugPreOpOutput() {
   Serial.print("Direction mode: ");
-  Serial.println(direction_mode);
+  Serial.println(od_direction_mode);
 }
