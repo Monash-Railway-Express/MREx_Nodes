@@ -281,20 +281,20 @@ void CheckSensors(){
   Serial.print("  Front: ");
   Serial.print(temperatureFront);
 
-  heatF_EMCY = tempF > allowableTemperature;
-  heatR_EMCY = temperatureRear > allowableTemperature;
+  heatFrontEMCY = tempF > allowableTemperature;
+  heatRearEMCY = temperatureRear > allowableTemperature;
 
   if (smokeEMCY){
     Serial.println("Smoke Detected in the Locomotive!");
     sendEMCY(0, NODE_ID, 0x00505);
   }
 
-  if (heatF_EMCY) {
+  if (heatFrontEMCY) {
     Serial.println("Tempetaure inside Locomotive Front is Too High!");
     sendEMCY(0, NODE_ID, 0x00506);
   }
 
-    if (heatR_EMCY) {
+    if (heatRearEMCY) {
     Serial.println("Tempetaure inside Locomotive Rear is Too High!");
     sendEMCY(0, NODE_ID, 0x00507);
   }
