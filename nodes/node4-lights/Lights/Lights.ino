@@ -1,17 +1,25 @@
 /**
- * CAN MREX Lighting control file
+ * @file lights_and_sensors.ino
+ * @brief This code is for the lights & sensor node (Node 4 on the loco). 
  *
- * File:            Lights.ino
- * Organisation:    MREX
- * Author:          Aung Hpone Thant, Chiara Gillam, Oscar Boulter
- * Date Created:    5/10/2025
- * Last Modified:   26/03/2026
- * Version:         1.1
+ * @details
+ * LIGHTS_FWD will be the control for the white lights on the front and red on the back,
+ * LIGHTS_REV will be the control for the red lights on the front and white on the back
+ * LIGHTS_PREOP control the yellow lights on all faces of the loc
+ * TEMPER
  *
- *This code is for the lighting node (Node 4 on the loco). 
- *LIGHTS_FWD will be the control for the white lights on the front and red on the back,
- *LIGHTS_REV will be the control for the red lights on the front and white on the back
- *LIGHTS_PREOP control the yellow lights on all faces of the loco.
+ * @author Aung Hpone Thant 
+ * @author Chiara Gillam
+ * @author Oscar Boulter
+ *
+ * @date 		30/03/2026
+ *
+ * @version 1.1.1
+ *
+ * @organisation MREX
+ *
+ * @see CAN_MREx.h
+ *
  */
 
 #include <CAN_MREx.h> // inlcudes all CAN MREX files
@@ -47,7 +55,9 @@ unsigned long nextPollTime; //used for non blocking delay to request the current
 
 // User code end ---------------------------------------------------------
 
-
+/**
+ * @brief Initial Set up of Object Dictionary & Pin communication
+ */
 void setup() {
   Serial.begin(115200);
   delay(1000);
@@ -95,7 +105,9 @@ void setup() {
 
 }
 
-
+/**
+ * @brief Main loop of the program, checks the sensors each loop, assigns the drive state depending on mode
+ */
 void loop() {
   //User Code begin loop() ----------------------------------------------------
   unsigned long  currentMillis = millis();
@@ -129,7 +141,9 @@ void loop() {
   //User code end loop() --------------------------------------------------------
 }
 
-//handles the direction selector in operational state
+/**
+ * @brief Handles the direction selector in operational state
+ */
 void HandleDirStates()
 {
   //reads the motor direction from the controller.
@@ -154,7 +168,9 @@ void HandleDirStates()
   }
 }
 
-//function that flashes all lights on power on. 
+/**
+ * @brief Function that flashes all lights on power on. 
+ */
 void LightsSelfTest()
 {
   digitalWrite(LIGHT_PREOP, LOW);
@@ -178,6 +194,9 @@ void LightsSelfTest()
   digitalWrite(LIGHT_REV, LOW);
 }
 
+/**
+ * @brief Function that flashes writes to the Light pins depending on the drive state (direction/operating mode) of the locomotive
+ */
 void HandleOpMode()
 {
   switch (driveState)
@@ -214,8 +233,10 @@ void HandleOpMode()
   }
 }
 
-// Function for Checking the Temperature and Air Quality of the Sensors
-// Assume we are using the digital Output of the Smoke Detector
+
+/**
+ * @brief Function for Checking the Temperature and Air Quality of the Sensors. Assumes we are using the digital Output of the Smoke Detector
+ */
 void checkSensors(){
 
   bool smokeEMCY;
