@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
+unreleased
+## [1.0.3] - 2026-03-31
+- Updating file and function documentation in compliance with Software Standards and Guidelines V1.0.1 (SSG V1.0.1)
+- Updating variable names to be in compliance with SSG V1.0.1
+- Adding function prototypes and pin definitions to header file in compliance with SSG V1.0.1
+
 
 unreleased
 ## [1.0.2] - 2026-03-24

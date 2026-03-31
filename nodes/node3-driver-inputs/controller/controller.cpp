@@ -1,143 +1,9 @@
-#include <CAN_MREx.h>
 #include <controller.h>
+#include <stdint.h>
+#include <CAN_MREx.h>
 
+//Leaving Blank here as section 1.1.5 states function prototypes must be in header but does not state functions need to be in .cpp file
 /**
- * @file Controller.ino
- * @brief Driver controller code that controls the inputs recieved from buttons, switches, potentiometers and appropriately sends over CAN
- *
- * @details // TODO
- *
- * @author Chiara Gillam
- * @author Audrey Tasevki
- * @author Kang Yee
- * @author Nicholas Rowe
- * @author Aditya Dinesh Kumar
- *
- * @date Created: 05/08/2025 Last Modified: 31/03/2026 //is this appropriate?
- *
- * @version 1.0.2
- *
- * @organisation MREX
- *
- * @see //TO DO 
-*/
-
-// User code begin: ------------------------------------------------------
-// --- CAN MREx initialisation ---
-uint8_t nodeID = 3;
-
-
-// --- OD definitions ---
-uint16_t regenBrake = 0;
-uint16_t desiredSpeed = 0;
-uint8_t button1 = 0;
-uint8_t button2 = 0;
-uint8_t switch1 = 0; //parking (1)=on and (0)=off
-uint8_t switch2 = 0;  // loc ann
-uint8_t directionMode = 0;  
-uint8_t conditionMode = 0;
-uint8_t challengeMode = 0;
-uint8_t operationMode = 0;
-uint8_t mcServiceBrakeRequest = 1;
-
-// previous state variables (used for edge detection)
-bool b1prev = HIGH; 
-bool b2prev = HIGH; 
-bool s1prev = HIGH; // parking - initally on (1) 
-bool s2prev = HIGH;
-int dirprev = 101; 
-int opModePrev = 1; 
-
-//Timing for a non blocking function occuring every two seconds
-unsigned long previousMillis = 0;
-const long interval = 100; // 100 milliseconds
-
-
-// User code end ---------------------------------------------------------
-
-void setup() {
-  Serial.begin(115200);
-  delay(1000);
-  Serial.println("Serial Coms started at 115200 baud");
-  analogReadResolution(10);
-
-  //Inputs from componments  
-  pinMode(BRAKE_PIN, INPUT);
-  pinMode(SPEED_PIN, INPUT);
-  
-  pinMode(BUTTON_1_PIN, INPUT_PULLUP);
-  pinMode(BUTTON_2_PIN, INPUT_PULLUP);
-  pinMode(SWITCH_1_PIN, INPUT_PULLUP);
-  pinMode(SWITCH_2_PIN, INPUT_PULLUP);
-
-  pinMode(DIRECTION_MODE_PIN, INPUT);
-  pinMode(OP_MODE_PIN, INPUT);
-  pinMode(CHALLENGE_MODE_PIN, INPUT);
-  pinMode(CONDITION_MODE_PIN, INPUT);
-  
-  // Initialize CANMREX protocol
-  initCANMREX(TX_GPIO_NUM, RX_GPIO_NUM, nodeID);
-
-  xTaskCreatePinnedToCore(
-    CAN_Task,
-    "CAN Task",
-    4096,
-    &nodeID,   // <--- passed into pvParameters
-    3,
-    NULL,
-    0
-  );
-
-  // User code Setup Begin: -------------------------------------------------
-  // --- Register OD entries ---
-  registerODEntry(0x60FF, 0x00, 2, sizeof(desiredSpeed), &desiredSpeed);
-  registerODEntry(0x3012, 0x00, 2, sizeof(regenBrake), &regenBrake);
-  registerODEntry(0x6060, 0x00, 2, sizeof(directionMode), &directionMode);
-  registerODEntry(0x6061, 0x00, 2, sizeof(conditionMode), &conditionMode);
-  registerODEntry(0x6062, 0x00, 2, sizeof(challengeMode), &challengeMode);
-
-  // --- Register TPDOs ---
-  configureTPDO(0, 0x180 + nodeID, 255, 100, 100);  // COB-ID, transType, inhibit, event
-  
-  PdoMapEntry tpdoEntries[] = {
-    {0x60FF, 0x00, 16},
-    {0x3012, 0x00, 16}
-  };
-  mapTPDO(0, tpdoEntries, 2);
-  // --- Register RPDOs ---
-  // User code Setup end ---------------------------------------------------------
-}
-
-
-void loop() {
-  unsigned long currentMillis = millis();
-  if (currentMillis - previousMillis >= interval) {
-    previousMillis = currentMillis;
-
-    int opMode = map5PosTo3State(analogRead(CONDITION_MODE_PIN));
-
-    // Updating Op mode 
-    if((opModePrev != opMode) && (opMode != 101))
-    {
-      sendToNewOpMode(opMode);
-      opModePrev = opMode;
-    }
-
-    if (nodeOperatingMode == 0x80) { 
-      HandleDirection();
-    }
-
-    // --- Operational state ---
-    if (nodeOperatingMode == 0x01) { 
-
-      //HandleHorn(); 
-      HandleInputs();
-      //Print_Status();
-      HandleParking();
-    }
-  }
-}
-
 //function definitions
 // function to go to stopped / pre-op / operational mode
 void sendToNewOpMode(int opMode) {
@@ -198,7 +64,7 @@ void HandleInputs() {
 }
 
 // Used for debugging. Prints all inputs and their values
-void PrintStatus() {
+void print_status() {
   // Check readings of brake and speed
    Serial.print("Speed: ");
    Serial.print(desiredSpeed);
@@ -341,5 +207,4 @@ int map5PosTo3State(int read) {
     return 101;
   }
 }
-
-
+*/
