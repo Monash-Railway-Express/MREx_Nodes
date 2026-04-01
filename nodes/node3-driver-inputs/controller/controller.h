@@ -5,16 +5,16 @@
 #define CONTROLLER
 
 //Defining Function prototypes
-void sendToNewOpMode(int opMode);
-void sendAllNMT(uint8_t operatingMode);
+void SendToNewOpMode(int opMode);
+void SendAllNMT(uint8_t operatingMode);
 void HandleInputs();
 void PrintStatus();
 void HandleHorn();
 void HandleParking();
 void HandleDirection();
-int check3Switch(int read);
-int check5Switch(int read);
-int map5PosTo3State(int read);
+int Check3Switch(int read);
+int Check5Switch(int read);
+int Map5PosTo3State(int read);
 
 //defining Pins
 #define TX_GPIO_NUM GPIO_NUM_41 // Set GPIO pin for CAN Transmit
@@ -32,6 +32,22 @@ int map5PosTo3State(int read);
 #define CHALLENGE_MODE_PIN 1
 #define CONDITION_MODE_PIN 2
 #define OP_MODE_PIN 4
+
+//Defining Node ID's
+#define MOTOR_ID 0x01
+#define BRAKES_ID 0x02
+#define LIGHTS_ID 0x04
+#define AUDIO_ID 0x05
+#define LCD_ID 0x09
+
+
+//Defining operating mode enum
+enum OperatingMode : uint8_t {
+    MODE_STOPPED       = 0x02,
+    MODE_PREOP         = 0x80,
+    MODE_OPERATIONAL   = 0x01
+};
+
 
 
 #endif // CONTROLLER
