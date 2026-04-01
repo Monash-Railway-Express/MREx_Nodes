@@ -171,9 +171,15 @@ void SendToNewOpMode(int opMode) {
   
 }
 
-// function that is called to send NMT to all nodes
-//ID's have been changed to variable names to aid readability
+/**
+ * @brief function that is called to send NMT to all nodes
+ *
+ * @param operatingMode  Current operating mode (will be 0x01, 0x02 or 0x80)
+ *
+ * @return no return
+ */
 void SendAllNMT(uint8_t operatingMode) {
+  //ID's have been changed to variable names to aid readability
   sendNMT(operatingMode, MOTOR_ID); // motor previously 0x01
   sendNMT(operatingMode, BRAKES_ID); // brakes previously 0x02
   sendNMT(operatingMode, LIGHTS_ID); // lights previously 0x04
@@ -181,7 +187,10 @@ void SendAllNMT(uint8_t operatingMode) {
   sendNMT(operatingMode, LCD_ID); // LCD screen previously 0x09
 }
 
-// function where all inputs are read
+/**
+ * @brief function where all inputs are read
+ */
+
 void HandleInputs() {
   // ===== Potentiometer Inputs =====
   od_regen_brake   = 1023 - analogRead(BRAKE_PIN);
@@ -205,7 +214,9 @@ void HandleInputs() {
   //od_condition_mode = Check5Switch(analogRead(CONDITION_MODE_PIN));
 }
 
-// Used for debugging. Prints all inputs and their values
+/**
+ * @brief Used for debugging. Prints all inputs and their values
+ */
 void PrintStatus() {
   // Check readings of brake and speed
    Serial.print("Speed: ");
@@ -251,8 +262,9 @@ void PrintStatus() {
   // Serial.println(Map5PosTo3State(od_condition_modeRaw));
 }
 
-
-// function that does edge detection on horn button and calls SDO write to horn node
+/**
+ * @brief function that does edge detection on horn button and calls SDO write to horn node
+ */
 // NOTE: Horn is currently assigned to Button 1
 void HandleHorn() {
   if (od_button_1 != b1prev) {
@@ -263,6 +275,10 @@ void HandleHorn() {
   }
 }
 
+/**
+ * @brief TO DO (Nick) - Add description of function
+ */
+//parking currently set to switch 1
 void HandleParking() {
   if (od_switch_1 != s1prev) {
     //1 is brake on - 0 is off
@@ -272,6 +288,8 @@ void HandleParking() {
     Serial.println(od_switch_1);
   }
 }
+
+//TO DO (NICK) - ADD Doxygen style headers to following functions
 
 void HandleDirection() {
   od_direction_mode = Map5PosTo3State(analogRead(CHALLENGE_MODE_PIN));
