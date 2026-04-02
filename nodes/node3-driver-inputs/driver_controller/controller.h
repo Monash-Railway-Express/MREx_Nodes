@@ -5,7 +5,6 @@
 #define CONTROLLER
 
 //Defining Function prototypes
-void SendToNewOpMode(int opMode);
 void SendAllNMT(uint8_t operatingMode);
 void HandleInputs();
 void PrintStatus();
@@ -15,6 +14,11 @@ void HandleDirection();
 int Check3Switch(int read);
 int Check5Switch(int read);
 int Map5PosTo3State(int read);
+
+void UpdateOpMode();
+void StoppedMode();
+void PreOpMode();
+void OperationalMode();
 
 //defining Pins
 #define TX_GPIO_NUM GPIO_NUM_41 // Set GPIO pin for CAN Transmit

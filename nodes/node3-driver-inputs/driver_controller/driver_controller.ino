@@ -15,7 +15,7 @@
  *
  * @date Created: 05/08/2025
  *
- * @version 1.0.3
+ * @version 1.1.0
  *
  * @organisation MREX
  *
@@ -30,20 +30,33 @@ uint8_t nodeID = 3;
 // --- OD definitions ---
 //To Do (Nick): Find apropriate values, direction and PDO mapping for each of the following variables
 
-// OD 0x3012:00 – Regen brake values (pots) (0–1023). <insert R/W/RW>. Mapped to <TPDx>.
+// OD 0x3012:00 – Regen Brake values (pots) (0–1023). <RW>. Mapped to <TPDO1>.
 uint16_t od_regen_brake = 0;
-// OD 0x60FF:00 - Desired speed of motors (pots) (value). <R/W/RW>. Mapped to <TPDx>. 
-uint16_t od_desired_speed = 0;
-//TO DO (Nick) - Fill in OD Definitions for below and check these are OD's
-uint8_t od_button_1 = 0;
-uint8_t od_button_2 = 0;
-uint8_t od_switch_1 = 0; //parking (1)=on and (0)=off
-uint8_t od_switch_2 = 0;  // loc ann
-uint8_t od_direction_mode = 0;  
+
+// OD 0x606A:00 - Desired speed of motors (pots) (0-1023). <RW>. Mapped to <TPDO1>. 
+uint16_t od_motor_command = 0;
+
+// OD 0x6060:00 - Selecting locomotive travel direction mode (switch) (1-back, 2-neutral, 3-forward). <RW>. 
+uint8_t od_direction_mode = 0;
+
+// OD 0x6061:00 - Traction condition selector (switch) (int values 1 to 5, 5 being the slipperist). <RW>. 
 uint8_t od_condition_mode = 0;
-uint8_t challenge_mode = 0;
-uint8_t operation_mode = 0;
-uint8_t od_mc_service_brake_request = 1;
+
+// OD 0x6062:00 - Challenge operation type (switch) (1-throttle control, 2-speed control, 3-autostop, 4-regen, 5-traction). <RW>. 
+uint8_t od_challenge_mode = 0;
+
+// OD 0x6065:00 - Sounding horn (button) (1-play sound, 0-default). <RW>. 
+uint8_t od_horn_toggle = 0;
+
+//Free 
+uint8_t od_button_2 = 0;
+
+// OD 0x3012:01 - Electromagnetic Brake Toggle (switch) (1-on, 0-off). <RW>. 
+uint8_t od_service_brake = 0; //parking (1)=on and (0)=off
+
+//Free
+uint8_t od_switch_2 = 0;  
+
 
 // previous state variables (used for edge detection)
 bool b1prev = HIGH; 
@@ -51,7 +64,6 @@ bool b2prev = HIGH;
 bool s1prev = HIGH; // parking - initally on (1) 
 bool s2prev = HIGH;
 int dirprev = 101; 
-int opModePrev = 1; 
 
 //Timing for a non blocking function occuring every two seconds
 unsigned long previousMillis = 0;
@@ -95,7 +107,7 @@ void setup() {
 
   // User code Setup Begin: -------------------------------------------------
   // --- Register OD entries ---
-  registerODEntry(0x60FF, 0x00, 2, sizeof(od_desired_speed), &od_desired_speed);
+  registerODEntry(0x60FF, 0x00, 2, sizeof(od_motor_command), &od_motor_command);
   registerODEntry(0x3012, 0x00, 2, sizeof(od_regen_brake), &od_regen_brake);
   registerODEntry(0x6060, 0x00, 2, sizeof(od_direction_mode), &od_direction_mode);
   registerODEntry(0x6061, 0x00, 2, sizeof(od_condition_mode), &od_condition_mode);
@@ -119,64 +131,81 @@ void loop() {
   if (currentMillis - previousMillis >= interval) {
     previousMillis = currentMillis;
 
-    int opMode = Map5PosTo3State(analogRead(CONDITION_MODE_PIN));
+    //TO DO: Add emcy vaildation!!
+    UpdateOpMode();
 
-    // Updating Op mode 
-    if((opModePrev != opMode) && (opMode != 101))
-    {
-      SendToNewOpMode(opMode);
-      opModePrev = opMode;
+    switch (mode) {
+      case MODE_STOPPED: StoppedMode(); break;
+
+      case MODE_PREOP: PreOpMode(); break;
+
+      case MODE_OPERATIONAL: OperationalMode(); break;
+
+      default: StoppedMode(); break; // fail-safe
     }
+    // if (nodeOperatingMode == 0x80) { 
+    //   HandleDirection();
+    // }
 
-    if (nodeOperatingMode == 0x80) { 
-      HandleDirection();
-    }
+    // // --- Operational state ---
+    // if (nodeOperatingMode == 0x01) { 
 
-    // --- Operational state ---
-    if (nodeOperatingMode == 0x01) { 
-
-      //HandleHorn(); 
-      HandleInputs();
-      //Print_Status();
-      HandleParking();
-    }
+    //   //HandleHorn(); 
+    //   HandleInputs();
+    //   //Print_Status();
+    //   HandleParking();
+    // }
   }
 }
 
-//function definitions
-// function to go to stopped / pre-op / operational mode
-void SendToNewOpMode(int opMode) {
-  //Checks if EMCY 
-  //if(!checkMajorEMCY() || !checkMinorEMCY()){
-
-      if (opMode == 1) {
-      //previously: SendAllNMT(0x02);
-      SendAllNMT(MODE_STOPPED);
-      nodeOperatingMode = MODE_STOPPED; //previosuly set to 0x02
-      Serial.println("Stopped Mode");
-    }
-    if (opMode == 3) {
-      //previously: SendAllNMT(0x01);
-      SendAllNMT(MODE_OPERATIONAL);
-      nodeOperatingMode = MODE_OPERATIONAL; //previously set to 0x01
-      Serial.println("Normal Mode");
-    }
-    if (opMode == 2) {
-      SendAllNMT(MODE_PREOP); //previously SendAllNMT(0x80)
-      nodeOperatingMode = MODE_PREOP; //previously set to 0x80
-      Serial.println("Preop Mode");
-
-    }
-  //}
-  
+void StoppedMode(){
+  Serial.println("Stopped Mode");
 }
+
+void PreOpMode(){
+  Serial.println("Pre-Op Mode");
+}
+
+void OperationalMode(){
+  Serial.println("Op Mode")
+}
+
+
+/**
+ * @brief function that compares current to previous operational modes - if different will send to all nodes  
+ */
+void UpdateOpMode(){
+
+  // TO DO: Audrey Update 3 pos and 5 pos logic
+  int newOpModeRaw = Map5PosTo3State(analogRead(CONDITION_MODE_PIN));
+  
+  if(newOpModeRaw == 101) return; //invalid reading and don't update
+  
+  //Converting states 1-3 to enum OperatingMode
+  uint8_t newOpMode;
+
+  switch (newOpModeRaw) {
+    case 1: newOpMode = MODE_STOPPED; break;
+    case 2: newOpMode = MODE_PREOP; break;
+    case 3: newOpMode = MODE_OPERATIONAL; break;
+    default: return;
+  }
+
+  // Checking current mode is different to new
+  if(nodeOperatingMode != newOpMode){
+    // Send command to all nodes
+    nodeOperatingMode = opMode;  
+    // Update local state
+    SendAllNMT(opMode);
+  }
+}
+
 
 /**
  * @brief function that is called to send NMT to all nodes
  *
  * @param operatingMode  Current operating mode (will be 0x01, 0x02 or 0x80)
  *
- * @return no return
  */
 void SendAllNMT(uint8_t operatingMode) {
   //ID's have been changed to variable names to aid readability
@@ -194,24 +223,21 @@ void SendAllNMT(uint8_t operatingMode) {
 void HandleInputs() {
   // ===== Potentiometer Inputs =====
   od_regen_brake   = 1023 - analogRead(BRAKE_PIN);
-  od_desired_speed = 1023 - analogRead(SPEED_PIN);
+  od_motor_command = 1023 - analogRead(SPEED_PIN);
   Serial.print("Brake: ");
   Serial.print(od_regen_brake);
   Serial.print("   ||   Throttle: ");
-  Serial.println(od_desired_speed);
+  Serial.println(od_motor_command);
 
 
   // ===== Button Inputs =====
-  od_button_1 = digitalRead(BUTTON_1_PIN);
+  od_horn_toggle = digitalRead(BUTTON_1_PIN);
   od_button_2 = digitalRead(BUTTON_2_PIN);
 
   // ===== Switch Inputs =====
-  od_switch_1 = digitalRead(SWITCH_1_PIN);
+  od_service_brake = digitalRead(SWITCH_1_PIN);
   od_switch_2 = digitalRead(SWITCH_2_PIN);
 
-  // Store raw 5-position states too if you want to use them elsewhere later
-  
-  //od_condition_mode = Check5Switch(analogRead(CONDITION_MODE_PIN));
 }
 
 /**
@@ -220,19 +246,19 @@ void HandleInputs() {
 void PrintStatus() {
   // Check readings of brake and speed
    Serial.print("Speed: ");
-   Serial.print(od_desired_speed);
+   Serial.print(od_motor_command);
    Serial.print(" | Brake: ");
    Serial.println(od_regen_brake);
 
   // Check buttons
   // Serial.print(" || Button 1: ");
-  // Serial.print(od_button_1);
+  // Serial.print(od_horn_toggle);
   // Serial.print(" | Button 2: ");
   // Serial.println(od_button_2);
 
   // Check switches
   Serial.print(" || Switch 1: ");
-  Serial.print(od_switch_1);
+  Serial.print(od_service_brake);
   Serial.print(" | Switch 2: ");
   Serial.println(od_switch_2);
 
@@ -262,16 +288,20 @@ void PrintStatus() {
   // Serial.println(Map5PosTo3State(od_condition_modeRaw));
 }
 
+
+// TO DO: Create new Handle functions for 5 pos challenge and condition
+
+
 /**
  * @brief function that does edge detection on horn button and calls SDO write to horn node
  */
 // NOTE: Horn is currently assigned to Button 1
 void HandleHorn() {
-  if (od_button_1 != b1prev) {
+  if (od_horn_toggle != b1prev) {
     od_direction_mode = Map5PosTo3State(analogRead(CHALLENGE_MODE_PIN));
-    b1prev = od_button_1;
-    uint8_t invertedBtn1 = (uint8_t)!od_button_1;
-    executeSDOWrite(nodeID, 5, 0x6065, 0x00, sizeof(od_button_1), &invertedBtn1);
+    b1prev = od_horn_toggle;
+    uint8_t invertedBtn1 = (uint8_t)!od_horn_toggle;
+    executeSDOWrite(nodeID, 5, 0x6065, 0x00, sizeof(od_horn_toggle), &invertedBtn1);
   }
 }
 
@@ -280,18 +310,19 @@ void HandleHorn() {
  */
 //parking currently set to switch 1
 void HandleParking() {
-  if (od_switch_1 != s1prev) {
+  if (od_service_brake != s1prev) {
     //1 is brake on - 0 is off
-    s1prev = od_switch_1;
-    executeSDOWrite(nodeID, 2, 0x3012, 0x01, sizeof(od_switch_1), &od_switch_1);
+    s1prev = od_service_brake;
+    executeSDOWrite(nodeID, 2, 0x3012, 0x01, sizeof(od_service_brake), &od_service_brake);
     Serial.print("Sending Parking");
-    Serial.println(od_switch_1);
+    Serial.println(od_service_brake);
   }
 }
 
 //TO DO (NICK) - ADD Doxygen style headers to following functions
 
 void HandleDirection() {
+  // TO DO: Audrey Update 3 pos and 5 pos logic
   od_direction_mode = Map5PosTo3State(analogRead(CHALLENGE_MODE_PIN));
   // Test values 
   // Serial.println(od_direction_mode);
@@ -304,6 +335,8 @@ void HandleDirection() {
     Serial.println(od_direction_mode);
   }
 }
+
+// TO DO: Audrey Update 3 pos and 5 pos logic
 
 // old 3-position switch checker
 int Check3Switch(int read) {
