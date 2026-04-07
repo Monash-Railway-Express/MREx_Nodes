@@ -53,6 +53,7 @@ DFRobot_DS3231M rtc;
 const int SD_CS = 26;
 File logFile;
 String logFilename;
+String indexHTML = "";
 
 // Ring buffer config
 const int BUFFER_SIZE = 32;
@@ -144,6 +145,11 @@ void setup() {
     Serial.println("Failed to open log file");
     while (1);
   }
+
+  indexHTML += "<!DOCTYPE html><html lang=\"en\"><head><title>MREx CAN Logger</title><head><body>";
+  indexHTML += "<h1>Hello from the MREx CAN logger.</h1><p>Live feed: <a href=\"http://10.0.0.1/feed\">http://10.0.0.1/feed</a> (WebSocket: ws://10.0.0.1/ws)</p><h2>Directory listing</h2><ul>";
+  indexHTML += listDir(SD, "/", 1000);
+  indexHTML += "</ul></body></html>";
   
   //Initialize CANMREX protocol
   initCANMREX(TX_GPIO_NUM, RX_GPIO_NUM, nodeID); // this or below
@@ -167,11 +173,7 @@ void setup() {
   delay(100);
 
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
-    String response = "<!DOCTYPE html><html lang=\"en\"><head><title>MREx CAN Logger</title><head><body>";
-    response += "<h1>Hello from the MREx CAN logger.</h1><p>Live feed: <a href=\"http://10.0.0.1/feed\">http://10.0.0.1/feed</a> (WebSocket: ws://10.0.0.1/ws)</p><h2>Directory listing</h2><ul>";
-    response += listDir(SD, "/", 1000);
-    response += "</ul></body></html>";
-    request->send(200, "text/html", response);
+    request->send(200, "text/html", indexHTML);
   });
 
   server.on(AsyncURIMatcher::exact(FILEPATH), HTTP_GET, [](AsyncWebServerRequest *request) {
