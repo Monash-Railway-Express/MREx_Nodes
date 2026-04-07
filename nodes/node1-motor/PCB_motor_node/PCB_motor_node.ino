@@ -55,6 +55,9 @@ uint8_t od_challenge_mode = 0;
 // Global Variables
 // =============================================================================
 
+// Cumulative pulse count for distance tracking — updated each loop before counter clear
+int32_t total_pulse_accum = 0;
+
 // PI controller integrator accumulator
 float integrator = 0.0f;
 
@@ -161,7 +164,6 @@ void StoppedMode() {
  *
  * @details
  * Zeroes all drive outputs and sets the reversing contactor based on od_direction_mode.
- * Direction is only updated on change to avoid unnecessary contactor switching.
  * Mode 1 = reverse, 2 = neutral (contactor off), 3 = forward.
  */
 void PreOpMode() {
@@ -170,76 +172,66 @@ void PreOpMode() {
     od_service_brake = 0;
     integrator = 0.0f;
 
-    // Only switch contactor on direction change to prevent unnecessary switching
-    static uint8_t direction_mode_prev = 0;
-
-    if (od_direction_mode != direction_mode_prev) {
-        direction_mode_prev = od_direction_mode;
-
-        switch (od_direction_mode) {
-            case 1:  // Reverse
-                digitalWrite(REVERSING_CONTACTOR, HIGH);
-                Serial.println("[PreOp] Direction: Reverse");
-                break;
-            case 2:  // Neutral — open contactor
-                digitalWrite(REVERSING_CONTACTOR, LOW);
-                Serial.println("[PreOp] Direction: Neutral");
-                break;
-            case 3:  // Forward
-                digitalWrite(REVERSING_CONTACTOR, LOW);
-                Serial.println("[PreOp] Direction: Forward");
-                break;
-            default:  // Unknown — fail safe to neutral
-                digitalWrite(REVERSING_CONTACTOR, LOW);
-                Serial.print("[PreOp] Unknown direction mode: ");
-                Serial.println(od_direction_mode);
-                break;
-        }
+    switch (od_direction_mode) {
+        case 1:  // Reverse
+            digitalWrite(REVERSING_CONTACTOR, HIGH);
+            Serial.println("[PreOp] Direction: Reverse");
+            break;
+        case 2:  // Neutral — open contactor
+            digitalWrite(REVERSING_CONTACTOR, LOW);
+            Serial.println("[PreOp] Direction: Neutral");
+            break;
+        case 3:  // Forward
+            digitalWrite(REVERSING_CONTACTOR, LOW);
+            Serial.println("[PreOp] Direction: Forward");
+            break;
+        default:  // Unknown — fail safe to neutral
+            digitalWrite(REVERSING_CONTACTOR, LOW);
+            Serial.print("[PreOp] Unknown direction mode: ");
+            Serial.println(od_direction_mode);
+            break;
     }
 }
 
-/**
- * @brief Operational state — runs at 10 Hz, dispatches to active challenge mode.
- *
- * @details
- * Reads encoder speed, updates od_true_speed, then dispatches to the
- * appropriate control function based on od_challenge_mode. Runs every
- * LOOP_INTERVAL_MS milliseconds using a non-blocking millis() pattern.
- */
 void OperationalMode() {
     unsigned long current_millis = millis();
     if (current_millis - previous_millis < LOOP_INTERVAL_MS) return;
-    
 
-    float speed_kmh = ReadSpeedKMH(previous_millis);
+    // --- Read pulse count BEFORE ReadSpeedKMH() clears the counter ---
+    int16_t pulse_count = 0;
+    pcnt_get_counter_value(PCNT_UNIT_0, &pulse_count);
+
+    // Accumulate total pulses for distance tracking
+    total_pulse_accum += (int32_t)pulse_count;
+
+    float speed_kmh = ReadSpeedKMH(previous_millis);  // clears counter here
     previous_millis = current_millis;
-    od_true_speed = (uint32_t)speed_kmh;
+    od_true_speed   = (uint32_t)speed_kmh;
 
-    // Hard speed cap — zero throttle and cut all output above maximum speed
+    // Hard speed cap
     if (speed_kmh > MAX_SPEED_KMH) {
         WriteDAC(0, 0);
-        integrator = 0.0f;  // Reset integrator to prevent windup during cutoff
+        integrator = 0.0f;
         Serial.println("[OperationalMode] Speed cap exceeded — throttle cut.");
         return;
     }
 
     switch (od_challenge_mode) {
-        case CHALLENGE_SPEED_CONTROL:   SpeedControl(speed_kmh);          break;
-        case CHALLENGE_AUTO_STOP:       AutoStopChallenge(speed_kmh);     break;
-        case CHALLENGE_TRACTION:        TractionChallenge(speed_kmh);     break;
-        case CHALLENGE_ENERGY_RECOVERY: EnergyRecoveryChallenge(speed_kmh); break;
-        case CHALLENGE_NORMAL:          ThrottleControl(speed_kmh);         break;
-        default:                        ThrottleControl(speed_kmh);         break;
+        case CHALLENGE_THROTTLE:        ThrottleControl(speed_kmh);                   break;
+        case CHALLENGE_SPEED_CONTROL:   SpeedControl(speed_kmh);                      break;
+        case CHALLENGE_AUTO_STOP:       AutoStopChallenge(speed_kmh, total_pulse_accum); break;
+        case CHALLENGE_ENERGY_RECOVERY: EnergyRecoveryChallenge(speed_kmh);           break;
+        case CHALLENGE_TRACTION:        TractionChallenge(speed_kmh);                 break;
+        default:                        ThrottleControl(speed_kmh);                   break;
     }
 }
-
 
 // =============================================================================
 // CONTROL MODES
 // =============================================================================
 
 /**
- * @brief PI speed controller — drives to od_desired_speed setpoint.
+ * @brief PI speed controller — drives to od_motor_command setpoint.
  *
  * @details
  * Uses a PI loop to compute motor DAC output. Regen brake overrides
@@ -260,8 +252,8 @@ void SpeedControl(float speed_kmh) {
     } else {
         od_service_brake = 0;
 
-        // Scale od_motor_command (0–255) to speed setpoint (0–MAX_SPEED_KMH)
-        float speed_setpoint = ((float)od_motor_command / 255.0f) * MAX_SPEED_KMH;
+        // Scale od_motor_command (0–1023) to speed setpoint (0–MAX_SPEED_KMH)
+        float speed_setpoint = ((float)od_motor_command / 1023.0f) * MAX_SPEED_KMH;
         float error = speed_setpoint - speed_kmh;
 
         integrator += error * ki * 0.1f;
@@ -279,95 +271,201 @@ void SpeedControl(float speed_kmh) {
     WriteDAC(0, motor_dac);
     WriteDAC(1, brake_dac);
 
-    Serial.print("[SpeedControl] Setpoint: "); Serial.print(((float)od_motor_command / 255.0f) * MAX_SPEED_KMH);
+    Serial.print("[SpeedControl] Setpoint: "); Serial.print(((float)od_motor_command / 1023.0f) * MAX_SPEED_KMH);
     Serial.print(" | Speed: ");                Serial.print(speed_kmh);
     Serial.print(" | Motor DAC: ");            Serial.print(motor_dac);
     Serial.print(" | Brake DAC: ");            Serial.println(brake_dac);
 }
 
+// spare speed control function in case other does not work
+
+// /**
+//  * @brief Simple speed controller — accelerates below target speed and brakes above it.
+//  *
+//  * @details
+//  * No PI loop. The motor command is treated as a target speed request:
+//  * - below target speed  -> drive motor
+//  * - above target speed  -> apply brake
+//  * - within a small deadband -> do nothing
+//  *
+//  * Regen brake still overrides throttle.
+//  *
+//  * @param speed_kmh Current measured speed in km/h.
+//  */
+// void SpeedControl(float speed_kmh) {
+//     uint16_t motor_dac = 0;
+//     uint16_t brake_dac = 0;
+
+//     // Convert raw command (0–1023) to speed setpoint (0–MAX_SPEED_KMH)
+//     float speed_setpoint = ((float)od_motor_command / 1023.0f) * MAX_SPEED_KMH;
+//     float error = speed_setpoint - speed_kmh;
+
+//     const float deadband = 0.5f;     // km/h
+//     const float motor_gain = 80.0f;  // tune to suit
+//     const float brake_gain = 80.0f;  // tune to suit
+
+//     // Regen brake override
+//     if (od_regen_brake > REGEN_BRAKE_THRESHOLD) {
+//         motor_dac = 0;
+//         brake_dac = od_regen_brake;
+//         od_service_brake = (speed_kmh <= SERVICE_BRAKE_SPEED_KMH) ? 1 : 0;
+//     }
+//     else {
+//         od_service_brake = 0;
+
+//         if (error > deadband) {
+//             // Below target speed -> accelerate
+//             float cmd = error * motor_gain;
+//             if (cmd > DAC_MAX) cmd = DAC_MAX;
+//             motor_dac = (uint16_t)cmd;
+//             brake_dac = 0;
+//         }
+//         else if (error < -deadband) {
+//             // Above target speed -> decelerate
+//             float cmd = (-error) * brake_gain;
+//             if (cmd > DAC_MAX) cmd = DAC_MAX;
+//             motor_dac = 0;
+//             brake_dac = (uint16_t)cmd;
+//         }
+//         else {
+//             // Close enough to target
+//             motor_dac = 0;
+//             brake_dac = 0;
+//         }
+//     }
+
+//     WriteDAC(0, motor_dac);
+//     WriteDAC(1, brake_dac);
+
+//     Serial.print("[SpeedControl] Setpoint: ");
+//     Serial.print(speed_setpoint);
+//     Serial.print(" | Speed: ");
+//     Serial.print(speed_kmh);
+//     Serial.print(" | Motor DAC: ");
+//     Serial.print(motor_dac);
+//     Serial.print(" | Brake DAC: ");
+//     Serial.println(brake_dac);
+// }
 
 /**
- * @brief Raw throttle pass-through — maps od_motor_command directly to DAC.
+ * @brief Simple control using raw command (no speed setpoint, no PI).
  *
  * @details
- * No PI loop. od_motor_command (0–255) is scaled to the 10-bit DAC range.
- * Regen brake still overrides throttle when active.
+ * Uses od_motor_command directly (like your snippet):
+ * - high command + no regen  -> motor on
+ * - high command + regen     -> brake
+ * - low command + regen      -> brake + service brake
+ * - otherwise                -> stop + service brake
  *
  * @param speed_kmh Current measured speed in km/h.
  */
-void ThrottleControl(float speed_kmh) {
+void SpeedControl(float speed_kmh) {
     uint16_t motor_dac = 0;
     uint16_t brake_dac = 0;
 
-    if (od_regen_brake > REGEN_BRAKE_THRESHOLD) {
-        motor_dac  = 0;
-        brake_dac  = od_regen_brake;
-        od_service_brake = (speed_kmh <= SERVICE_BRAKE_SPEED_KMH) ? 1 : 0;
-    } else {
-        od_service_brake = 0;
-        // Scale 8-bit command (0-255) to 10-bit DAC range (0-1023)
-        motor_dac = (uint16_t)od_motor_command << 2;
+    if (od_motor_command > 10 && od_regen_brake <= 10) {
+        motor_dac = od_motor_command;   // full 10-bit range
         brake_dac = 0;
+        od_service_brake = 0;
+    }
+    else if (od_motor_command > 10 && od_regen_brake > 10) {
+        motor_dac = 0;
+        brake_dac = od_regen_brake;
+        od_service_brake = 0;
+    }
+    else if (od_motor_command <= 10 && od_regen_brake > 10) {
+        motor_dac = 0;
+        brake_dac = od_regen_brake;
+        od_service_brake = (speed_kmh <= SERVICE_BRAKE_SPEED_KMH) ? 1 : 0;
+    }
+    else {
+        motor_dac = 0;
+        brake_dac = 0;
+        od_service_brake = 1;
     }
 
     WriteDAC(0, motor_dac);
     WriteDAC(1, brake_dac);
 
-    Serial.print("[ThrottleControl] Motor CMD: "); Serial.print(od_motor_command);
-    Serial.print(" | Motor DAC: ");                Serial.print(motor_dac);
-    Serial.print(" | Brake DAC: ");                Serial.println(brake_dac);
+    Serial.print("[SpeedControl] CMD: ");
+    Serial.print(od_motor_command);
+    Serial.print(" | Speed: ");
+    Serial.print(speed_kmh);
+    Serial.print(" | Motor DAC: ");
+    Serial.print(motor_dac);
+    Serial.print(" | Brake DAC: ");
+    Serial.print(brake_dac);
+    Serial.print(" | Service Brake: ");
+    Serial.println(od_service_brake);
 }
 
 
 /**
- * @brief Auto-stop challenge — PI speed control with automatic stop below threshold.
+ * @brief Auto-stop challenge — PI speed control with automatic stop at 25m.
  *
  * @details
- * Manages throttle and brake output to bring the train to a precise stop.
- * Above AUTO_STOP_SPEED_KMH, behaves as normal PI speed control.
- * Below AUTO_STOP_SPEED_KMH, switches to a proportional braking ramp —
- * brake DAC scales linearly with remaining speed so braking force tapers
- * as the train slows, reducing overshoot at the stop point (ref: Kim et al., 2022).
- * Service brake is applied only when fully stopped to avoid locking wheels
- * during regen braking.
+ * On first call, snapshots total_pulse_accum as the start reference.
+ * Distance is computed from pulses accumulated in OperationalMode() before
+ * each counter clear, avoiding interference with ReadSpeedKMH().
+ * Once 25m is reached (~16,667 pulses at 200PPR, 0.3m circumference),
+ * switches to proportional braking ramp. Non-blocking.
+ * Based on braking curve approach from Kim et al. (2022).
  *
- * @param speed_kmh Current measured speed in km/h.
+ * @param speed_kmh   Current measured speed in km/h.
+ * @param pulse_accum Total accumulated pulse count from OperationalMode().
  */
-void AutoStopChallenge(float speed_kmh) {
+void AutoStopChallenge(float speed_kmh, int32_t pulse_accum) {
+    static bool    entered     = false;
+    static int32_t pulse_start = 0;
+
     uint16_t motor_dac = 0;
     uint16_t brake_dac = 0;
 
-    // --- Fully stopped ---
+    // --- Initialise on first entry ---
+    if (!entered) {
+        pulse_start = pulse_accum;
+        entered     = true;
+        Serial.println("[AutoStop] Challenge started — target stop in 25m.");
+    }
+
+    // --- Compute distance from accumulated pulses ---
+    // 200 pulses = 1 rev = 0.3m  →  25m ≈ 16,667 pulses
+    int32_t pulses_since_start = pulse_accum - pulse_start;
+    float distance_m = ((float)pulses_since_start / PULSES_PER_REV) * WHEEL_CIRCUMFERENCE_M;
+
+    // --- Zone 1: Fully stopped ---
     if (speed_kmh <= 0.1f) {
         WriteDAC(0, 0);
         WriteDAC(1, 0);
         od_service_brake = 1;
-        integrator = 0.0f;
+        integrator       = 0.0f;
+        entered          = false;  // Reset for next run
         Serial.println("[AutoStop] Stopped — service brake applied.");
         return;
     }
 
-    // --- Braking ramp zone: taper brake force proportionally to speed ---
-    // Scales from DAC_MAX at AUTO_STOP_SPEED_KMH down to 0 at standstill.
-    // This mirrors the braking curve approach in Kim et al. (2022) where
-    // deceleration is modulated near the stop point to reduce stopping error.
-    if (speed_kmh <= AUTO_STOP_SPEED_KMH) {
+    // --- Zone 2: Braking ramp — triggered once 25m is reached ---
+    if (distance_m >= AUTO_STOP_DISTANCE_M) {
+        motor_dac        = 0;
         od_service_brake = 0;
-        motor_dac = 0;
-        integrator = 0.0f;  // Reset integrator — PI not active in this zone
+        integrator       = 0.0f;
 
-        float brake_fraction = speed_kmh / AUTO_STOP_SPEED_KMH;  // 1.0 → 0.0 as speed drops
+        float brake_fraction = speed_kmh / AUTO_STOP_SPEED_KMH;
+        if (brake_fraction > 1.0f) brake_fraction = 1.0f;
         brake_dac = (uint16_t)(brake_fraction * DAC_MAX);
 
         WriteDAC(0, motor_dac);
         WriteDAC(1, brake_dac);
 
-        Serial.print("[AutoStop] Braking ramp — Speed: "); Serial.print(speed_kmh);
-        Serial.print(" | Brake DAC: ");                    Serial.println(brake_dac);
+        Serial.print("[AutoStop] Braking — Distance: "); Serial.print(distance_m);
+        Serial.print("m | Speed: ");                     Serial.print(speed_kmh);
+        Serial.print(" | Brake DAC: ");                  Serial.println(brake_dac);
         return;
     }
 
-    // --- Above threshold: normal PI speed control ---
+    // --- Zone 3: Under 25m — normal PI speed control ---
+    Serial.print("[AutoStop] Running — Distance: "); Serial.print(distance_m);
+    Serial.println("m");
     SpeedControl(speed_kmh);
 }
 
@@ -385,7 +483,7 @@ void AutoStopChallenge(float speed_kmh) {
 void TractionChallenge(float speed_kmh) {
     const float TRACTION_SLIP_MARGIN_KMH = 2.0f;
 
-    float speed_setpoint = ((float)od_motor_command / 255.0f) * MAX_SPEED_KMH;
+    float speed_setpoint = ((float)od_motor_command / 1023.0f) * MAX_SPEED_KMH;
 
     if (speed_kmh > speed_setpoint + TRACTION_SLIP_MARGIN_KMH) {
         WriteDAC(0, 0);

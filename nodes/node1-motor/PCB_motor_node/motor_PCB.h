@@ -54,7 +54,7 @@ const uint8_t NODE_ID = 1;
 
 // --- Physical Constants ---
 const float PULSES_PER_REV       = 200.0f;
-const float WHEEL_CIRCUMFERENCE_M = 0.3f;
+const float WHEEL_CIRCUMFERENCE_M = 0.3*3.14159f;
 
 // --- Control Limits ---
 #define DAC_MAX              1023
@@ -68,11 +68,15 @@ const float WHEEL_CIRCUMFERENCE_M = 0.3f;
 #define AUTO_STOP_SPEED_KMH      5.0f   // Target stop speed for AutoStop challenge (km/h)
 
 // --- Challenge Mode Values ---
-#define CHALLENGE_NORMAL          0
-#define CHALLENGE_SPEED_CONTROL   1
-#define CHALLENGE_AUTO_STOP       2
-#define CHALLENGE_TRACTION        3
+#define CHALLENGE_THROTTLE        1
+#define CHALLENGE_SPEED_CONTROL   2
+#define CHALLENGE_AUTO_STOP       3
 #define CHALLENGE_ENERGY_RECOVERY 4
+#define CHALLENGE_TRACTION        5
+
+//challenge variable
+#define AUTO_STOP_DISTANCE_M  25.0f   // Target stop distance for AutoStop challenge (m)
+
 
 // --- Operating Modes ---
 enum OperatingMode : uint8_t {
@@ -91,7 +95,7 @@ void PreOpMode();
 void OperationalMode();
 void SpeedControl(float speed_kmh);
 void ThrottleControl(float speed_kmh);
-void AutoStopChallenge(float speed_kmh);
+void AutoStopChallenge(float speed_kmh, int32_t pulse_accum);
 void TractionChallenge(float speed_kmh);
 void EnergyRecoveryChallenge(float speed_kmh);
 
