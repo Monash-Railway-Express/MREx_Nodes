@@ -383,7 +383,9 @@ String listDir(fs::FS &fs, String dirname, uint8_t levels) {
       listing += path;
       listing += "\">";
       listing += path;
-      listing += "</a></li>";
+      listing += "</a> ";
+      listing += file.size();
+      listing += "</li>";
     }
     file = root.openNextFile();
   }
