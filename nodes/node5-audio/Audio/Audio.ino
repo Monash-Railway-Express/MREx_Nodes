@@ -1,14 +1,18 @@
 
 
 /**
- * CAN MREX Audio Control file 
- * Audio controller for horn and announcements.
- * File:            main.ino
- * Organisation:    MREX
- * Author:          Chiara Gillam
- * Date Created:    5/08/2025
- * Last Modified:   12/1/2026
- * Version:         1.12.1
+ * @file Audio.ino
+ * @brief CAN MREX Audio Control file 
+ *
+ * @details 
+ * Audio controller for horn and announcements. Uses HardwareSerial to interface
+ * between ESP32 and DFPlayerMini via UART. Uses DFRobotDFPlayerMini.h
+ * 
+ * @author Aung Hpone Thant
+ *
+ * @date 03/04/2026
+ *
+ * @organisation MREx
  *
  */
 
@@ -29,7 +33,6 @@ DFPlayer - A Mini MP3 Player For Arduino
 /***********Notice and Trouble shooting***************
  1.Connection and Diagram can be found here
  <https://www.dfrobot.com/wiki/index.php/DFPlayer_Mini_SKU:DFR0299#Connection_Diagram>
- 2.This code is tested on Arduino Uno, Leonardo, Mega boards.
  ****************************************************/
 
 /*CURRENT AUDIO ORDERING: 
@@ -38,50 +41,50 @@ To reorder them, you have to delete and recopy them in the sequence you want.
 File names mean nothing.)
 IMPORTANT: 
 USE 16 bit .wav files for horn. Using MP3 adds small silences at start and end of clip, making looping sound choppy.
-1.) Thomas theme song
-2.) EDI Comeng horn
-3.) Comeng Horn Start
-4.) Comeng Horn Middle
-5.) Comeng Horn End
-6.) Comeng Horn Long Full
+1.) Startup Feedback Sound (Yarra Trams information chime)
+2.) Comeng Horn Middle
+3.) Comeng Horn End
 */
-
 #include <CAN_MREx.h> // inlcudes all CAN MREX files
 #include "Arduino.h"
 #include "DFRobotDFPlayerMini.h"
+#include <HardwareSerial.h>
 
 
 
 
 // User code begin: ------------------------------------------------------
 // --- CAN MREx initialisation ---
-const uint8_t nodeID = 5;  // Node 5 - Audio
+uint8_t nodeID = 5;  // Node 5 - Audio
 
 // --- Pin Definitions ---
-#define TX_GPIO_NUM GPIO_NUM_35 // Set GPIO pin for CAN Transmit
-#define RX_GPIO_NUM GPIO_NUM_36 // Set GPIO pins for CAN Receive
+#define TX_GPIO_NUM GPIO_NUM_36 // Set GPIO pin for CAN Transmit
+#define RX_GPIO_NUM GPIO_NUM_35 // Set GPIO pins for CAN Receive
 
 #define STATUS_LED 5
 #define PREOP_LED 4
 
 // --- OD definitions ---
-uint8_t horn = 0;
+uint8_t od_horn = 0;
 
 //DFPlayer Setup
 #define DFBUSY 13 //used to check if DFPlayer is playing tracks or not. Connect to BUSY pin on DFPlayer. If High, its free.
-#if (defined(ARDUINO_AVR_UNO) || defined(ESP8266))   // Using a soft serial port
-#include <SoftwareSerial.h>
-SoftwareSerial softSerial(/*rx =*/17, /*tx =*/16);
-#define FPSerial softSerial
-#else
-#define FPSerial Serial1
-#endif
+
+//sounds definition
+#define STARTUP_FB_SOUND 1
+#define HORN_LOOP_SOUND 2
+#define HORN_END_SOUND 3
+
+HardwareSerial player_serial(1); //initialise UART 1 of ESP as the serial for the DFPlayer module
 DFRobotDFPlayerMini myDFPlayer;
-void printDetail(uint8_t type, int value);
+
 
 //user variables
-bool HornState;
-uint8_t hornStateMNo = 1; //for horn state machine
+
+//function prototypes
+void printDetail(uint8_t type, int value);
+void HandleHorn();
+
 
 // User code end ---------------------------------------------------------
 
@@ -93,29 +96,43 @@ void setup() {
   
   //Initialize CANMREX protocol
   initCANMREX(TX_GPIO_NUM, RX_GPIO_NUM, nodeID);
-
+  xTaskCreatePinnedToCore(
+ 
+      CAN_Task,
+ 
+      "CAN Task",
+ 
+      6144,
+ 
+      &nodeID,
+ 
+      3,
+ 
+      NULL,
+ 
+      0
+  
+    );
   // User code Setup Begin: -------------------------------------------------
   // --- Register OD entries ---
-  registerODEntry(0x6065, 0x00, 1, sizeof(horn), &horn);
+  registerODEntry(0x6065, 0x00, 1, sizeof(od_horn), &od_horn);
 
   // --- Register TPDOs ---
   
 
   // --- Register RPDOs ---
 
-  delay(1000);
 
   // --- DFPlayer Setup ---
-  #if (defined ESP32)
-    FPSerial.begin(9600, SERIAL_8N1, /*rx =*/16, /*tx =*/17);
-  #else
-    FPSerial.begin(9600);
-  #endif
+  player_serial.begin(9600, SERIAL_8N1, /*rx =*/17, /*tx =*/16);
   Serial.println();
-  Serial.println(F("DFRobot DFPlayer Mini Wallaby Audio Master"));
   Serial.println(F("Initializing DFPlayer ... (May take 3~5 seconds)"));
   
-  if (!myDFPlayer.begin(FPSerial, /*isACK = */true, /*doReset = */true)) {  //Use serial to communicate with mp3.
+  /*TODO(AP)
+  * -Figure out why DFPlayer -> ESP reply doesn't come through (most likely PCB issue with 1k ohm resistor absent)
+  * -Reset "isACK = true" when issue resolved (allows DFPlayer to return error and status messages like SD Card insert/remove/unable to play etc.)
+  */
+  if (!myDFPlayer.begin(player_serial, /*isACK = */false, /*doReset = */true)) {  //Use serial to communicate with mp3.
     Serial.println(F("Unable to begin:"));
     Serial.println(F("1.Please recheck the connection!"));
     Serial.println(F("2.Please insert the SD card!"));
@@ -124,15 +141,16 @@ void setup() {
       delay(0); // Code to compatible with ESP8266 watch dog.
     }
   }
-  Serial.println(F("DFPlayer Mini online."));
   delay(500);
-  myDFPlayer.volume(20);  //Set volume value. From 0 to 30
-
+  Serial.println(F("Audio system online."));
+  myDFPlayer.volume(30);  //Set volume value. From 0 to 30
+  delay(500);
+  myDFPlayer.play(STARTUP_FB_SOUND);
   // --- Set pin modes ---
   pinMode(DFBUSY, INPUT);
   pinMode(STATUS_LED, OUTPUT);
   pinMode(PREOP_LED, OUTPUT);
-
+//digitalWrite(STATUS_LED, HIGH);
   // User code Setup end ------------------------------------------------------
 
 
@@ -150,7 +168,6 @@ void loop() {
 
   // --- Pre operational state (This is where you can do checks and make sure that everything is okay) ---
   if (nodeOperatingMode == 0x80){ 
-    handleCAN(nodeID);
     digitalWrite(STATUS_LED, LOW);
     digitalWrite(PREOP_LED, HIGH);
     if (myDFPlayer.available()) {
@@ -161,9 +178,8 @@ void loop() {
 
   // --- Operational state (Normal operating mode) ---
   if (nodeOperatingMode == 0x01){ 
-    handleCAN(nodeID);
     digitalWrite(STATUS_LED, HIGH);
-    HornLogic();
+    HandleHorn();
     if (myDFPlayer.available()) {
       //printDetail(myDFPlayer.readType(), myDFPlayer.read()); //Print the detail message from DFPlayer to handle different errors and states.
     }
@@ -172,26 +188,28 @@ void loop() {
   //User code end loop() --------------------------------------------------------
 }
 
-/*handles logic for playing horn.
-The horn has 2 parts: A middle part and an end part. The middle part loops indefinitely as long as the button is held, 
-and the end part plays only when the button is released. Similar to how it is done in video games. It is just
-there to make the horn sound more "real", but can be removed if its too buggy and we just leave the middle loop part.
+
+/*
+* @brief Handles logic for playing the horn. 
+*
+* @return Nothing
 */
-void HornLogic()
-{
-  HornState = (bool)horn;
+void HandleHorn() {
+  static bool hornStatePrev;
+  static uint8_t hornStateMNo = 1; //for horn state machin
+  hornStatePrev = (bool)od_horn;
   //Serial.print("Horn state:");
-  //Serial.println(HornState);
+  //Serial.println(hornStatePrev);
 
   switch (hornStateMNo)
   {
     //State 1: Horn Off
     case 1:
       //1--->2
-      if(HornState)
+      if(hornStatePrev)
       {
         //play the looping segment of the horn
-        myDFPlayer.loop(4);
+        myDFPlayer.loop(2);
         hornStateMNo = 2;
       }
       
@@ -201,9 +219,9 @@ void HornLogic()
     case 2:
 
       //2--->1
-      if(!HornState)
+      if(!hornStatePrev)
       {
-        myDFPlayer.play(5);
+        myDFPlayer.play(1);
         hornStateMNo = 1;
       }
       
@@ -212,8 +230,12 @@ void HornLogic()
 
 }
 
-//error reporting script that came with the DFPlayer example code
-//TODO: Connect this to report errors onto the EMCY channel in the CANBUS.
+/*
+* @brief Receives status messages from DFPlayer and prints them to console. Add link to CAN error messages further down the line.
+*
+* @return Nothing
+*/
+// TODO(AP): Add links to CAN MREx error logging (send minor errors on certain messages)
 void printDetail(uint8_t type, int value){
   switch (type) {
     case TimeOut:
