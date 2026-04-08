@@ -94,6 +94,9 @@ void setup() {
   pinMode(LIGHT_PREOP, OUTPUT);
   pinMode(LIGHT_FWD, OUTPUT);
   pinMode(LIGHT_REV, OUTPUT);
+  pinMode(SMOKE_PIN, INPUT);
+  pinMode(TEMPERATURE_FRONT_PIN, INPUT);
+  pinMode(TEMPERATURE_REAR_PIN, INPUT);
 
 
   //run lights self test. Flash all lights
@@ -243,7 +246,7 @@ void CheckSensors(){
 
   uint16_t temperatureFront;
   uint16_t temperatureRear;
-  unint16_t allowableTemperature = 70;
+  uint16_t allowableTemperature = 70;
 
   smokeEMCY = (digitalRead(SMOKE_PIN) == HIGH); 
   
@@ -264,7 +267,7 @@ void CheckSensors(){
   */
   
   int voltage0 = 156; // 500mv Converted to 0-1029 Scale
-  int temperature_Coef = 31; // 10mV Converted to 0-1029 Scale
+  int temperature_Coef = 3; // 10mV Converted to 0-1029 Scale
 
   temperatureFront = ( temperatureFront - voltage0 ) / temperature_Coef;
 
@@ -281,7 +284,7 @@ void CheckSensors(){
   Serial.print("  Front: ");
   Serial.print(temperatureFront);
 
-  heatFrontEMCY = tempF > allowableTemperature;
+  heatFrontEMCY = temperatureFront > allowableTemperature;
   heatRearEMCY = temperatureRear > allowableTemperature;
 
   if (smokeEMCY){
