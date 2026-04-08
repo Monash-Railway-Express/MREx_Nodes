@@ -5,8 +5,8 @@
  * Organisation:    MREX
  * Author:          Aung Hpone Thant, Chiara Gillam, Oscar Boulter
  * Date Created:    5/10/2025
- * Last Modified:   26/02/2025
- * Version:         1.11.0
+ * Last Modified:   26/03/2026
+ * Version:         1.1
  *
  *This code is for the lighting node (Node 4 on the loco). 
  *LIGHTS_FWD will be the control for the white lights on the front and red on the back,
@@ -14,12 +14,11 @@
  *LIGHTS_PREOP control the yellow lights on all faces of the loco.
  */
 
-
-//#include <CAN_MREx.h> // inlcudes all CAN MREX files
+#include <CAN_MREx.h> // inlcudes all CAN MREX files
 
 // User code begin: ------------------------------------------------------
 // --- CAN MREx initialisation ---
-const uint8_t nodeID = 4;  // Change this to set your device's node ID
+uint8_t nodeID = 4;  // Change this to set your device's node ID
 
 // --- Pin Definitions ---
 #define TX_GPIO_NUM GPIO_NUM_4 // Set GPIO pin for CAN Transmit
@@ -44,6 +43,8 @@ uint16_t tempR;
 //misc variables
 unsigned long nextPollTime; //used for non blocking delay to request the current motor direction from motor controller
 
+
+
 // User code end ---------------------------------------------------------
 
 
@@ -54,7 +55,16 @@ void setup() {
   
   //Initialize CANMREX protocol
   initCANMREX(TX_GPIO_NUM, RX_GPIO_NUM, nodeID);
-
+  xTaskCreatePinnedToCore(
+      CAN_Task,
+      "CAN Task",
+      6144,
+      &nodeID,
+      3,
+      NULL,
+      0
+    );
+  enableHeartbeatMonitoring(true);
   // User code Setup Begin: -------------------------------------------------
   // --- Register OD entries ---
   registerODEntry(0x1004, 0x00, 2, sizeof(tempF), &tempF);
@@ -77,10 +87,9 @@ void setup() {
   pinMode(LIGHT_FWD, OUTPUT);
   pinMode(LIGHT_REV, OUTPUT);
 
-  pinMode(SMOKE_PIN, INPUT);
-  pinMode(TEMPERATURE_F_PIN, INPUT);
-  pinMode(TEMPERATURE_R_PIN, INPUT);
 
+  //run lights self test. Flash all lights
+  LightsSelfTest();
   // User code Setup end ------------------------------------------------------
 
 
@@ -95,19 +104,19 @@ void loop() {
   
   // --- Stopped mode (This is default starting point) ---
   if (nodeOperatingMode == 0x02){ 
-    handleCAN(nodeID);
+    //handleCAN(nodeID);
     driveState = Off;
   }
 
   // --- Pre operational state (This is where you can do checks and make sure that everything is okay) ---
   if (nodeOperatingMode == 0x80){ 
-    handleCAN(nodeID);
+    //handleCAN(nodeID);
     driveState = PreOp;
   }
 
   // --- Operational state (Normal operating mode) ---
   if (nodeOperatingMode == 0x01){ 
-    handleCAN(nodeID);
+    //handleCAN(nodeID);
     //request the state of the motor drive direction every 200ms
     if (currentMillis >= nextPollTime)
     {
@@ -130,19 +139,43 @@ void HandleDirStates()
   dirMode = (uint8_t)dirMode32;
 
   //switches the drive state based on the motor direction
-  //TODO: clarify codes and implement accordingly. Currently using 0 for fwd and 1 for rev
-  if(dirMode == 0)
+  //TODO: clarify codes and implement accordingly. Currently using 3 for fwd and 1 for rev.
+  if(dirMode == 2)
   {
     driveState = Neutral;
   }
-  if(dirMode == 1)
+  if(dirMode == 3)
   {
     driveState = Forward;
   }
-  if(dirMode == 2)
+  if(dirMode == 1)
   {
     driveState = Reverse;
   }
+}
+
+//function that flashes all lights on power on. 
+void LightsSelfTest()
+{
+  digitalWrite(LIGHT_PREOP, LOW);
+  digitalWrite(LIGHT_FWD, HIGH);
+  digitalWrite(LIGHT_REV, LOW);
+  delay(200);
+  digitalWrite(LIGHT_PREOP, HIGH);
+  digitalWrite(LIGHT_FWD, LOW);
+  digitalWrite(LIGHT_REV, LOW);
+  delay(200);
+  digitalWrite(LIGHT_PREOP, LOW);
+  digitalWrite(LIGHT_FWD, LOW);
+  digitalWrite(LIGHT_REV, HIGH);
+  delay(200);
+  digitalWrite(LIGHT_PREOP, HIGH);
+  digitalWrite(LIGHT_FWD, HIGH);
+  digitalWrite(LIGHT_REV, HIGH);
+  delay(500);
+  digitalWrite(LIGHT_PREOP, LOW);
+  digitalWrite(LIGHT_FWD, LOW);
+  digitalWrite(LIGHT_REV, LOW);
 }
 
 void HandleOpMode()

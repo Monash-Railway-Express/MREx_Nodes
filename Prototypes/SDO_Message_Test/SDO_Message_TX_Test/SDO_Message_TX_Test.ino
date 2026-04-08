@@ -39,7 +39,7 @@ void setup() {
 
   // User code Setup Begin: -------------------------------------------------
   // --- Register OD entries ---
-
+  registerODEntry(0x6060, 0x00, 2, sizeof(directionMode), &directionMode);
 
   // --- Register TPDOs ---
   
@@ -60,7 +60,7 @@ void loop() {
   // --- Stopped mode (This is default starting point) ---
   if (nodeOperatingMode == 0x02){ 
     handleCAN(nodeID);
-    sendNMT(0x01, 0x05);
+    sendNMT(0x01, 0x04);
     nodeOperatingMode = 0x01; //go straight to operational for testing reasons.
   }
 
@@ -86,11 +86,10 @@ void handleButtons()
     if(prevHornBtnState != !digitalRead(b1))
     {
       Serial.print("Horn State Change: ");
-      Serial.println(!digitalRead(b1));
-      hornState = (uint8_t)(!digitalRead(b1));
-      executeSDOWrite(nodeID, 5,0x6065,0x00,sizeof(hornState), &hornState);
-      prevHornBtnState = !digitalRead(b1);
-      b1Reenable = curFrameTime + 300;
+      Serial.println(digitalRead(b1));
+      //hornState = (uint8_t)digitalRead(b1);
+      //executeSDOWrite(nodeID, 5,0x6065,0x00,sizeof(hornState), &hornState);
+      prevHornBtnState = digitalRead(b1);
     }
     
   }
