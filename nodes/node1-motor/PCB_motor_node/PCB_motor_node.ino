@@ -22,6 +22,7 @@
 #include <CAN_MREx.h>
 #include <Arduino.h>
 #include <Wire.h>
+#include <Preferences.h>
 #include "motor_PCB.h"
 #include "driver/pcnt.h"
 
@@ -61,16 +62,42 @@ int32_t total_pulse_accum = 0;
 // PI controller integrator accumulator
 float integrator = 0.0f;
 
-// PI controller gains — tune as required
-float kp = 20.0f;
-float ki = 5.0f;
-
 // Anti-windup clamp for integrator
 float integrator_limit = 300.0f;
 
 // Timing for 10 Hz control loop
 unsigned long previous_millis = 0;
 
+// Preferences API for non-volatile memory
+Preferences preferences;
+
+// PI controller gains — tuned by MUNT
+struct FloatPair {
+    String key;
+    float_t value;
+    uint16_t index;
+    uint8_t subindex;
+};
+
+// When adding a new pair, ensure to update numFloatPairs
+const int numFloatPairs = 15;
+struct FloatPair floatPairs[] = {
+    {"od_kp_1", 0, 0x60F6, 0x00},
+    {"od_ki_1", 0, 0x60F6, 0x01},
+    {"od_kd_1", 0, 0x60F6, 0x02},
+    {"od_kp_2", 0, 0x60F6, 0x03},
+    {"od_ki_2", 0, 0x60F6, 0x04},
+    {"od_kd_2", 0, 0x60F6, 0x05},
+    {"od_kp_3", 0, 0x60F6, 0x06},
+    {"od_ki_3", 0, 0x60F6, 0x07},
+    {"od_kd_3", 0, 0x60F6, 0x08},
+    {"od_kp_4", 0, 0x60F6, 0x09},
+    {"od_ki_4", 0, 0x60F6, 0x0A},
+    {"od_kd_4", 0, 0x60F6, 0x0B},
+    {"od_kp_5", 0, 0x60F6, 0x0C},
+    {"od_ki_5", 0, 0x60F6, 0x0D},
+    {"od_kd_5", 0, 0x60F6, 0x0E},
+};
 
 // =============================================================================
 // SETUP
@@ -80,6 +107,9 @@ void setup() {
     Serial.begin(115200);
     delay(1000);
     Serial.println("Serial Coms started at 115200 baud");
+
+    preferences.begin("od_params", false);
+    GetPreferences();
 
     initCANMREX(TX_GPIO_NUM, RX_GPIO_NUM, NODE_ID);
 
@@ -107,6 +137,10 @@ void setup() {
     registerODEntry(0x6061, 0x00, 2, sizeof(od_condition_mode), &od_condition_mode);// RPDO - 8bit
     registerODEntry(0x6060, 0x00, 2, sizeof(od_direction_mode), &od_direction_mode);// RPDO - 8bit
     registerODEntry(0x6062, 0x00, 2, sizeof(od_challenge_mode), &od_challenge_mode);// RPDO - 8bit
+    for (int i = 0; i < numFloatPairs; i++) {
+        struct FloatPair floatPair = floatPairs[i];
+        registerODEntry(floatPair.index, floatPair.subindex, 2, sizeof(floatPair.value), &floatPair.value); // SDO
+    }
 
     // --- Register TPDOs ---
     configureTPDO(0, 0x180 + NODE_ID, 255, 100, 100);
@@ -150,13 +184,14 @@ void loop() {
 // =============================================================================
 
 /**
- * @brief Stopped state — zero all outputs and reset integrator.
+ * @brief Stopped state — zero all outputs, reset integrator and put preferences to NVM.
  */
 void StoppedMode() {
     WriteDAC(0, 0);
     WriteDAC(1, 0);
     od_service_brake = 0;
     integrator = 0.0f;
+    PutPreferences();
 }
 
 /**
@@ -256,6 +291,10 @@ void SpeedControl(float speed_kmh) {
         // Scale od_motor_command (0–1023) to speed setpoint (0–MAX_SPEED_KMH)
         float speed_setpoint = ((float)od_motor_command / 1023.0f) * MAX_SPEED_KMH;
         float error = speed_setpoint - speed_kmh;
+
+        // CONSTANT TRACTION MODE 1
+        float_t ki = floatPairs[1].value;
+        float_t kp = floatPairs[0].value;
 
         integrator += error * ki * 0.1f;
         if (integrator > integrator_limit) integrator = integrator_limit;
@@ -618,4 +657,22 @@ void SetupPCNT() {
     pcnt_counter_pause(PCNT_UNIT_0);
     pcnt_counter_clear(PCNT_UNIT_0);
     pcnt_counter_resume(PCNT_UNIT_0);
+}
+
+/**
+ * @brief Gets variable values from non-volatile memory.
+ */
+void GetPreferences() {
+    for (int i = 0; i < numFloatPairs; i++) {
+        floatPairs[i].value = preferences.getFloat(floatPairs[i].key.c_str(), 0);
+    }
+}
+
+/**
+ * @brief Puts variable values into non-volatile memory.
+ */
+void PutPreferences() {
+    for (int i = 0; i < numFloatPairs; i++) {
+        preferences.putFloat(floatPairs[i].key.c_str(), floatPairs[i].value);
+    }
 }

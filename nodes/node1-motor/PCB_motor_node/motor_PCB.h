@@ -24,7 +24,8 @@
 #include <stdint.h>
 
 // --- Node ID ---
-const uint8_t NODE_ID = 1;
+// const uint8_t NODE_ID = 1;
+uint8_t NODE_ID = 1;
 
 // --- CAN Pins ---
 #define TX_GPIO_NUM GPIO_NUM_48
@@ -98,5 +99,7 @@ void ThrottleControl(float speed_kmh);
 void AutoStopChallenge(float speed_kmh, int32_t pulse_accum);
 void TractionChallenge(float speed_kmh);
 void EnergyRecoveryChallenge(float speed_kmh);
+void GetPreferences();
+void PutPreferences();
 
 #endif // MOTOR_PCB_H
