@@ -41,7 +41,7 @@ uint8_t od_service_brake = 0;
 // OD 0x606A:00 – Raw motor command (0–255). RW. Mapped to RPDO0.
 uint16_t od_motor_command = 0;
 
-// OD 0x6061:00 – Condition/direction mode (1=forward, 3=reverse). RW. Mapped to RPDO0.
+// OD 0x6061:00 – Condition, 1-5 1 being best track conditions 5 being worst track conditions (Not implemented yet)
 uint8_t od_condition_mode = 0;
 
 // OD 0x6060:00 – Direction mode mirror. RW. Mapped to RPDO0.
@@ -208,14 +208,6 @@ void OperationalMode() {
     previous_millis = current_millis;
     od_true_speed   = (uint32_t)speed_kmh;
 
-    // Hard speed cap
-    if (speed_kmh > MAX_SPEED_KMH) {
-        WriteDAC(0, 0);
-        integrator = 0.0f;
-        Serial.println("[OperationalMode] Speed cap exceeded — throttle cut.");
-        return;
-    }
-
     switch (od_challenge_mode) {
         case CHALLENGE_THROTTLE:        ThrottleControl(speed_kmh);                   break;
         case CHALLENGE_SPEED_CONTROL:   SpeedControl(speed_kmh);                      break;
@@ -224,6 +216,15 @@ void OperationalMode() {
         case CHALLENGE_TRACTION:        TractionChallenge(speed_kmh);                 break;
         default:                        ThrottleControl(speed_kmh);                   break;
     }
+
+    // Hard speed cap
+    if (speed_kmh > MAX_SPEED_KMH) {
+        WriteDAC(0, 0);
+        integrator = 0.0f;
+        Serial.println("[OperationalMode] Speed cap exceeded — throttle cut.");
+        return;
+    }
+
 }
 
 // =============================================================================
@@ -348,7 +349,7 @@ void SpeedControl(float speed_kmh) {
 // }
 
 /**
- * @brief Simple control using raw command (no speed setpoint, no PI).
+ * @brief Throttle control using motor_command.
  *
  * @details
  * Uses od_motor_command directly (like your snippet):
@@ -359,7 +360,7 @@ void SpeedControl(float speed_kmh) {
  *
  * @param speed_kmh Current measured speed in km/h.
  */
-void SpeedControl(float speed_kmh) {
+void ThrottleControl(float speed_kmh) {
     uint16_t motor_dac = 0;
     uint16_t brake_dac = 0;
 
@@ -401,15 +402,15 @@ void SpeedControl(float speed_kmh) {
 
 
 /**
- * @brief Auto-stop challenge — PI speed control with automatic stop at 25m.
+ * @brief Auto-stop challenge — throttle tapers to zero at 25m then braking ramp to stop.
  *
  * @details
  * On first call, snapshots total_pulse_accum as the start reference.
  * Distance is computed from pulses accumulated in OperationalMode() before
  * each counter clear, avoiding interference with ReadSpeedKMH().
- * Once 25m is reached (~16,667 pulses at 200PPR, 0.3m circumference),
- * switches to proportional braking ramp. Non-blocking.
- * Based on braking curve approach from Kim et al. (2022).
+ * Throttle scales proportionally from full at 0m to zero at 25m, naturally
+ * decelerating the train. Once stopped, service brake is applied.
+ * Non-blocking — uses static state variables across calls.
  *
  * @param speed_kmh   Current measured speed in km/h.
  * @param pulse_accum Total accumulated pulse count from OperationalMode().
@@ -425,7 +426,7 @@ void AutoStopChallenge(float speed_kmh, int32_t pulse_accum) {
     if (!entered) {
         pulse_start = pulse_accum;
         entered     = true;
-        Serial.println("[AutoStop] Challenge started — target stop in 25m.");
+        Serial.println("[AutoStop] Challenge started — throttle tapering over 25m.");
     }
 
     // --- Compute distance from accumulated pulses ---
@@ -444,12 +445,13 @@ void AutoStopChallenge(float speed_kmh, int32_t pulse_accum) {
         return;
     }
 
-    // --- Zone 2: Braking ramp — triggered once 25m is reached ---
+    // --- Zone 2: 25m reached — throttle zero, regen brake holds until stopped ---
     if (distance_m >= AUTO_STOP_DISTANCE_M) {
         motor_dac        = 0;
         od_service_brake = 0;
         integrator       = 0.0f;
 
+        // Taper brake proportionally to speed to avoid wheel lock
         float brake_fraction = speed_kmh / AUTO_STOP_SPEED_KMH;
         if (brake_fraction > 1.0f) brake_fraction = 1.0f;
         brake_dac = (uint16_t)(brake_fraction * DAC_MAX);
@@ -457,16 +459,26 @@ void AutoStopChallenge(float speed_kmh, int32_t pulse_accum) {
         WriteDAC(0, motor_dac);
         WriteDAC(1, brake_dac);
 
-        Serial.print("[AutoStop] Braking — Distance: "); Serial.print(distance_m);
-        Serial.print("m | Speed: ");                     Serial.print(speed_kmh);
-        Serial.print(" | Brake DAC: ");                  Serial.println(brake_dac);
+        Serial.print("[AutoStop] Coasting to stop — Distance: "); Serial.print(distance_m);
+        Serial.print("m | Speed: ");                              Serial.print(speed_kmh);
+        Serial.print(" | Brake DAC: ");                           Serial.println(brake_dac);
         return;
     }
 
-    // --- Zone 3: Under 25m — normal PI speed control ---
-    Serial.print("[AutoStop] Running — Distance: "); Serial.print(distance_m);
-    Serial.println("m");
-    SpeedControl(speed_kmh);
+    // --- Zone 3: Under 25m — throttle tapers proportionally to distance remaining ---
+    // At 0m  → distance_fraction = 1.0 → full od_motor_command
+    // At 25m → distance_fraction = 0.0 → zero throttle
+    float distance_fraction = 1.0f - (distance_m / AUTO_STOP_DISTANCE_M);
+    motor_dac = (uint16_t)(od_motor_command * distance_fraction);
+    brake_dac = 0;
+    od_service_brake = 0;
+
+    WriteDAC(0, motor_dac);
+    WriteDAC(1, brake_dac);
+
+    Serial.print("[AutoStop] Tapering — Distance: "); Serial.print(distance_m);
+    Serial.print("m | Fraction: ");                   Serial.print(distance_fraction);
+    Serial.print(" | Motor DAC: ");                   Serial.println(motor_dac);
 }
 
 /**
