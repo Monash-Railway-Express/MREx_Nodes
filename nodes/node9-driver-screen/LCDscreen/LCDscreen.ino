@@ -17,10 +17,10 @@
  *
  * @organisation MREX
  *
- * @see driver_screen_node.h
+ * @see LCDscreen.h
  */
 
-#include "driver_screen_node.h"
+#include "LCDscreen.h"
 
 #include <Arduino.h>
 #include <CAN_MREx.h>
