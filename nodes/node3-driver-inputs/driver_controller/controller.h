@@ -6,36 +6,41 @@
 
 //Defining Function prototypes
 void SendAllNMT(uint8_t operatingMode);
-void HandleInputs();
-void PrintStatus();
-void HandleHorn();
-void HandleParking();
-void HandleDirection();
-int Check3Switch(int read);
-int Check5Switch(int read);
-int Map5PosTo3State(int read);
 
 void UpdateOpMode();
 void StoppedMode();
 void PreOpMode();
 void OperationalMode();
 
+void HandleInputs();
+void HandleHorn();
+void HandleParking();
+void HandleDirection();
+void HandleChallenge();
+
+int readADC_HighZ(int pin, int samples = 20);
+int decodeNearest3(int raw);
+int decodeNearest5(int raw);
+int readStable3Pos(int pin);
+int readStable5Pos(int pin);
+
+
 //defining Pins
 #define TX_GPIO_NUM GPIO_NUM_41 // Set GPIO pin for CAN Transmit
 #define RX_GPIO_NUM GPIO_NUM_42 // Set GPIO pins for CAN Receive
 
-#define BRAKE_PIN 14
-#define SPEED_PIN 19
+#define BRAKE_PIN 1
+#define THROTTLE_PIN 2
 
-#define BUTTON_1_PIN 45   //Horn
+#define BUTTON_1_PIN 6   //Horn
 #define BUTTON_2_PIN 35   
-#define SWITCH_1_PIN 36   //Parking Brake 
+#define SWITCH_1_PIN 15   //Parking Brake 
 #define SWITCH_2_PIN 37   //Location Annoucement
 
-#define DIRECTION_MODE_PIN 5
-#define CHALLENGE_MODE_PIN 1
-#define CONDITION_MODE_PIN 2
-#define OP_MODE_PIN 4
+#define DIRECTION_MODE_PIN 4
+#define CHALLENGE_MODE_PIN 19
+#define CONDITION_MODE_PIN 20
+#define OP_MODE_PIN 5
 
 //Defining Node ID's
 #define MOTOR_ID 0x01
@@ -51,7 +56,6 @@ enum OperatingMode : uint8_t {
     MODE_PREOP         = 0x80,
     MODE_OPERATIONAL   = 0x01
 };
-
 
 
 #endif // CONTROLLER

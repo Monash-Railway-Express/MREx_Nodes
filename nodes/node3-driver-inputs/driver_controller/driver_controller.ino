@@ -15,7 +15,7 @@
  *
  * @date Created: 05/08/2025
  *
- * @version 1.1.0
+ * @version 1.2.0
  *
  * @organisation MREX
  *
@@ -57,30 +57,36 @@ uint8_t od_service_brake = 0; //parking (1)=on and (0)=off
 //Free
 uint8_t od_switch_2 = 0;  
 
+// ---------- ADC / filtering settings ----------
+const int ADC_RES_BITS = 10;         // 0..1023
+const int ADC_SAMPLES  = 20;         // more averaging for 100k sources
+const int POT_DEADBAND = 10;         // print only if changed enough
 
-// previous state variables (used for edge detection)
-bool b1prev = HIGH; 
-bool b2prev = HIGH; 
-bool s1prev = HIGH; // parking - initally on (1) 
-bool s2prev = HIGH;
-int dirprev = 101; 
+// ---------- Expected raw ADC levels ----------
+// 3-position ladder, 4 equal resistors:
+// taps are roughly 1/4, 2/4, 3/4 of Vref
+const int THREE_LEVELS[3] = {256, 512, 768};
+
+// 5-position ladder, 6 equal resistors:
+// taps are roughly 1/6, 2/6, 3/6, 4/6, 5/6 of Vref
+const int FIVE_LEVELS[5] = {171, 341, 512, 682, 853};
 
 //Timing for a non blocking function occuring every two seconds
 unsigned long previousMillis = 0;
 const long interval = 100; // 100 milliseconds
 
 
-// User code end ---------------------------------------------------------
+///////////////////SET UP/////////////////////////
 
 void setup() {
   Serial.begin(115200);
   delay(1000);
   Serial.println("Serial Coms started at 115200 baud");
-  analogReadResolution(10);
+  analogReadResolution(ADC_RES_BITS);
 
   //Inputs from componments  
   pinMode(BRAKE_PIN, INPUT);
-  pinMode(SPEED_PIN, INPUT);
+  pinMode(THROTTLE_PIN, INPUT);
   
   pinMode(BUTTON_1_PIN, INPUT_PULLUP);
   pinMode(BUTTON_2_PIN, INPUT_PULLUP);
@@ -91,6 +97,14 @@ void setup() {
   pinMode(OP_MODE_PIN, INPUT);
   pinMode(CHALLENGE_MODE_PIN, INPUT);
   pinMode(CONDITION_MODE_PIN, INPUT);
+
+  //For Sampling
+  analogSetPinAttenuation(BRAKE_PIN, ADC_11db);
+  analogSetPinAttenuation(THROTTLE_PIN, ADC_11db);
+  analogSetPinAttenuation(DIRECTION_MODE_PIN, ADC_11db);
+  analogSetPinAttenuation(OP_MODE_PIN, ADC_11db);
+  analogSetPinAttenuation(CHALLENGE_MODE_PIN, ADC_11db);
+
   
   // Initialize CANMREX protocol
   initCANMREX(TX_GPIO_NUM, RX_GPIO_NUM, nodeID);
@@ -111,20 +125,22 @@ void setup() {
   registerODEntry(0x3012, 0x00, 2, sizeof(od_regen_brake), &od_regen_brake);
   registerODEntry(0x6060, 0x00, 2, sizeof(od_direction_mode), &od_direction_mode);
   registerODEntry(0x6061, 0x00, 2, sizeof(od_condition_mode), &od_condition_mode);
-  registerODEntry(0x6062, 0x00, 2, sizeof(challenge_mode), &challenge_mode);
+  registerODEntry(0x6062, 0x00, 2, sizeof(od_challenge_mode), &od_challenge_mode);
 
   // --- Register TPDOs ---
   configureTPDO(0, 0x180 + nodeID, 255, 100, 100);  // COB-ID, transType, inhibit, event
   
   PdoMapEntry tpdoEntries[] = {
     {0x60FF, 0x00, 16},
-    {0x3012, 0x00, 16}
+    {0x3012, 0x00, 16},
+    {0x6062, 0x00, 8}
   };
   mapTPDO(0, tpdoEntries, 2);
   // --- Register RPDOs ---
   // User code Setup end ---------------------------------------------------------
 }
 
+////////////////MAIN LOOP//////////////////
 
 void loop() {
   unsigned long currentMillis = millis();
@@ -134,7 +150,7 @@ void loop() {
     //TO DO: Add emcy vaildation!!
     UpdateOpMode();
 
-    switch (mode) {
+    switch (nodeOperatingMode) {
       case MODE_STOPPED: StoppedMode(); break;
 
       case MODE_PREOP: PreOpMode(); break;
@@ -158,16 +174,26 @@ void loop() {
   }
 }
 
+/////////////MAIN LOOP END//////////////////////
+
 void StoppedMode(){
   Serial.println("Stopped Mode");
 }
 
 void PreOpMode(){
-  Serial.println("Pre-Op Mode");
+  //Serial.println("Pre-Op Mode");
+  HandleDirection();
+  HandleChallenge();
+  //HandleParking();
+  //HandleHorn();
 }
 
 void OperationalMode(){
-  Serial.println("Op Mode")
+  //Serial.println("Op Mode");
+  HandleChallenge();
+  //HandleParking();
+  //HandleHorn();
+  HandleInputs();
 }
 
 
@@ -177,26 +203,25 @@ void OperationalMode(){
 void UpdateOpMode(){
 
   // TO DO: Audrey Update 3 pos and 5 pos logic
-  int newOpModeRaw = Map5PosTo3State(analogRead(CONDITION_MODE_PIN));
-  
-  if(newOpModeRaw == 101) return; //invalid reading and don't update
+  int newOpModeRaw = readStable3Pos(OP_MODE_PIN);
   
   //Converting states 1-3 to enum OperatingMode
-  uint8_t newOpMode;
+  uint8_t enumOpMode;
 
   switch (newOpModeRaw) {
-    case 1: newOpMode = MODE_STOPPED; break;
-    case 2: newOpMode = MODE_PREOP; break;
-    case 3: newOpMode = MODE_OPERATIONAL; break;
+    case 1: enumOpMode = MODE_STOPPED; break;
+    case 2: enumOpMode = MODE_PREOP; break;
+    case 3: enumOpMode = MODE_OPERATIONAL; break;
     default: return;
   }
 
   // Checking current mode is different to new
-  if(nodeOperatingMode != newOpMode){
+  if(nodeOperatingMode != enumOpMode){
     // Send command to all nodes
-    nodeOperatingMode = opMode;  
+    nodeOperatingMode = enumOpMode;  
+    Serial.println(nodeOperatingMode);
     // Update local state
-    SendAllNMT(opMode);
+    //SendAllNMT(enumOpMode);
   }
 }
 
@@ -222,72 +247,15 @@ void SendAllNMT(uint8_t operatingMode) {
 
 void HandleInputs() {
   // ===== Potentiometer Inputs =====
-  od_regen_brake   = 1023 - analogRead(BRAKE_PIN);
-  od_motor_command = 1023 - analogRead(SPEED_PIN);
+  int od_regen_brake = 1023 - readADC_HighZ(BRAKE_PIN);
+  int od_motor_command = readADC_HighZ(THROTTLE_PIN);
+
   Serial.print("Brake: ");
   Serial.print(od_regen_brake);
   Serial.print("   ||   Throttle: ");
   Serial.println(od_motor_command);
 
-
-  // ===== Button Inputs =====
-  od_horn_toggle = digitalRead(BUTTON_1_PIN);
-  od_button_2 = digitalRead(BUTTON_2_PIN);
-
-  // ===== Switch Inputs =====
-  od_service_brake = digitalRead(SWITCH_1_PIN);
-  od_switch_2 = digitalRead(SWITCH_2_PIN);
-
 }
-
-/**
- * @brief Used for debugging. Prints all inputs and their values
- */
-void PrintStatus() {
-  // Check readings of brake and speed
-   Serial.print("Speed: ");
-   Serial.print(od_motor_command);
-   Serial.print(" | Brake: ");
-   Serial.println(od_regen_brake);
-
-  // Check buttons
-  // Serial.print(" || Button 1: ");
-  // Serial.print(od_horn_toggle);
-  // Serial.print(" | Button 2: ");
-  // Serial.println(od_button_2);
-
-  // Check switches
-  Serial.print(" || Switch 1: ");
-  Serial.print(od_service_brake);
-  Serial.print(" | Switch 2: ");
-  Serial.println(od_switch_2);
-
-
-  // Serial.print("Op_mode raw: ");
-  // Serial.print(analogRead(OP_MODE_PIN));
-  // Serial.print(" | Op_mode pos3: ");
-  // Serial.print(Check3Switch(analogRead(OP_MODE_PIN)));
-
-  // Serial.print(" || Direction raw: ");
-  // Serial.print(analogRead(DIRECTION_MODE_PIN));
-  // Serial.print(" | Condition pos3: ");
-  // Serial.print(Check3Switch(analogRead(DIRECTION_MODE_PIN)));
-
-  Serial.print("Challenge raw: ");
-  Serial.print(analogRead(CHALLENGE_MODE_PIN));
-  Serial.print(" | Challenge pos5: ");
-  Serial.print(Map5PosTo3State(analogRead(CHALLENGE_MODE_PIN)));
-
-  // Serial.print(" || Condition raw: ");
-  // Serial.print(analogRead(CONDITION_MODE_PIN));
-  // Serial.print(" | Condition pos5: ");
-  // Serial.print(Check5Switch(analogRead(CONDITION_MODE_PIN)));
-  
-  // Mapping 3 to 5 - Back up test Code
-  // Serial.print(" | OpMode mapped: ");
-  // Serial.println(Map5PosTo3State(od_condition_modeRaw));
-}
-
 
 // TO DO: Create new Handle functions for 5 pos challenge and condition
 
@@ -297,11 +265,13 @@ void PrintStatus() {
  */
 // NOTE: Horn is currently assigned to Button 1
 void HandleHorn() {
-  if (od_horn_toggle != b1prev) {
-    od_direction_mode = Map5PosTo3State(analogRead(CHALLENGE_MODE_PIN));
-    b1prev = od_horn_toggle;
+  Serial.print("Horn Handle: ");
+  int newHornToggle = digitalRead(BUTTON_1_PIN);
+  Serial.println(newHornToggle);
+  if (od_horn_toggle != newHornToggle) {
+    od_horn_toggle = newHornToggle;
     uint8_t invertedBtn1 = (uint8_t)!od_horn_toggle;
-    executeSDOWrite(nodeID, 5, 0x6065, 0x00, sizeof(od_horn_toggle), &invertedBtn1);
+    //executeSDOWrite(nodeID, AUDIO_ID, 0x6065, 0x00, sizeof(od_horn_toggle), &invertedBtn1);
   }
 }
 
@@ -310,10 +280,15 @@ void HandleHorn() {
  */
 //parking currently set to switch 1
 void HandleParking() {
-  if (od_service_brake != s1prev) {
+  Serial.print("Parking Handle: ");
+  int newServiceBrake = digitalRead(SWITCH_1_PIN);
+  Serial.println(newServiceBrake);
+  if (od_service_brake != newServiceBrake) {
+    
     //1 is brake on - 0 is off
-    s1prev = od_service_brake;
-    executeSDOWrite(nodeID, 2, 0x3012, 0x01, sizeof(od_service_brake), &od_service_brake);
+    od_service_brake = newServiceBrake;
+    //executeSDOWrite(nodeID, BRAKES_ID, 0x3012, 0x01, sizeof(od_service_brake), &od_service_brake);
+    //executeSDOWrite(nodeID, MOTOR_ID, 0x3012, 0x01, sizeof(od_service_brake), &od_service_brake);
     Serial.print("Sending Parking");
     Serial.println(od_service_brake);
   }
@@ -322,83 +297,108 @@ void HandleParking() {
 //TO DO (NICK) - ADD Doxygen style headers to following functions
 
 void HandleDirection() {
-  // TO DO: Audrey Update 3 pos and 5 pos logic
-  od_direction_mode = Map5PosTo3State(analogRead(CHALLENGE_MODE_PIN));
-  // Test values 
-  // Serial.println(od_direction_mode);
-  // Serial.println(dirprev);
-  if ((od_direction_mode != dirprev) && od_direction_mode != 101) {
+  Serial.print("Direction Handle: ");
+  int newDirectionMode = readStable3Pos(DIRECTION_MODE_PIN);
+  Serial.println(newDirectionMode);
+  if (od_direction_mode != newDirectionMode && newDirectionMode > 0) {
     // 1 is forawrd, 2 is neutral, 3 is back 
-    dirprev = od_direction_mode;
-    executeSDOWrite(nodeID, 1, 0x6060, 0x00, sizeof(od_direction_mode), &od_direction_mode);
+    od_direction_mode = newDirectionMode;
+    executeSDOWrite(nodeID, MOTOR_ID, 0x6060, 0x00, sizeof(od_direction_mode), &od_direction_mode);
+    executeSDOWrite(nodeID, LIGHTS_ID, 0x6060, 0x00, sizeof(od_direction_mode), &od_direction_mode);
+
     Serial.print("Sending direction");
     Serial.println(od_direction_mode);
   }
 }
 
-// TO DO: Audrey Update 3 pos and 5 pos logic
-
-// old 3-position switch checker
-int Check3Switch(int read) {
-  Serial.println(read);
-  if (read < 200) {
-    // neutral and pre op
-    return 1;
-  }
-  else if (read > 500) {
-    // op and forward
-    return 3;
-  }
-  else {
-    // stopped and backward 
-    return 2;
+void HandleChallenge() {
+  Serial.print("Challenge Handle");
+  int newChallengeMode = readStable5Pos(CHALLENGE_MODE_PIN);
+  Serial.println(newChallengeMode);
+  if (od_challenge_mode != newChallengeMode) {
+    // 1 is forawrd, 2 is neutral, 3 is back 
+    od_challenge_mode = newChallengeMode;
+    executeSDOWrite(nodeID, MOTOR_ID, 0x6062, 0x00, sizeof(od_challenge_mode), &od_challenge_mode);
+    Serial.print("Sending Challenge");
+    Serial.println(od_challenge_mode);
   }
 }
 
+// ---------- Helper: better ADC read for 100k sources ----------
+int readADC_HighZ(int pin, int samples) {
+  // Let ADC mux settle on this pin
+  analogRead(pin);
+  delayMicroseconds(500);
 
-// 5-position switch checker
-int Check5Switch(int read) {
-  //Serial.println(read);
-  if (read >= 0 && read < 50) {
-    return 1;
+  // Throw away a few reads
+  analogRead(pin);
+  delayMicroseconds(300);
+  analogRead(pin);
+  delayMicroseconds(300);
+
+  long sum = 0;
+  for (int i = 0; i < samples; i++) {
+    sum += analogRead(pin);
+    delayMicroseconds(250);
   }
-  else if (read > 100 && read < 250) {
-    return 2;
-  }
-  else if (read > 300 && read < 450) {
-    return 3;
-  }
-  else if (read > 500 && read < 650) {
-    return 4;
-  }
-  else if (read > 700 && read < 850) {
-    return 5;
-  }
-  else {
-    return 101;
-  }
+
+  return (int)(sum / samples);
 }
 
+// ---------- Helper: nearest-state decoding ----------
+int decodeNearest3(int raw) {
+  int bestIndex = 0;
+  int bestErr = abs(raw - THREE_LEVELS[0]);
 
-// map 5-position switch into old 3-state behaviour
-// positions 1,2 -> state 1
-// position 3   -> state 2
-// positions 4,5 -> state 3
-int Map5PosTo3State(int read) {
-  int pos = Check5Switch(read);
+  for (int i = 1; i < 3; i++) {
+    int err = abs(raw - THREE_LEVELS[i]);
+    if (err < bestErr) {
+      bestErr = err;
+      bestIndex = i;
+    }
+  }
 
-  if (pos <= 2) {
-    return 1;
-  }
-  else if (pos == 3) {
-    return 2;
-  }
-  else if (pos == 4 || pos == 5) {
-    return 3;
-  }
-  else {
-    return 101;
-  }
+  return bestIndex + 1;  // states 1..3
 }
 
+int decodeNearest5(int raw) {
+  int bestIndex = 0;
+  int bestErr = abs(raw - FIVE_LEVELS[0]);
 
+  for (int i = 1; i < 5; i++) {
+    int err = abs(raw - FIVE_LEVELS[i]);
+    if (err < bestErr) {
+      bestErr = err;
+      bestIndex = i;
+    }
+  }
+
+  return bestIndex + 1;  // states 1..5
+}
+
+// ---------- Stable selector read ----------
+int readStable3Pos(int pin) {
+  int r1 = readADC_HighZ(pin);
+  int r2 = readADC_HighZ(pin);
+  int r3 = readADC_HighZ(pin);
+
+  int s1 = decodeNearest3(r1);
+  int s2 = decodeNearest3(r2);
+  int s3 = decodeNearest3(r3);
+
+  if (s1 == s2 && s2 == s3) return s1;
+  return -1;
+}
+
+int readStable5Pos(int pin) {
+  int r1 = readADC_HighZ(pin);
+  int r2 = readADC_HighZ(pin);
+  int r3 = readADC_HighZ(pin);
+
+  int s1 = decodeNearest5(r1);
+  int s2 = decodeNearest5(r2);
+  int s3 = decodeNearest5(r3);
+
+  if (s1 == s2 && s2 == s3) return s1;
+  return -1;
+}

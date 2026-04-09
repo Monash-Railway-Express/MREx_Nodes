@@ -6,6 +6,38 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
+unreleased
+## [1.2.0] - 2026-04-09
+### Changed
+- Replaced basic `analogRead()` with high-impedance ADC sampling (`readADC_HighZ`)
+  - Includes settling time and multi-sampling
+  - Improves performance for high-resistance (100kΩ) sources
+- Added multi-sample validation for selector switches:
+  - `readStable3Pos()`
+  - `readStable5Pos()`
+- Replaced threshold-based decoding with nearest-value matching:
+  - `decodeNearest3()`
+  - `decodeNearest5()`
+- Updated `UpdateOpMode()`:
+  - Now uses `readStable3Pos(OP_MODE_PIN)`
+  - Cleaner enum mapping logic
+  - Added serial debug output
+- Fixed incorrect variable usage:
+  - `nodeOperatingMode = opMode` → `nodeOperatingMode = enumOpMode`
+-Behaviour changes:
+  - PreOp Mode:
+    - Handles direction and challenge selection
+  - Operational Mode:
+    - Handles challenge and inputs
+- Refactored logic into dedicated functions:
+  - `HandleDirection()`
+  - `HandleChallenge()`
+  - `HandleInputs()`
+  - `HandleHorn()`
+  - `HandleParking()`
+- Removed reliance on previous state variables
+- Now uses direct OD comparison for change detection
+
 
 unreleased
 ## [1.1.0] - 2026-04-02
