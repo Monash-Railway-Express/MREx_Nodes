@@ -27,8 +27,8 @@
 uint8_t NODE_ID = 1;
 
 // --- CAN Pins ---
-#define TX_GPIO_NUM GPIO_NUM_48
-#define RX_GPIO_NUM GPIO_NUM_47
+#define TX_GPIO_NUM GPIO_NUM_14
+#define RX_GPIO_NUM GPIO_NUM_13
 
 // --- DAC I2C ---
 #define DAC_ADDR  0x48
@@ -36,9 +36,9 @@ uint8_t NODE_ID = 1;
 #define SCL_PIN   GPIO_NUM_1
 
 // --- GPIO Pins ---
-#define THROTTLE_SWITCH      GPIO_NUM_4
 #define REVERSING_SWITCH_MC  GPIO_NUM_5
 #define BRAKE_SWITCH         GPIO_NUM_6
+#define FORWARD_SWITCH       GPIO_NUM_4 
 #define MOTOR1_GREEN_LED     GPIO_NUM_7
 #define MOTOR2_GREEN_LED     GPIO_NUM_15
 #define MOTOR1_RED_LED       GPIO_NUM_16
@@ -46,7 +46,15 @@ uint8_t NODE_ID = 1;
 #define ENCODER_A            GPIO_NUM_18
 #define ENCODER_B            GPIO_NUM_8
 #define ENCODER_Z            GPIO_NUM_9
-#define REVERSING_CONTACTOR  GPIO_NUM_10
+
+//Free pins
+#define FREE_PIN_1 GPIO_NUM_10
+#define ISOLATING_RELAY   GPIO_NUM_11
+#define FREE_PIN_1 GPIO_NUM_12
+#define FREE_PIN_1 GPIO_NUM_48
+
+#define REVERSING_CONTACTOR GPIO_NUM_47
+//#define ISOLATING_RELAY   GPIO_NUM_11
 
 // --- Pulse Counter ---
 #define PCNT_HIGH_LIMIT  32767
@@ -61,7 +69,6 @@ const float WHEEL_CIRCUMFERENCE_M = 0.3*3.14159f;
 #define REGEN_BRAKE_THRESHOLD  10   // Minimum regen brake value to activate
 #define LOOP_INTERVAL_MS      10   // Control loop period in ms
 #define MAX_SPEED_KMH  15.0f   // Hard speed cap — throttle cut above this speed (km/h)
-
 
 // --- Speed Thresholds ---
 #define SERVICE_BRAKE_SPEED_KMH  2.0f   // Apply service brake below this speed (km/h)
