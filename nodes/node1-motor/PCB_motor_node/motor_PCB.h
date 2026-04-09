@@ -24,7 +24,7 @@
 #include <stdint.h>
 
 // --- Node ID ---
-const uint8_t NODE_ID = 1;
+uint8_t NODE_ID = 1;
 
 // --- CAN Pins ---
 #define TX_GPIO_NUM GPIO_NUM_48
