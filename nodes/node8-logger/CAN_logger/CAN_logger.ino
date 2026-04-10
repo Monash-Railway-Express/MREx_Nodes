@@ -30,7 +30,7 @@
 #include "wshtml.h"
 #include <CAN_MREx.h>
 
-const uint8_t nodeID = 8;  // Change this to set your device's node ID
+uint8_t nodeID = 8;  // Change this to set your device's node ID
 const uint8_t muntedID = 1;
 
 // --- Pin Definitions ---
@@ -97,15 +97,6 @@ struct Parameter parameters[] = {
   {"od_kd_5", muntedID, 0x60F6, 0x0E, "float_t"},
 };
 
-int getParameterIdx(String key) {
-  for (int i = 0; i < num_parameters; i++) {
-    if (parameters[i].key == key) {
-      return i;
-    }
-  }
-  return -1;
-}
-
 void setup() {
   Serial.begin(115200);
   Wire.begin();
@@ -151,6 +142,17 @@ void setup() {
   //Initialize CANMREX protocol
   initCANMREX(TX_GPIO_NUM, RX_GPIO_NUM, nodeID); // this or below
 
+  // // causes unnecessary logging delays
+  // xTaskCreatePinnedToCore(
+  //     CAN_Task,
+  //     "CAN Task",
+  //     6144,
+  //     &nodeID,
+  //     3,
+  //     NULL,
+  //     0
+  // );
+
   // // CAN init
   // twai_general_config_t g_config = TWAI_GENERAL_CONFIG_DEFAULT(GPIO_NUM_5, GPIO_NUM_4, TWAI_MODE_NORMAL);
   // twai_timing_config_t t_config = TWAI_TIMING_CONFIG_500KBITS();
@@ -192,7 +194,9 @@ void setup() {
     for (int i = 0; i < num_parameters; i++) {
       struct Parameter parameter = parameters[i];
       if (parameter.type == "float_t") {
-        float_t value = executeSDORead(nodeID, parameter.targetNode, parameter.index, parameter.subindex);
+        uint32_t valueUInt = executeSDORead(nodeID, parameter.targetNode, parameter.index, parameter.subindex);
+        float_t value;
+        memcpy(&value, &valueUInt, sizeof(float_t));
         muntDoc[parameter.key] = value;
       }
     }
@@ -217,7 +221,7 @@ void setup() {
             responseArray.add(key);
             if (parameter.type == "float_t") {
               float_t requestValue = pair.value(); // implicit cast
-              executeSDOWrite(nodeID, parameter.targetNode, parameter.index, parameter.subindex, sizeof(float_t), &requestValue);
+              executeSDOWrite(nodeID, parameter.targetNode, parameter.index, parameter.subindex, sizeof(requestValue), &requestValue);
             }
           }
         }
@@ -261,9 +265,13 @@ void setup() {
 }
 
 void loop() {
-  // handleCAN(nodeID); // causes unnecessary logging delays
   twai_message_t message;
   if (twai_receive(&message, pdMS_TO_TICKS(10)) == ESP_OK) {
+    uint32_t canID = message.identifier;
+    if (canID >= 0x580 && canID <= 0x5FF) { // SDO responses
+      storeSDOResponse(message);
+    }
+    
     rtc.getNowTime();
 
     CANFrame frame;

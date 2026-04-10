@@ -79,25 +79,8 @@ struct FloatPair {
     uint8_t subindex;
 };
 
-// When adding a new pair, ensure to update numFloatPairs
 const int numFloatPairs = 15;
-struct FloatPair floatPairs[] = {
-    {"od_kp_1", 0, 0x60F6, 0x00},
-    {"od_ki_1", 0, 0x60F6, 0x01},
-    {"od_kd_1", 0, 0x60F6, 0x02},
-    {"od_kp_2", 0, 0x60F6, 0x03},
-    {"od_ki_2", 0, 0x60F6, 0x04},
-    {"od_kd_2", 0, 0x60F6, 0x05},
-    {"od_kp_3", 0, 0x60F6, 0x06},
-    {"od_ki_3", 0, 0x60F6, 0x07},
-    {"od_kd_3", 0, 0x60F6, 0x08},
-    {"od_kp_4", 0, 0x60F6, 0x09},
-    {"od_ki_4", 0, 0x60F6, 0x0A},
-    {"od_kd_4", 0, 0x60F6, 0x0B},
-    {"od_kp_5", 0, 0x60F6, 0x0C},
-    {"od_ki_5", 0, 0x60F6, 0x0D},
-    {"od_kd_5", 0, 0x60F6, 0x0E},
-};
+struct FloatPair floatPairs[numFloatPairs];
 
 // =============================================================================
 // SETUP
@@ -137,9 +120,27 @@ void setup() {
     registerODEntry(0x6061, 0x00, 2, sizeof(od_condition_mode), &od_condition_mode);// RPDO - 8bit
     registerODEntry(0x6060, 0x00, 2, sizeof(od_direction_mode), &od_direction_mode);// RPDO - 8bit
     registerODEntry(0x6062, 0x00, 2, sizeof(od_challenge_mode), &od_challenge_mode);// RPDO - 8bit
+    
+    // When adding a new pair, ensure to update numFloatPairs
+    // Assign values here rather than statically above as floats do not initialise properly otherwise
+    floatPairs[0] = {"od_kp_1", 0.1f, 0x60F6, 0x00};
+    floatPairs[1] = {"od_ki_1", 0.2f, 0x60F6, 0x01};
+    floatPairs[2] = {"od_kd_1", 0.3f, 0x60F6, 0x02};
+    floatPairs[3] = {"od_kp_2", 0.4f, 0x60F6, 0x03};
+    floatPairs[4] = {"od_ki_2", 0.5f, 0x60F6, 0x04};
+    floatPairs[5] = {"od_kd_2", 0.6f, 0x60F6, 0x05};
+    floatPairs[6] = {"od_kp_3", 0.7f, 0x60F6, 0x06};
+    floatPairs[7] = {"od_ki_3", 0.8f, 0x60F6, 0x07};
+    floatPairs[8] = {"od_kd_3", 0.9f, 0x60F6, 0x08};
+    floatPairs[9] = {"od_kp_4", 0.0f, 0x60F6, 0x09};
+    floatPairs[10] = {"od_ki_4", 0.1f, 0x60F6, 0x0A};
+    floatPairs[11] = {"od_kd_4", 0.2f, 0x60F6, 0x0B};
+    floatPairs[12] = {"od_kp_5", 0.3f, 0x60F6, 0x0C};
+    floatPairs[13] = {"od_ki_5", 0.4f, 0x60F6, 0x0D};
+    floatPairs[14] = {"od_kd_5", 0.5f, 0x60F6, 0x0E};
     for (int i = 0; i < numFloatPairs; i++) {
-        struct FloatPair floatPair = floatPairs[i];
-        registerODEntry(floatPair.index, floatPair.subindex, 2, sizeof(floatPair.value), &floatPair.value); // SDO
+        // Assigning floatPairs[i] to a variable first does not work to update floatPairs[i].value on SDO writes
+        registerODEntry(floatPairs[i].index, floatPairs[i].subindex, 2, sizeof(floatPairs[i].value), &(floatPairs[i].value)); // SDO
     }
 
     // --- Register TPDOs ---
