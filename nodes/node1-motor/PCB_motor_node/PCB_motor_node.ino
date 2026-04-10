@@ -842,8 +842,8 @@ void GetPreferences() {
     //     floatPairs[i].value = preferences.getFloat(floatPairs[i].key.c_str(), 0.f);
     // }
     
-    floatPairs[0].value = 20.0f;
-    floatPairs[1].value = 5.0f;
+    floatPairs[0].value = 0.0021616f;
+    floatPairs[1].value = 0.20276f;
 }
 
 /**
