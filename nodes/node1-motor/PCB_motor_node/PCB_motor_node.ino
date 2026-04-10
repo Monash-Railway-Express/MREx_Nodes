@@ -52,6 +52,11 @@ uint8_t od_direction_mode = 0;
 //                3=Traction, 4=EnergyRecovery). RW. Mapped to RPDO0.
 uint8_t od_challenge_mode = 0;
 
+// OD 0x2000:04 – Recovered energy from battery node (Wh). Read-only. Mapped to RPDO1.
+uint32_t od_recovered_energy = 0;
+
+// 
+
 // =============================================================================
 // Global Variables
 // =============================================================================
@@ -111,6 +116,7 @@ void setup() {
     SetupPCNT();
 
     pinMode(REVERSING_CONTACTOR, OUTPUT);
+    pinMode(ISOLATING_RELAY, OUTPUT);
 
     // --- Register OD entries ---
     registerODEntry(0x606C, 0x00, 2, sizeof(od_true_speed), &od_true_speed);          // TPDO - 32bit
@@ -120,6 +126,7 @@ void setup() {
     registerODEntry(0x6061, 0x00, 2, sizeof(od_condition_mode), &od_condition_mode);// RPDO - 8bit
     registerODEntry(0x6060, 0x00, 2, sizeof(od_direction_mode), &od_direction_mode);// RPDO - 8bit
     registerODEntry(0x6062, 0x00, 2, sizeof(od_challenge_mode), &od_challenge_mode);// RPDO - 8bit
+    registerODEntry(0x2000, 0x04, 0, sizeof(od_recovered_energy), &od_recovered_energy); // RPDO - 32bit
     
     // When adding a new pair, ensure to update numFloatPairs
     // Assign values here rather than statically above as floats do not initialise properly otherwise
@@ -161,6 +168,12 @@ void setup() {
         {0x6062, 0x00, 8},   // od_challenge_mode
     };
     mapRPDO(0, rpdo_entries, 5);
+
+    configureRPDO(1, 0x280 + 7, 255, 0);  // COB-ID matches battery node TPDO2 (0x280 + nodeID 7)
+    PdoMapEntry rpdo1_entries[] = {
+        {0x2000, 0x04, 32},  // recovered_energy_can
+    };
+    mapRPDO(1, rpdo1_entries, 1);
 }
 
 
@@ -170,6 +183,8 @@ void setup() {
 
 void loop() {
     OperatingMode mode = static_cast<OperatingMode>(nodeOperatingMode);
+
+    
 
     switch (mode) {
         case MODE_STOPPED:     StoppedMode();     break;
@@ -297,7 +312,8 @@ void SpeedControl(float speed_kmh) {
         float_t ki = floatPairs[1].value;
         float_t kp = floatPairs[0].value;
 
-        integrator += error * ki * 0.1f;
+        integrator += error * ki * LOOP_INTERVAL_MS/1000;
+
         if (integrator > integrator_limit) integrator = integrator_limit;
         if (integrator < 0.0f)            integrator = 0.0f;
 
@@ -456,16 +472,16 @@ void ThrottleControl(float speed_kmh) {
  * @param pulse_accum Total accumulated pulse count from OperationalMode().
  */
 void AutoStopChallenge(float speed_kmh, int32_t pulse_accum) {
-    static bool    entered     = false;
+    static bool    entered_auto_stop     = false;
     static int32_t pulse_start = 0;
 
     uint16_t motor_dac = 0;
     uint16_t brake_dac = 0;
 
     // --- Initialise on first entry ---
-    if (!entered) {
+    if (!entered_auto_stop) {
         pulse_start = pulse_accum;
-        entered     = true;
+        entered_auto_stop = true;
         Serial.println("[AutoStop] Challenge started — throttle tapering over 25m.");
     }
 
@@ -480,7 +496,7 @@ void AutoStopChallenge(float speed_kmh, int32_t pulse_accum) {
         WriteDAC(1, 0);
         od_service_brake = 1;
         integrator       = 0.0f;
-        entered          = false;  // Reset for next run
+        entered_auto_stop = false;  // Reset for next run
         Serial.println("[AutoStop] Stopped — service brake applied.");
         return;
     }
@@ -491,10 +507,7 @@ void AutoStopChallenge(float speed_kmh, int32_t pulse_accum) {
         od_service_brake = 0;
         integrator       = 0.0f;
 
-        // Taper brake proportionally to speed to avoid wheel lock
-        float brake_fraction = speed_kmh / AUTO_STOP_SPEED_KMH;
-        if (brake_fraction > 1.0f) brake_fraction = 1.0f;
-        brake_dac = (uint16_t)(brake_fraction * DAC_MAX);
+        brake_dac = (uint16_t)(DAC_MAX);
 
         WriteDAC(0, motor_dac);
         WriteDAC(1, brake_dac);
@@ -552,20 +565,181 @@ void TractionChallenge(float speed_kmh) {
 
 
 /**
- * @brief Energy recovery challenge — regen-first braking strategy.
+ * @brief Energy recovery challenge — measure regen energy then limit motoring to recovered amount.
  *
  * @details
- * Prioritises regen braking over service brake at all speeds. Service brake
- * is suppressed unless the train is stationary. Throttle uses PI speed control.
+ * Phase 1: Waits for regen brake input. On first brake, snapshots od_recovered_energy
+ *          as energy_brake_start. Applies regen braking, suppressing service brake.
+ * Phase 2: Train comes to stop. Snapshots od_recovered_energy as energy_brake_end.
+ *          Recovered energy = energy_brake_end - energy_brake_start.
+ *          Holds stationary, waiting for throttle input.
+ * Phase 3: On first throttle input, snapshots od_recovered_energy as energy_motor_start.
+ *          Allows motoring only while energy used < energy recovered.
+ *          Cuts throttle once budget is exhausted.
+ * Non-blocking — uses static state variables across calls.
  *
  * @param speed_kmh Current measured speed in km/h.
  */
 void EnergyRecoveryChallenge(float speed_kmh) {
+
+    // Challenge phases
+    enum EnergyPhase : uint8_t {
+        PHASE_WAITING_FOR_BRAKE  = 0,
+        PHASE_BRAKING            = 1,
+        PHASE_STOPPED_IDLE       = 2,
+        PHASE_MOTORING           = 3,
+        PHASE_BUDGET_EXHAUSTED   = 4
+    };
+
+    static EnergyPhase phase             = PHASE_WAITING_FOR_BRAKE;
+    static uint32_t    energy_brake_start  = 0;
+    static uint32_t    energy_brake_end    = 0;
+    static uint32_t    energy_motor_start  = 0;
+    static uint32_t    energy_recovered    = 0;
+
     uint16_t motor_dac = 0;
     uint16_t brake_dac = 0;
 
-    //add energy recovery code here
+    switch (phase) {
 
+        // ----------------------------------------------------------------
+        case PHASE_WAITING_FOR_BRAKE:
+        // Throttle control active — waiting for driver to initiate braking
+        // ----------------------------------------------------------------
+            od_service_brake = 0;
+
+            if (od_motor_command > 10 && od_regen_brake <= 10) {
+                motor_dac = od_motor_command;
+                brake_dac = 0;
+            } else if (od_regen_brake > 10) {
+                motor_dac = 0;
+                brake_dac = od_regen_brake;
+            } else {
+                motor_dac = 0;
+                brake_dac = 0;
+            }
+
+            WriteDAC(0, motor_dac);
+            WriteDAC(1, brake_dac);
+
+            // Transition to braking phase on first regen brake input
+            if (od_regen_brake > REGEN_BRAKE_THRESHOLD) {
+                energy_brake_start = od_recovered_energy;
+                phase              = PHASE_BRAKING;
+                Serial.print("[EnergyRecovery] Braking started — energy snapshot: ");
+                Serial.println(energy_brake_start);
+            }
+            break;
+
+        // ----------------------------------------------------------------
+        case PHASE_BRAKING:
+        // Regen braking active — suppress service brake to maximise recovery
+        // ----------------------------------------------------------------
+            motor_dac        = 0;
+            brake_dac        = od_regen_brake;
+            od_service_brake = 0;  // Suppress — keep energy in regen circuit
+
+            WriteDAC(0, motor_dac);
+            WriteDAC(1, brake_dac);
+
+            digitalWrite(ISOLATING_RELAY, HIGH);
+
+            // Transition to idle once train is stopped
+            if (speed_kmh <= 0.1f) {
+                energy_brake_end  = od_recovered_energy;
+                energy_recovered  = energy_brake_end - energy_brake_start;
+                od_service_brake  = 1;
+                WriteDAC(0, 0);
+                WriteDAC(1, 0);
+                phase = PHASE_STOPPED_IDLE;
+
+                Serial.print("[EnergyRecovery] Stopped — energy recovered: ");
+                Serial.print(energy_recovered);
+                Serial.println(" (waiting for throttle)");
+            }
+
+            Serial.print("[EnergyRecovery] Braking — Brake DAC: "); Serial.println(brake_dac);
+            break;
+
+        // ----------------------------------------------------------------
+        case PHASE_STOPPED_IDLE:
+        // Stationary — holding service brake, waiting for first throttle input
+        // ----------------------------------------------------------------
+            WriteDAC(0, 0);
+            WriteDAC(1, 0);
+            od_service_brake = 1;
+
+            if (od_motor_command > 10) {
+                // First throttle received — snapshot energy at this moment
+                energy_motor_start = od_recovered_energy;
+                od_service_brake   = 0;
+                phase              = PHASE_MOTORING;
+                Serial.print("[EnergyRecovery] Throttle received — motor energy start: ");
+                Serial.println(energy_motor_start);
+            }
+            break;
+
+        // ----------------------------------------------------------------
+        case PHASE_MOTORING:
+        // Motoring — allow throttle only while energy used < energy recovered
+        // ----------------------------------------------------------------
+        {
+            uint32_t energy_used = (energy_motor_start > od_recovered_energy)
+                                 ? (energy_motor_start - od_recovered_energy)
+                                 : 0;
+
+            if (energy_used >= energy_recovered) {
+                WriteDAC(0, 0);
+                WriteDAC(1, 0);
+                od_service_brake = 0;
+                phase            = PHASE_BUDGET_EXHAUSTED;
+                Serial.println("[EnergyRecovery] Energy budget exhausted — throttle cut.");
+                break;
+            }
+
+            // Budget remaining — raw throttle pass-through
+            od_service_brake = 0;
+
+            if (od_motor_command > 10 && od_regen_brake <= 10) {
+                motor_dac = od_motor_command;
+                brake_dac = 0;
+            } else if (od_regen_brake > 10) {
+                motor_dac = 0;
+                brake_dac = od_regen_brake;
+            } else {
+                motor_dac = 0;
+                brake_dac = 0;
+            }
+
+            WriteDAC(0, motor_dac);
+            WriteDAC(1, brake_dac);
+
+            Serial.print("[EnergyRecovery] Used: "); Serial.print(energy_used);
+            Serial.print(" / ");                     Serial.print(energy_recovered);
+            Serial.print(" | Motor DAC: ");          Serial.print(motor_dac);
+            Serial.print(" | Brake DAC: ");          Serial.println(brake_dac);
+            break;
+        }
+
+        // ----------------------------------------------------------------
+        case PHASE_BUDGET_EXHAUSTED:
+        // Throttle permanently cut — challenge complete
+        // ----------------------------------------------------------------
+            digitalWrite(ISOLATING_RELAY, HIGH);
+            WriteDAC(0, 0);
+            WriteDAC(1, 0);
+            od_service_brake = 0;
+            integrator       = 0.0f;
+
+            // Reset if challenge mode is switched away and back
+            // — handled by entered flag resetting on mode change if needed
+            Serial.println("[EnergyRecovery] Challenge complete — budget exhausted.");
+            break;
+
+        default:
+            phase = PHASE_WAITING_FOR_BRAKE;
+            break;
+    }
 }
 
 
