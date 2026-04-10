@@ -838,9 +838,12 @@ void SetupPCNT() {
  * @brief Gets variable values from non-volatile memory.
  */
 void GetPreferences() {
-    for (int i = 0; i < numFloatPairs; i++) {
-        floatPairs[i].value = preferences.getFloat(floatPairs[i].key.c_str(), 0);
-    }
+    // for (int i = 0; i < numFloatPairs; i++) {
+    //     floatPairs[i].value = preferences.getFloat(floatPairs[i].key.c_str(), 0.f);
+    // }
+    
+    floatPairs[0].value = 20.0f;
+    floatPairs[1].value = 5.0f;
 }
 
 /**
