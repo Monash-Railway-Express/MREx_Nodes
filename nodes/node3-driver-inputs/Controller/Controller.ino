@@ -7,8 +7,8 @@
  * Organisation:    MREX
  * Author:          Chiara Gillam, Audrey Tasevki, Kang Yee, Nicholas Rowe, Aditya Dinesh Kumar
  * Date Created:    5/08/2025
- * Last Modified:   3/25/2025
- * Version:         1.0.2
+ * Last Modified:   4/10/2025
+ * Version:         1.0.3
  *
  */
 
@@ -23,7 +23,7 @@ uint8_t nodeID = 3;
 #define BRAKE_PIN 14
 #define SPEED_PIN 19
 
-#define BUTTON_1_PIN 45   //Horn
+#define BUTTON_1_PIN 38   //Horn
 #define BUTTON_2_PIN 35   
 #define SWITCH_1_PIN 36   //Parking Brake 
 #define SWITCH_2_PIN 37   //Location Annoucement
@@ -32,6 +32,8 @@ uint8_t nodeID = 3;
 #define CHALLENGE_MODE_PIN 1
 #define CONDITION_MODE_PIN 2
 #define OP_MODE_PIN 4
+
+#define HORN_COOLDOWN 500 //DFplayer for horn requires at least 350ms between messages
 
 // --- OD definitions ---
 uint16_t regenBrake = 0;
@@ -140,12 +142,13 @@ void loop() {
 
     if (nodeOperatingMode == 0x80) { 
       HandleDirection();
+      HandleHorn(); 
     }
 
     // --- Operational state ---
     if (nodeOperatingMode == 0x01) { 
 
-      //HandleHorn(); 
+      HandleHorn(); 
       HandleInputs();
       //print_status();
       HandleParking();
@@ -262,12 +265,21 @@ void print_status() {
 // function that does edge detection on horn button and calls SDO write to horn node
 // NOTE: Horn is currently assigned to Button 1
 void HandleHorn() {
-  if (button1 != b1prev) {
-    directionMode = map5PosTo3State(analogRead(CHALLENGE_MODE_PIN));
+  static long b1Reenable; 
+  static long curFrameTime;
+
+  curFrameTime = millis();
+  if(curFrameTime >= b1Reenable){
+    if (button1 != b1prev) {
+    //directionMode = map5PosTo3State(analogRead(CHALLENGE_MODE_PIN));
     b1prev = button1;
+    Serial.println("Horn Pressed");
     uint8_t invertedBtn1 = (uint8_t)!button1;
     executeSDOWrite(nodeID, 5, 0x6065, 0x00, sizeof(button1), &invertedBtn1);
+    b1Reenable = curFrameTime + HORN_COOLDOWN;
   }
+  }
+  
 }
 
 void HandleParking() {
