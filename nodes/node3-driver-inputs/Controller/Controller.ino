@@ -7,8 +7,8 @@
  * Organisation:    MREX
  * Author:          Chiara Gillam, Audrey Tasevki, Kang Yee, Nicholas Rowe, Aditya Dinesh Kumar
  * Date Created:    5/08/2025
- * Last Modified:   4/10/2025
- * Version:         1.0.3
+ * Last Modified:   4/11/2025
+ * Version:         1.0.4
  *
  */
 
@@ -36,15 +36,15 @@ uint8_t nodeID = 3;
 #define HORN_COOLDOWN 500 //DFplayer for horn requires at least 350ms between messages
 
 // --- OD definitions ---
-uint16_t regenBrake = 0;
-uint16_t desiredSpeed = 0;
+uint16_t od_regen_brake = 0;
+uint16_t od_motor_command = 0;
 uint8_t button1 = 0;
 uint8_t button2 = 0;
 uint8_t switch1 = 0; //parking (1)=on and (0)=off
 uint8_t switch2 = 0;  // loc ann
 uint8_t directionMode = 0;  
 uint8_t conditionMode = 0;
-uint8_t challengeMode = 0;
+uint8_t od_challenge_mode = 0;
 uint8_t operationMode = 0;
 uint8_t mcServiceBrakeRequest = 1;
 
@@ -107,17 +107,17 @@ void setup() {
 
   // User code Setup Begin: -------------------------------------------------
   // --- Register OD entries ---
-  registerODEntry(0x60FF, 0x00, 2, sizeof(desiredSpeed), &desiredSpeed);
-  registerODEntry(0x3012, 0x00, 2, sizeof(regenBrake), &regenBrake);
+  registerODEntry(0x606A, 0x00, 2, sizeof(od_motor_command), &od_motor_command);
+  registerODEntry(0x3012, 0x00, 2, sizeof(od_regen_brake), &od_regen_brake);
   registerODEntry(0x6060, 0x00, 2, sizeof(directionMode), &directionMode);
   registerODEntry(0x6061, 0x00, 2, sizeof(conditionMode), &conditionMode);
-  registerODEntry(0x6062, 0x00, 2, sizeof(challengeMode), &challengeMode);
+  registerODEntry(0x6062, 0x00, 2, sizeof(od_challenge_mode), &od_challenge_mode);
 
   // --- Register TPDOs ---
   configureTPDO(0, 0x180 + nodeID, 255, 100, 100);  // COB-ID, transType, inhibit, event
   
   PdoMapEntry tpdoEntries[] = {
-    {0x60FF, 0x00, 16},
+    {0x606A, 0x00, 16},
     {0x3012, 0x00, 16}
   };
   mapTPDO(0, tpdoEntries, 2);
@@ -141,7 +141,7 @@ void loop() {
     }
 
     if (nodeOperatingMode == 0x80) { 
-      HandleDirection();
+      //HandleDirection();
       HandleHorn(); 
     }
 
@@ -150,7 +150,7 @@ void loop() {
 
       HandleHorn(); 
       HandleInputs();
-      //print_status();
+      print_status();
       HandleParking();
     }
   }
@@ -194,12 +194,12 @@ void sendAllNMT(uint8_t operatingMode) {
 // function where all inputs are read
 void HandleInputs() {
   // ===== Potentiometer Inputs =====
-  regenBrake   = 1023 - analogRead(BRAKE_PIN);
-  desiredSpeed = 1023 - analogRead(SPEED_PIN);
+  od_regen_brake   = analogRead(BRAKE_PIN);
+  od_motor_command = analogRead(SPEED_PIN);
   Serial.print("Brake: ");
-  Serial.print(regenBrake);
+  Serial.print(od_regen_brake);
   Serial.print("   ||   Throttle: ");
-  Serial.println(desiredSpeed);
+  Serial.println(od_motor_command);
 
 
   // ===== Button Inputs =====
@@ -219,9 +219,9 @@ void HandleInputs() {
 void print_status() {
   // Check readings of brake and speed
    Serial.print("Speed: ");
-   Serial.print(desiredSpeed);
+   Serial.print(od_motor_command);
    Serial.print(" | Brake: ");
-   Serial.println(regenBrake);
+   Serial.println(od_regen_brake);
 
   // Check buttons
   // Serial.print(" || Button 1: ");
@@ -249,7 +249,7 @@ void print_status() {
   Serial.print("Challenge raw: ");
   Serial.print(analogRead(CHALLENGE_MODE_PIN));
   Serial.print(" | Challenge pos5: ");
-  Serial.print(map5PosTo3State(analogRead(CHALLENGE_MODE_PIN)));
+  Serial.print(check5Switch(analogRead(CHALLENGE_MODE_PIN)));
 
   // Serial.print(" || Condition raw: ");
   // Serial.print(analogRead(CONDITION_MODE_PIN));
@@ -293,16 +293,17 @@ void HandleParking() {
 }
 
 void HandleDirection() {
-  directionMode = map5PosTo3State(analogRead(CHALLENGE_MODE_PIN));
+  directionModeRaw = check5Switch(analogRead(CHALLENGE_MODE_PIN));
   // Test values 
   // Serial.println(directionMode);
   // Serial.println(dirprev);
-  if ((directionMode != dirprev) && directionMode != 101) {
+  if ((directionModeRaw != dirprev) && directionModeRaw != 101) {
     // 1 is forawrd, 2 is neutral, 3 is back 
-    dirprev = directionMode;
-    executeSDOWrite(nodeID, 1, 0x6060, 0x00, sizeof(directionMode), &directionMode);
-    Serial.print("Sending direction");
-    Serial.println(directionMode);
+    dirprev = directionModeRaw;
+    od_challenge_mode = directionModeRaw;
+    executeSDOWrite(nodeID, 1, 0x6062, 0x00, sizeof(od_challenge_mode), &od_challenge_mode);
+    Serial.print("Sending Challenge");
+    Serial.println(od_challenge_mode);
   }
 }
 
@@ -327,7 +328,7 @@ int check3Switch(int read) {
 // 5-position switch checker
 int check5Switch(int read) {
   //Serial.println(read);
-  if (read >= 0 && read < 50) {
+  if (read >= 0 && read < 70) {
     return 1;
   }
   else if (read > 100 && read < 250) {
