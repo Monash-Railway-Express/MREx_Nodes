@@ -293,17 +293,16 @@ void HandleParking() {
 }
 
 void HandleDirection() {
-  directionModeRaw = check5Switch(analogRead(CHALLENGE_MODE_PIN));
+  directionMode = map5PosTo3State(analogRead(CHALLENGE_MODE_PIN));
   // Test values 
   // Serial.println(directionMode);
   // Serial.println(dirprev);
-  if ((directionModeRaw != dirprev) && directionModeRaw != 101) {
+  if ((directionMode != dirprev) && directionMode != 101) {
     // 1 is forawrd, 2 is neutral, 3 is back 
-    dirprev = directionModeRaw;
-    od_challenge_mode = directionModeRaw;
-    executeSDOWrite(nodeID, 1, 0x6062, 0x00, sizeof(od_challenge_mode), &od_challenge_mode);
-    Serial.print("Sending Challenge");
-    Serial.println(od_challenge_mode);
+    dirprev = directionMode;
+    executeSDOWrite(nodeID, 1, 0x6060, 0x00, sizeof(directionMode), &directionMode);
+    Serial.print("Sending direction");
+    Serial.println(directionMode);
   }
 }
 
