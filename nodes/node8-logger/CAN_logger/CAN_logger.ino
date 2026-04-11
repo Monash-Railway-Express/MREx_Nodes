@@ -30,7 +30,8 @@
 #include "wshtml.h"
 #include <CAN_MREx.h>
 
-const uint8_t nodeID = 8;  // Change this to set your device's node ID
+uint8_t nodeID = 8;  // Change this to set your device's node ID
+const uint8_t muntedID = 1;
 
 // --- Pin Definitions ---
 #define TX_GPIO_NUM GPIO_NUM_5 // Set GPIO pin for CAN Transmit
@@ -69,39 +70,32 @@ unsigned long lastUpdate = 0;
 
 struct Parameter {
   String key;
-  bool sign;
   uint8_t targetNode;
   uint16_t index;
   uint8_t subindex;
-  size_t size;
+  String type;
 };
-struct Parameter parameters[] = {
-  {"kProportional1", 0, 14, 0x60F6, 0x00, sizeof(uint8_t)},
-  {"kIntegral1", 0, 14, 0x60F6, 0x01, sizeof(uint8_t)},
-  {"kDerivative1", 0, 14, 0x60F6, 0x02, sizeof(uint8_t)},
-  {"kProportional2", 0, 14, 0x60F6, 0x03, sizeof(uint8_t)},
-  {"kIntegral2", 0, 14, 0x60F6, 0x04, sizeof(uint8_t)},
-  {"kDerivative2", 0, 14, 0x60F6, 0x05, sizeof(uint8_t)},
-  {"kProportional3", 0, 14, 0x60F6, 0x06, sizeof(uint8_t)},
-  {"kIntegral3", 0, 14, 0x60F6, 0x07, sizeof(uint8_t)},
-  {"kDerivative3", 0, 14, 0x60F6, 0x08, sizeof(uint8_t)},
-  {"kProportional4", 0, 14, 0x60F6, 0x09, sizeof(uint8_t)},
-  {"kIntegral4", 0, 14, 0x60F6, 0x0A, sizeof(uint8_t)},
-  {"kDerivative4", 0, 14, 0x60F6, 0x0B, sizeof(uint8_t)},
-  {"kProportional5", 0, 14, 0x60F6, 0x0C, sizeof(uint8_t)},
-  {"kIntegral5", 0, 14, 0x60F6, 0x0D, sizeof(uint8_t)},
-  {"kDerivative5", 0, 14, 0x60F6, 0x0E, sizeof(uint8_t)},
-};
-const int num_parameters = 15;
 
-int getParameterIdx(String key) {
-  for (int i = 0; i < num_parameters; i++) {
-    if (parameters[i].key == key) {
-      return i;
-    }
-  }
-  return -1;
-}
+// When adding a new parameter, ensure to update num_parameters
+// When adding a new type, ensure to update /munt GET and PATCH functions
+const int num_parameters = 15;
+struct Parameter parameters[] = {
+  {"od_kp_1", muntedID, 0x60F6, 0x00, "float_t"},
+  {"od_ki_1", muntedID, 0x60F6, 0x01, "float_t"},
+  {"od_kd_1", muntedID, 0x60F6, 0x02, "float_t"},
+  {"od_kp_2", muntedID, 0x60F6, 0x03, "float_t"},
+  {"od_ki_2", muntedID, 0x60F6, 0x04, "float_t"},
+  {"od_kd_2", muntedID, 0x60F6, 0x05, "float_t"},
+  {"od_kp_3", muntedID, 0x60F6, 0x06, "float_t"},
+  {"od_ki_3", muntedID, 0x60F6, 0x07, "float_t"},
+  {"od_kd_3", muntedID, 0x60F6, 0x08, "float_t"},
+  {"od_kp_4", muntedID, 0x60F6, 0x09, "float_t"},
+  {"od_ki_4", muntedID, 0x60F6, 0x0A, "float_t"},
+  {"od_kd_4", muntedID, 0x60F6, 0x0B, "float_t"},
+  {"od_kp_5", muntedID, 0x60F6, 0x0C, "float_t"},
+  {"od_ki_5", muntedID, 0x60F6, 0x0D, "float_t"},
+  {"od_kd_5", muntedID, 0x60F6, 0x0E, "float_t"},
+};
 
 void setup() {
   Serial.begin(115200);
@@ -148,6 +142,17 @@ void setup() {
   //Initialize CANMREX protocol
   initCANMREX(TX_GPIO_NUM, RX_GPIO_NUM, nodeID); // this or below
 
+  // // causes unnecessary logging delays
+  // xTaskCreatePinnedToCore(
+  //     CAN_Task,
+  //     "CAN Task",
+  //     6144,
+  //     &nodeID,
+  //     3,
+  //     NULL,
+  //     0
+  // );
+
   // // CAN init
   // twai_general_config_t g_config = TWAI_GENERAL_CONFIG_DEFAULT(GPIO_NUM_5, GPIO_NUM_4, TWAI_MODE_NORMAL);
   // twai_timing_config_t t_config = TWAI_TIMING_CONFIG_500KBITS();
@@ -188,11 +193,10 @@ void setup() {
     JsonDocument muntDoc;
     for (int i = 0; i < num_parameters; i++) {
       struct Parameter parameter = parameters[i];
-      if (parameter.sign) {
-        int32_t value = executeSDORead(nodeID, parameter.targetNode, parameter.index, parameter.subindex);
-        muntDoc[parameter.key] = value;
-      } else {
-        uint32_t value = executeSDORead(nodeID, parameter.targetNode, parameter.index, parameter.subindex);
+      if (parameter.type == "float_t") {
+        uint32_t valueUInt = executeSDORead(nodeID, parameter.targetNode, parameter.index, parameter.subindex);
+        float_t value;
+        memcpy(&value, &valueUInt, sizeof(float_t));
         muntDoc[parameter.key] = value;
       }
     }
@@ -215,12 +219,9 @@ void setup() {
           struct Parameter parameter = parameters[i];
           if (parameter.key == key) {
             responseArray.add(key);
-            if (parameter.sign) {
-              int32_t requestValue = pair.value(); // implicit cast
-              executeSDOWrite(nodeID, parameter.targetNode, parameter.index, parameter.subindex, parameter.size, &requestValue);
-            } else {
-              uint32_t requestValue = pair.value(); // implicit cast
-              executeSDOWrite(nodeID, parameter.targetNode, parameter.index, parameter.subindex, parameter.size, &requestValue);
+            if (parameter.type == "float_t") {
+              float_t requestValue = pair.value(); // implicit cast
+              executeSDOWrite(nodeID, parameter.targetNode, parameter.index, parameter.subindex, sizeof(requestValue), &requestValue);
             }
           }
         }
@@ -264,9 +265,13 @@ void setup() {
 }
 
 void loop() {
-  // handleCAN(nodeID); // causes unnecessary logging delays
   twai_message_t message;
   if (twai_receive(&message, pdMS_TO_TICKS(10)) == ESP_OK) {
+    uint32_t canID = message.identifier;
+    if (canID >= 0x580 && canID <= 0x5FF) { // SDO responses
+      storeSDOResponse(message);
+    }
+    
     rtc.getNowTime();
 
     CANFrame frame;
