@@ -48,10 +48,10 @@ uint8_t NODE_ID = 1;
 #define ENCODER_Z            GPIO_NUM_9
 
 //Free pins
-#define FREE_PIN_1 GPIO_NUM_10
+//#define FREE_PIN_1 GPIO_NUM_10
 #define ISOLATING_RELAY   GPIO_NUM_11
-#define FREE_PIN_1 GPIO_NUM_12
-#define FREE_PIN_1 GPIO_NUM_48
+// #define FREE_PIN_1 GPIO_NUM_12
+// #define FREE_PIN_1 GPIO_NUM_48
 
 #define REVERSING_CONTACTOR GPIO_NUM_47
 //#define ISOLATING_RELAY   GPIO_NUM_11

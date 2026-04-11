@@ -37,7 +37,7 @@ uint32_t od_true_speed = 0;
 uint16_t od_regen_brake = 0;
 
 // OD 0x3012:01 – Service brake active flag (0=off, 1=on). RW. Mapped to TPDO0.
-uint8_t od_service_brake = 0;
+//uint8_t od_service_brake = 0;
 
 // OD 0x606A:00 – Raw motor command (0–255). RW. Mapped to RPDO0.
 uint16_t od_motor_command = 0;
@@ -121,7 +121,7 @@ void setup() {
     // --- Register OD entries ---
     registerODEntry(0x606C, 0x00, 2, sizeof(od_true_speed), &od_true_speed);          // TPDO - 32bit
     registerODEntry(0x3012, 0x00, 2, sizeof(od_regen_brake), &od_regen_brake);      // RPDO - 16bit
-    registerODEntry(0x3012, 0x01, 2, sizeof(od_service_brake), &od_service_brake);  // TPDO - 8bit
+ //   registerODEntry(0x3012, 0x01, 2, sizeof(od_service_brake), &od_service_brake);  // TPDO - 8bit
     registerODEntry(0x606A, 0x00, 2, sizeof(od_motor_command), &od_motor_command);  // RPDO - 8bit
     registerODEntry(0x6061, 0x00, 2, sizeof(od_condition_mode), &od_condition_mode);// RPDO - 8bit
     registerODEntry(0x6060, 0x00, 2, sizeof(od_direction_mode), &od_direction_mode);// RPDO - 8bit
@@ -153,21 +153,17 @@ void setup() {
     // --- Register TPDOs ---
     configureTPDO(0, 0x180 + NODE_ID, 255, 100, 100);
     PdoMapEntry tpdo_entries[] = {
-        {0x606C, 0x00, 32},  // od_true_speed
-        {0x3012, 0x01, 8},   // od_service_brake
+        {0x606C, 0x00, 32}  // od_true_speed
     };
-    mapTPDO(0, tpdo_entries, 2);
+    mapTPDO(0, tpdo_entries, 1);
 
     // --- Register RPDOs ---
-    configureRPDO(0, 0x200 + 3, 255, 0);
+    configureRPDO(0, 0x180 + 3, 255, 0);
     PdoMapEntry rpdo_entries[] = {
         {0x3012, 0x00, 16},  // od_regen_brake
-        {0x606A, 0x00, 16},   // od_motor_command
-        {0x6061, 0x00, 8},   // od_condition_mode
-        {0x6060, 0x00, 8},   // od_direction_mode
-        {0x6062, 0x00, 8},   // od_challenge_mode
+        {0x606A, 0x00, 16}   // od_motor_command
     };
-    mapRPDO(0, rpdo_entries, 5);
+    mapRPDO(0, rpdo_entries, 2);
 
     configureRPDO(1, 0x280 + 7, 255, 0);  // COB-ID matches battery node TPDO2 (0x280 + nodeID 7)
     PdoMapEntry rpdo1_entries[] = {
@@ -205,7 +201,7 @@ void loop() {
 void StoppedMode() {
     WriteDAC(0, 0);
     WriteDAC(1, 0);
-    od_service_brake = 0;
+//   //od_service_brake= 0;
     integrator = 0.0f;
     PutPreferences();
 }
@@ -220,7 +216,7 @@ void StoppedMode() {
 void PreOpMode() {
     WriteDAC(0, 0);
     WriteDAC(1, 0);
-    od_service_brake = 0;
+   //od_service_brake= 0;
     integrator = 0.0f;
 
     switch (od_direction_mode) {
@@ -300,9 +296,9 @@ void SpeedControl(float speed_kmh) {
         motor_dac  = 0;
         brake_dac  = od_regen_brake;
         integrator = 0.0f;
-        od_service_brake = (speed_kmh <= SERVICE_BRAKE_SPEED_KMH) ? 1 : 0;
+       //od_service_brake= (speed_kmh <= SERVICE_BRAKE_SPEED_KMH) ? 1 : 0;
     } else {
-        od_service_brake = 0;
+       //od_service_brake= 0;
 
         // Scale od_motor_command (0–1023) to speed setpoint (0–MAX_SPEED_KMH)
         float speed_setpoint = ((float)od_motor_command / 1023.0f) * MAX_SPEED_KMH;
@@ -423,22 +419,22 @@ void ThrottleControl(float speed_kmh) {
     if (od_motor_command > 10 && od_regen_brake <= 10) {
         motor_dac = od_motor_command;   // full 10-bit range
         brake_dac = 0;
-        od_service_brake = 0;
+       //od_service_brake= 0;
     }
     else if (od_motor_command > 10 && od_regen_brake > 10) {
         motor_dac = 0;
         brake_dac = od_regen_brake;
-        od_service_brake = 0;
+       //od_service_brake= 0;
     }
     else if (od_motor_command <= 10 && od_regen_brake > 10) {
         motor_dac = 0;
         brake_dac = od_regen_brake;
-        od_service_brake = (speed_kmh <= SERVICE_BRAKE_SPEED_KMH) ? 1 : 0;
+       //od_service_brake= (speed_kmh <= SERVICE_BRAKE_SPEED_KMH) ? 1 : 0;
     }
     else {
         motor_dac = 0;
         brake_dac = 0;
-        od_service_brake = 1;
+       //od_service_brake= 1;
     }
 
     WriteDAC(0, motor_dac);
@@ -452,8 +448,8 @@ void ThrottleControl(float speed_kmh) {
     Serial.print(motor_dac);
     Serial.print(" | Brake DAC: ");
     Serial.print(brake_dac);
-    Serial.print(" | Service Brake: ");
-    Serial.println(od_service_brake);
+    // Serial.print(" | Service Brake: ");
+    // Serial.println(od_service_brake);
 }
 
 
@@ -494,7 +490,7 @@ void AutoStopChallenge(float speed_kmh, int32_t pulse_accum) {
     if (speed_kmh <= 0.1f) {
         WriteDAC(0, 0);
         WriteDAC(1, 0);
-        od_service_brake = 1;
+       //od_service_brake= 1;
         integrator       = 0.0f;
         entered_auto_stop = false;  // Reset for next run
         Serial.println("[AutoStop] Stopped — service brake applied.");
@@ -504,7 +500,7 @@ void AutoStopChallenge(float speed_kmh, int32_t pulse_accum) {
     // --- Zone 2: 25m reached — throttle zero, regen brake holds until stopped ---
     if (distance_m >= AUTO_STOP_DISTANCE_M) {
         motor_dac        = 0;
-        od_service_brake = 0;
+       //od_service_brake= 0;
         integrator       = 0.0f;
 
         brake_dac = (uint16_t)(DAC_MAX);
@@ -524,7 +520,7 @@ void AutoStopChallenge(float speed_kmh, int32_t pulse_accum) {
     float distance_fraction = 1.0f - (distance_m / AUTO_STOP_DISTANCE_M);
     motor_dac = (uint16_t)(od_motor_command * distance_fraction);
     brake_dac = 0;
-    od_service_brake = 0;
+   //od_service_brake= 0;
 
     WriteDAC(0, motor_dac);
     WriteDAC(1, brake_dac);
@@ -553,7 +549,7 @@ void TractionChallenge(float speed_kmh) {
     if (speed_kmh > speed_setpoint + TRACTION_SLIP_MARGIN_KMH) {
         WriteDAC(0, 0);
         WriteDAC(1, 0);
-        od_service_brake = 0;
+       //od_service_brake= 0;
         integrator = 0.0f;
 
         Serial.print("[Traction] Slip detected. Speed: "); Serial.println(speed_kmh);
@@ -606,7 +602,7 @@ void EnergyRecoveryChallenge(float speed_kmh) {
         case PHASE_WAITING_FOR_BRAKE:
         // Throttle control active — waiting for driver to initiate braking
         // ----------------------------------------------------------------
-            od_service_brake = 0;
+           //od_service_brake= 0;
 
             if (od_motor_command > 10 && od_regen_brake <= 10) {
                 motor_dac = od_motor_command;
@@ -637,7 +633,7 @@ void EnergyRecoveryChallenge(float speed_kmh) {
         // ----------------------------------------------------------------
             motor_dac        = 0;
             brake_dac        = od_regen_brake;
-            od_service_brake = 0;  // Suppress — keep energy in regen circuit
+           //od_service_brake= 0;  // Suppress — keep energy in regen circuit
 
             WriteDAC(0, motor_dac);
             WriteDAC(1, brake_dac);
@@ -648,7 +644,7 @@ void EnergyRecoveryChallenge(float speed_kmh) {
             if (speed_kmh <= 0.1f) {
                 energy_brake_end  = od_recovered_energy;
                 energy_recovered  = energy_brake_end - energy_brake_start;
-                od_service_brake  = 1;
+               //od_service_brake = 1;
                 WriteDAC(0, 0);
                 WriteDAC(1, 0);
                 phase = PHASE_STOPPED_IDLE;
@@ -667,12 +663,12 @@ void EnergyRecoveryChallenge(float speed_kmh) {
         // ----------------------------------------------------------------
             WriteDAC(0, 0);
             WriteDAC(1, 0);
-            od_service_brake = 1;
+           //od_service_brake= 1;
 
             if (od_motor_command > 10) {
                 // First throttle received — snapshot energy at this moment
                 energy_motor_start = od_recovered_energy;
-                od_service_brake   = 0;
+               //od_service_brake  = 0;
                 phase              = PHASE_MOTORING;
                 Serial.print("[EnergyRecovery] Throttle received — motor energy start: ");
                 Serial.println(energy_motor_start);
@@ -691,14 +687,14 @@ void EnergyRecoveryChallenge(float speed_kmh) {
             if (energy_used >= energy_recovered) {
                 WriteDAC(0, 0);
                 WriteDAC(1, 0);
-                od_service_brake = 0;
+               //od_service_brake= 0;
                 phase            = PHASE_BUDGET_EXHAUSTED;
                 Serial.println("[EnergyRecovery] Energy budget exhausted — throttle cut.");
                 break;
             }
 
             // Budget remaining — raw throttle pass-through
-            od_service_brake = 0;
+           //od_service_brake= 0;
 
             if (od_motor_command > 10 && od_regen_brake <= 10) {
                 motor_dac = od_motor_command;
@@ -728,7 +724,7 @@ void EnergyRecoveryChallenge(float speed_kmh) {
             digitalWrite(ISOLATING_RELAY, HIGH);
             WriteDAC(0, 0);
             WriteDAC(1, 0);
-            od_service_brake = 0;
+           //od_service_brake= 0;
             integrator       = 0.0f;
 
             // Reset if challenge mode is switched away and back
