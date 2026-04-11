@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [2.0.1] - 11-04-26 - Chiara Gillam
+### Changed
+- allocated more memory for can bus 4096 > 6144
+
+### Added
+- added od_service_brake_mc
+
 
 ## [2.0.0] - 09-04-26 - Sean Larkin
 ### Changed
