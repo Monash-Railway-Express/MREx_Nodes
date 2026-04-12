@@ -28,7 +28,6 @@ uint8_t nodeID = 3;
 
 
 // --- OD definitions ---
-//To Do (Nick): Find apropriate values, direction and PDO mapping for each of the following variables
 
 // OD 0x3012:00 – Regen Brake values (pots) (0–1023). <RW>. Mapped to <TPDO1>.
 uint16_t od_regen_brake = 0;
@@ -61,6 +60,7 @@ uint8_t od_switch_2 = 0;
 const int ADC_RES_BITS = 10;         // 0..1023
 const int ADC_SAMPLES  = 20;         // more averaging for 100k sources
 const int POT_DEADBAND = 10;         // print only if changed enough
+
 
 // ---------- Expected raw ADC levels ----------
 // 3-position ladder, 4 equal resistors:
@@ -176,10 +176,15 @@ void loop() {
 
 /////////////MAIN LOOP END//////////////////////
 
+/**
+* @brief Function that is called when the system is in stopped mode, Prints Stopped Mode to console
+*/
 void StoppedMode(){
   Serial.println("Stopped Mode");
 }
-
+/**
+* @brief Pre Operational Function, calls HandleDirection and HandleChallenge
+*/
 void PreOpMode(){
   //Serial.println("Pre-Op Mode");
   HandleDirection();
@@ -188,6 +193,9 @@ void PreOpMode(){
   //HandleHorn();
 }
 
+/**
+*@brief OperationMode function - Calls HandleChallenge and HandleInputs
+*/
 void OperationalMode(){
   //Serial.println("Op Mode");
   HandleChallenge();
@@ -242,7 +250,7 @@ void SendAllNMT(uint8_t operatingMode) {
 }
 
 /**
- * @brief function where all inputs are read
+ * @brief function where all inputs are read and written to the OD variables
  */
 
 void HandleInputs() {
@@ -257,13 +265,10 @@ void HandleInputs() {
 
 }
 
-// TO DO: Create new Handle functions for 5 pos challenge and condition
-
 
 /**
  * @brief function that does edge detection on horn button and calls SDO write to horn node
  */
-// NOTE: Horn is currently assigned to Button 1
 void HandleHorn() {
   Serial.print("Horn Handle: ");
   int newHornToggle = digitalRead(BUTTON_1_PIN);
@@ -276,9 +281,8 @@ void HandleHorn() {
 }
 
 /**
- * @brief TO DO (Nick) - Add description of function
+ * @brief Reads the switch which controls the parking break, if the new digital read does not equal the old the parking is sent to the brakes and motors)
  */
-//parking currently set to switch 1
 void HandleParking() {
   Serial.print("Parking Handle: ");
   int newServiceBrake = digitalRead(SWITCH_1_PIN);
@@ -294,8 +298,9 @@ void HandleParking() {
   }
 }
 
-//TO DO (NICK) - ADD Doxygen style headers to following functions
-
+/**
+*@brief HandleDirection function reads the desired direction from the 3 positions switch and sends relevent direction to motor and lights
+*/
 void HandleDirection() {
   Serial.print("Direction Handle: ");
   int newDirectionMode = readStable3Pos(DIRECTION_MODE_PIN);
@@ -311,6 +316,9 @@ void HandleDirection() {
   }
 }
 
+/**
+*@brief Function reads challange 5 position switch, checks if the challenge has changed, and if so writes new challenge to motors. 
+*/
 void HandleChallenge() {
   Serial.print("Challenge Handle");
   int newChallengeMode = readStable5Pos(CHALLENGE_MODE_PIN);
@@ -323,8 +331,32 @@ void HandleChallenge() {
     Serial.println(od_challenge_mode);
   }
 }
+/**
+*@brief Function reads the condition pin, if new state is different to previous state the SDO for the condition is sent to the motor. 
+*/
+void HandleCondition(){
+  Serial.print("Condition Handle");
+  int newConditionMode = readStable5Pos(CONDITION_MODE_PIN);
+  Serial.println(newConditionMode);
+  //Only sends the new condition object as an SDO if there has been a change in the condition. 
+  if(od_condition_mode != newConditionMode){
+    od_condition_mode = newConditionMode;
+    executeSDOWrite(nodeID,MOTOR_ID,0x6061,0x00,sizeof(od_condition_mode),&od_condition_mode);
+    Serial.print("Sending Condition");
+    Serial.println("od_condition_mode");
+    
+  }
+}
 
-// ---------- Helper: better ADC read for 100k sources ----------
+
+/**
+*@brief Helper: Better ADC read for 100l sources
+*
+*@param pin The pin to read analog value from
+*@param samples the number of samples to be taken
+*
+*@return returns the aveage of the samples as an integer. 
+*/
 int readADC_HighZ(int pin, int samples) {
   // Let ADC mux settle on this pin
   analogRead(pin);
@@ -345,7 +377,13 @@ int readADC_HighZ(int pin, int samples) {
   return (int)(sum / samples);
 }
 
-// ---------- Helper: nearest-state decoding ----------
+/**
+*@brief Recieves raw analog value and finds the nearest setting (1-3)
+*
+*@param raw The raw ADC read
+*
+*@return returns the closest index (1-3)
+*/
 int decodeNearest3(int raw) {
   int bestIndex = 0;
   int bestErr = abs(raw - THREE_LEVELS[0]);
@@ -361,10 +399,16 @@ int decodeNearest3(int raw) {
   return bestIndex + 1;  // states 1..3
 }
 
+/**
+*@brief Recives raw analaog read value and outputs the nearest position, returning 1-5
+*
+*@param raw Raw value from analog read to be converted to position 1-5 
+*
+*@return Returns the nearest position 1-5. 
+*/
 int decodeNearest5(int raw) {
   int bestIndex = 0;
   int bestErr = abs(raw - FIVE_LEVELS[0]);
-
   for (int i = 1; i < 5; i++) {
     int err = abs(raw - FIVE_LEVELS[i]);
     if (err < bestErr) {
@@ -376,7 +420,14 @@ int decodeNearest5(int raw) {
   return bestIndex + 1;  // states 1..5
 }
 
-// ---------- Stable selector read ----------
+
+/**
+*@brief Stable selector read for 3 position rotary switch
+*
+*@param pin this is the pin on the ESP32 to be read from 
+*
+*@return returns the apropriate position, if three reads do not align, -1 is returned. 
+*/
 int readStable3Pos(int pin) {
   int r1 = readADC_HighZ(pin);
   int r2 = readADC_HighZ(pin);
@@ -390,6 +441,13 @@ int readStable3Pos(int pin) {
   return -1;
 }
 
+/**
+*@brief Function reads the position of the 5 position switch 
+*
+*@param pin pin to be read from on the ESP32
+*
+*@return returns the position 1-5 only if three values line up, if not -1 is returned. 
+*/
 int readStable5Pos(int pin) {
   int r1 = readADC_HighZ(pin);
   int r2 = readADC_HighZ(pin);

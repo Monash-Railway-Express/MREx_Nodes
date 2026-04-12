@@ -17,6 +17,7 @@ void HandleHorn();
 void HandleParking();
 void HandleDirection();
 void HandleChallenge();
+void HandleCondition();
 
 int readADC_HighZ(int pin, int samples = 20);
 int decodeNearest3(int raw);
