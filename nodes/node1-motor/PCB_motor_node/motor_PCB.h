@@ -26,6 +26,13 @@
 // --- Node ID ---
 uint8_t NODE_ID = 1;
 
+//Defining Node ID's
+#define DRIVER_ID 0x03
+#define BRAKES_ID 0x02
+#define LIGHTS_ID 0x04
+#define AUDIO_ID 0x05
+#define LCD_ID 0x09
+
 // --- CAN Pins ---
 #define TX_GPIO_NUM GPIO_NUM_14
 #define RX_GPIO_NUM GPIO_NUM_13
