@@ -117,12 +117,13 @@ void setup() {
     // --- Register OD entries ---
     registerODEntry(0x606C, 0x00, 2, sizeof(od_true_speed), &od_true_speed);                // TPDO - 32bit
     registerODEntry(0x3012, 0x00, 2, sizeof(od_regen_brake), &od_regen_brake);              // RPDO - 16bit
+    registerODEntry(0x3012, 0x01, 2, sizeof(od_service_brake_mc), &od_service_brake_mc);    // SDO - 8bit
     registerODEntry(0x606A, 0x00, 2, sizeof(od_motor_command), &od_motor_command);          // RPDO - 8bit
     registerODEntry(0x6061, 0x00, 2, sizeof(od_condition_mode), &od_condition_mode);        // RPDO - 8bit
     registerODEntry(0x6060, 0x00, 2, sizeof(od_direction_mode), &od_direction_mode);        // RPDO - 8bit
     registerODEntry(0x6062, 0x00, 2, sizeof(od_challenge_mode), &od_challenge_mode);        // RPDO - 8bit
     registerODEntry(0x2000, 0x00, 2, sizeof(od_recovered_energy), &od_recovered_energy);    // RPDO - 32bit
-    registerODEntry(0x3012, 0x01, 2, sizeof(od_service_brake_mc), &od_service_brake_mc);    // SDO - 8bit
+    
     
     // When adding a new pair, ensure to update numFloatPairs
     // Assign values here rather than statically above as floats do not initialise properly otherwise
