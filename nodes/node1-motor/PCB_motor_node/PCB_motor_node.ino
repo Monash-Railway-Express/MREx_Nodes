@@ -11,7 +11,7 @@
  *
  * @date 13/03/2026
  *
- * @version 2.0.0
+ * @version 2.0.1
  *
  * @organisation MREX
  *
@@ -179,10 +179,9 @@ void setup() {
 
 void loop() {
 
-    OperatingMode mode = static_cast<OperatingMode>(nodeOperatingMode);         // cast operating mode to ENUM
 
     // completing operation mode functionality
-    switch (mode) {
+    switch (nodeOperatingMode) {
         case MODE_STOPPED:     StoppedMode();     break;
         case MODE_PREOP:       PreOpMode();       break;
         case MODE_OPERATIONAL: OperationalMode(); break;
@@ -217,9 +216,7 @@ void PreOpMode() {
     WriteDAC(REGEN_CHANNEL, 0);
     integrator = 0.0f;
 
-    DirectionMode direction = static_cast<DirectionMode>(od_direction_mode);         // cast direction mode to ENUM
-
-    switch (direction) {
+    switch (od_direction_mode) {
         case REVERSE_MODE:  // Reverse
             digitalWrite(REVERSING_CONTACTOR, HIGH);
             Serial.println("[PreOp] Direction: Reverse");
@@ -268,7 +265,7 @@ void OperationalMode() {
     if (speed_kmh > MAX_SPEED_KMH) {
         WriteDAC(THROTTLE_CHANNEL, 0);
         integrator = 0.0f;
-        sendEMCY(1, MOTOR_ID, 0x00510);     // send minor emergency - TODO: DECIDE ON PROPER ERROR CODE
+        // sendEMCY(1, MOTOR_ID, 0x00510);     // send minor emergency - TODO: DECIDE ON PROPER ERROR CODE
         Serial.println("[OperationalMode] Speed cap exceeded — throttle cut.");
         return;
     }

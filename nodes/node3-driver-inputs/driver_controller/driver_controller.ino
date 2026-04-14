@@ -15,17 +15,18 @@
  *
  * @date Created: 05/08/2025
  *
- * @version 1.2.0
+ * @version 1.2.1
  *
  * @organisation MREX
  *
  * @see //TO DO 
 */
 
-// User code begin: ------------------------------------------------------
-// --- CAN MREx initialisation ---
-uint8_t nodeID = 3;
+/**
+TODO: Change sampling method for switches to use a rolling buffer rather than delays
+*/
 
+// User code begin: ------------------------------------------------------
 
 // --- OD definitions ---
 
@@ -50,26 +51,13 @@ uint8_t od_horn_toggle = 0;
 //Free 
 uint8_t od_button_2 = 0;
 
-// OD 0x3012:01 - Electromagnetic Brake Toggle (switch) (1-on, 0-off). <RW>. 
-uint8_t od_service_brake = 0; //parking (1)=on and (0)=off
+// OD 0x3012:02 - Electromagnetic Brake Toggle (switch) (1-on, 0-off). <RW>. 
+uint8_t od_service_brake_dc = 0; //parking (1)=on and (0)=off
 
 //Free
 uint8_t od_switch_2 = 0;  
 
-// ---------- ADC / filtering settings ----------
-const int ADC_RES_BITS = 10;         // 0..1023
-const int ADC_SAMPLES  = 20;         // more averaging for 100k sources
-const int POT_DEADBAND = 10;         // print only if changed enough
 
-
-// ---------- Expected raw ADC levels ----------
-// 3-position ladder, 4 equal resistors:
-// taps are roughly 1/4, 2/4, 3/4 of Vref
-const int THREE_LEVELS[3] = {256, 512, 768};
-
-// 5-position ladder, 6 equal resistors:
-// taps are roughly 1/6, 2/6, 3/6, 4/6, 5/6 of Vref
-const int FIVE_LEVELS[5] = {171, 341, 512, 682, 853};
 
 //Timing for a non blocking function occuring every two seconds
 unsigned long previousMillis = 0;
@@ -88,9 +76,9 @@ void setup() {
   pinMode(BRAKE_PIN, INPUT);
   pinMode(THROTTLE_PIN, INPUT);
   
-  pinMode(BUTTON_1_PIN, INPUT_PULLUP);
+  pinMode(HORN_PIN, INPUT_PULLUP);
   pinMode(BUTTON_2_PIN, INPUT_PULLUP);
-  pinMode(SWITCH_1_PIN, INPUT_PULLUP);
+  pinMode(BRAKE_PIN, INPUT_PULLUP);
   pinMode(SWITCH_2_PIN, INPUT_PULLUP);
 
   pinMode(DIRECTION_MODE_PIN, INPUT);
@@ -107,13 +95,13 @@ void setup() {
 
   
   // Initialize CANMREX protocol
-  initCANMREX(TX_GPIO_NUM, RX_GPIO_NUM, nodeID);
+  initCANMREX(TX_GPIO_NUM, RX_GPIO_NUM, NODE_ID);
 
   xTaskCreatePinnedToCore(
     CAN_Task,
     "CAN Task",
     4096,
-    &nodeID,   // <--- passed into pvParameters
+    &NODE_ID,   // <--- passed into pvParameters
     3,
     NULL,
     0
@@ -121,19 +109,21 @@ void setup() {
 
   // User code Setup Begin: -------------------------------------------------
   // --- Register OD entries ---
-  registerODEntry(0x60FF, 0x00, 2, sizeof(od_motor_command), &od_motor_command);
+  registerODEntry(0x606A, 0x00, 2, sizeof(od_motor_command), &od_motor_command);
   registerODEntry(0x3012, 0x00, 2, sizeof(od_regen_brake), &od_regen_brake);
   registerODEntry(0x6060, 0x00, 2, sizeof(od_direction_mode), &od_direction_mode);
   registerODEntry(0x6061, 0x00, 2, sizeof(od_condition_mode), &od_condition_mode);
   registerODEntry(0x6062, 0x00, 2, sizeof(od_challenge_mode), &od_challenge_mode);
+  registerODEntry(0x6065, 0x00, 2, sizeof(od_horn_toggle), &od_horn_toggle);
+  registerODEntry(0x3012, 0x02, 2, sizeof(od_service_brake_dc), &od_service_brake_dc);
+
 
   // --- Register TPDOs ---
-  configureTPDO(0, 0x180 + nodeID, 255, 100, 100);  // COB-ID, transType, inhibit, event
+  configureTPDO(0, 0x180 + NODE_ID, 255, 100, 100);  // COB-ID, transType, inhibit, event
   
   PdoMapEntry tpdoEntries[] = {
-    {0x60FF, 0x00, 16},
-    {0x3012, 0x00, 16},
-    {0x6062, 0x00, 8}
+    {0x606A, 0x00, 16},   // motor command
+    {0x3012, 0x00, 16}    // regen brake
   };
   mapTPDO(0, tpdoEntries, 2);
   // --- Register RPDOs ---
@@ -147,7 +137,11 @@ void loop() {
   if (currentMillis - previousMillis >= interval) {
     previousMillis = currentMillis;
 
-    //TO DO: Add emcy vaildation!!
+    /**
+    TODO: Add emcy validation
+    can't change op mode during major emergency
+    */
+
     UpdateOpMode();
 
     switch (nodeOperatingMode) {
@@ -159,18 +153,6 @@ void loop() {
 
       default: StoppedMode(); break; // fail-safe
     }
-    // if (nodeOperatingMode == 0x80) { 
-    //   HandleDirection();
-    // }
-
-    // // --- Operational state ---
-    // if (nodeOperatingMode == 0x01) { 
-
-    //   //HandleHorn(); 
-    //   HandleInputs();
-    //   //Print_Status();
-    //   HandleParking();
-    // }
   }
 }
 
@@ -181,6 +163,9 @@ void loop() {
 */
 void StoppedMode(){
   Serial.println("Stopped Mode");
+  /**
+  TODO: Check speed/throttle, regen brakes and service brake status and send minor emergencies accordingly.
+  */
 }
 /**
 * @brief Pre Operational Function, calls HandleDirection and HandleChallenge
@@ -189,8 +174,8 @@ void PreOpMode(){
   //Serial.println("Pre-Op Mode");
   HandleDirection();
   HandleChallenge();
-  //HandleParking();
-  //HandleHorn();
+  HandleParking();
+  HandleHorn();
 }
 
 /**
@@ -199,8 +184,8 @@ void PreOpMode(){
 void OperationalMode(){
   //Serial.println("Op Mode");
   HandleChallenge();
-  //HandleParking();
-  //HandleHorn();
+  HandleParking();
+  HandleHorn();
   HandleInputs();
 }
 
@@ -210,18 +195,12 @@ void OperationalMode(){
  */
 void UpdateOpMode(){
 
-  // TO DO: Audrey Update 3 pos and 5 pos logic
   int newOpModeRaw = readStable3Pos(OP_MODE_PIN);
   
   //Converting states 1-3 to enum OperatingMode
-  uint8_t enumOpMode;
 
-  switch (newOpModeRaw) {
-    case 1: enumOpMode = MODE_STOPPED; break;
-    case 2: enumOpMode = MODE_PREOP; break;
-    case 3: enumOpMode = MODE_OPERATIONAL; break;
-    default: return;
-  }
+  uint8_t enumOpMode = opModes[newOpModeRaw];
+
 
   // Checking current mode is different to new
   if(nodeOperatingMode != enumOpMode){
@@ -246,24 +225,30 @@ void SendAllNMT(uint8_t operatingMode) {
   sendNMT(operatingMode, BRAKES_ID); // brakes previously 0x02
   sendNMT(operatingMode, LIGHTS_ID); // lights previously 0x04
   sendNMT(operatingMode, AUDIO_ID); // audio sys previously 0x05
+  sendNMT(operatingMode, AUTOSTOP_ID);
+  sendNMT(operatingMode, BATTERY_ID);     
   sendNMT(operatingMode, LCD_ID); // LCD screen previously 0x09
 }
+
+
+
 
 /**
  * @brief function where all inputs are read and written to the OD variables
  */
-
 void HandleInputs() {
   // ===== Potentiometer Inputs =====
-  int od_regen_brake = 1023 - readADC_HighZ(BRAKE_PIN);
-  int od_motor_command = readADC_HighZ(THROTTLE_PIN);
+  od_regen_brake = 1023 - readADC_HighZ(BRAKE_PIN);
+  od_motor_command = readADC_HighZ(THROTTLE_PIN);
 
   Serial.print("Brake: ");
   Serial.print(od_regen_brake);
   Serial.print("   ||   Throttle: ");
   Serial.println(od_motor_command);
-
 }
+
+
+
 
 
 /**
@@ -271,32 +256,39 @@ void HandleInputs() {
  */
 void HandleHorn() {
   Serial.print("Horn Handle: ");
-  int newHornToggle = digitalRead(BUTTON_1_PIN);
+  int newHornToggle = !(digitalRead(HORN_PIN));
   Serial.println(newHornToggle);
   if (od_horn_toggle != newHornToggle) {
     od_horn_toggle = newHornToggle;
-    uint8_t invertedBtn1 = (uint8_t)!od_horn_toggle;
-    //executeSDOWrite(nodeID, AUDIO_ID, 0x6065, 0x00, sizeof(od_horn_toggle), &invertedBtn1);
+    executeSDOWrite(NODE_ID, AUDIO_ID, 0x6065, 0x00, sizeof(od_horn_toggle), &od_horn_toggle);
   }
 }
+
+
+
+
+
 
 /**
  * @brief Reads the switch which controls the parking break, if the new digital read does not equal the old the parking is sent to the brakes and motors)
  */
 void HandleParking() {
   Serial.print("Parking Handle: ");
-  int newServiceBrake = digitalRead(SWITCH_1_PIN);
+  int newServiceBrake = digitalRead(BRAKE_PIN);
   Serial.println(newServiceBrake);
-  if (od_service_brake != newServiceBrake) {
+  if (od_service_brake_dc != newServiceBrake) {
     
-    //1 is brake on - 0 is off
-    od_service_brake = newServiceBrake;
-    //executeSDOWrite(nodeID, BRAKES_ID, 0x3012, 0x01, sizeof(od_service_brake), &od_service_brake);
-    //executeSDOWrite(nodeID, MOTOR_ID, 0x3012, 0x01, sizeof(od_service_brake), &od_service_brake);
+    //1 is not braking - 0 is braking
+    od_service_brake_dc = newServiceBrake;
+    executeSDOWrite(NODE_ID, BRAKES_ID, 0x3012, 0x02, sizeof(od_service_brake_dc), &od_service_brake_dc);
     Serial.print("Sending Parking");
-    Serial.println(od_service_brake);
+    Serial.println(od_service_brake_dc);
   }
 }
+
+
+
+
 
 /**
 *@brief HandleDirection function reads the desired direction from the 3 positions switch and sends relevent direction to motor and lights
@@ -305,16 +297,19 @@ void HandleDirection() {
   Serial.print("Direction Handle: ");
   int newDirectionMode = readStable3Pos(DIRECTION_MODE_PIN);
   Serial.println(newDirectionMode);
-  if (od_direction_mode != newDirectionMode && newDirectionMode > 0) {
+  if ((od_direction_mode != newDirectionMode) && (newDirectionMode > 0)) {
     // 1 is forawrd, 2 is neutral, 3 is back 
     od_direction_mode = newDirectionMode;
-    executeSDOWrite(nodeID, MOTOR_ID, 0x6060, 0x00, sizeof(od_direction_mode), &od_direction_mode);
-    executeSDOWrite(nodeID, LIGHTS_ID, 0x6060, 0x00, sizeof(od_direction_mode), &od_direction_mode);
+    executeSDOWrite(NODE_ID, MOTOR_ID, 0x6060, 0x00, sizeof(od_direction_mode), &od_direction_mode);
+    executeSDOWrite(NODE_ID, LIGHTS_ID, 0x6060, 0x00, sizeof(od_direction_mode), &od_direction_mode);
 
     Serial.print("Sending direction");
     Serial.println(od_direction_mode);
   }
 }
+
+
+
 
 /**
 *@brief Function reads challange 5 position switch, checks if the challenge has changed, and if so writes new challenge to motors. 
@@ -323,14 +318,19 @@ void HandleChallenge() {
   Serial.print("Challenge Handle");
   int newChallengeMode = readStable5Pos(CHALLENGE_MODE_PIN);
   Serial.println(newChallengeMode);
-  if (od_challenge_mode != newChallengeMode) {
+  if ((od_challenge_mode != newChallengeMode) && (newChallengeMode > 0)) {
     // 1 is forawrd, 2 is neutral, 3 is back 
     od_challenge_mode = newChallengeMode;
-    executeSDOWrite(nodeID, MOTOR_ID, 0x6062, 0x00, sizeof(od_challenge_mode), &od_challenge_mode);
+    executeSDOWrite(NODE_ID, MOTOR_ID, 0x6062, 0x00, sizeof(od_challenge_mode), &od_challenge_mode);
     Serial.print("Sending Challenge");
     Serial.println(od_challenge_mode);
   }
 }
+
+
+
+
+
 /**
 *@brief Function reads the condition pin, if new state is different to previous state the SDO for the condition is sent to the motor. 
 */
@@ -341,12 +341,14 @@ void HandleCondition(){
   //Only sends the new condition object as an SDO if there has been a change in the condition. 
   if(od_condition_mode != newConditionMode){
     od_condition_mode = newConditionMode;
-    executeSDOWrite(nodeID,MOTOR_ID,0x6061,0x00,sizeof(od_condition_mode),&od_condition_mode);
+    executeSDOWrite(NODE_ID,MOTOR_ID,0x6061,0x00,sizeof(od_condition_mode),&od_condition_mode);
     Serial.print("Sending Condition");
     Serial.println("od_condition_mode");
     
   }
 }
+
+
 
 
 /**
@@ -360,13 +362,13 @@ void HandleCondition(){
 int readADC_HighZ(int pin, int samples) {
   // Let ADC mux settle on this pin
   analogRead(pin);
-  delayMicroseconds(500);
+  delayMicroseconds(1100);
 
   // Throw away a few reads
-  analogRead(pin);
-  delayMicroseconds(300);
-  analogRead(pin);
-  delayMicroseconds(300);
+  // analogRead(pin);
+  // delayMicroseconds(300);
+  // analogRead(pin);
+  // delayMicroseconds(300);
 
   long sum = 0;
   for (int i = 0; i < samples; i++) {
@@ -376,6 +378,9 @@ int readADC_HighZ(int pin, int samples) {
 
   return (int)(sum / samples);
 }
+
+
+
 
 /**
 *@brief Recieves raw analog value and finds the nearest setting (1-3)
@@ -399,6 +404,10 @@ int decodeNearest3(int raw) {
   return bestIndex + 1;  // states 1..3
 }
 
+
+
+
+
 /**
 *@brief Recives raw analaog read value and outputs the nearest position, returning 1-5
 *
@@ -421,6 +430,8 @@ int decodeNearest5(int raw) {
 }
 
 
+
+
 /**
 *@brief Stable selector read for 3 position rotary switch
 *
@@ -440,6 +451,9 @@ int readStable3Pos(int pin) {
   if (s1 == s2 && s2 == s3) return s1;
   return -1;
 }
+
+
+
 
 /**
 *@brief Function reads the position of the 5 position switch 

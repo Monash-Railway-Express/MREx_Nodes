@@ -16,6 +16,9 @@
  *
  */
 
+/**
+TODO: invert horn signal before use PLEASE!!!!!
+*/
  /***************************************************
 DFPlayer - A Mini MP3 Player For Arduino
  <https://www.dfrobot.com/product-1121.html>
