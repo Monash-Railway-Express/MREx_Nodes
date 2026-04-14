@@ -78,7 +78,7 @@ void setup() {
   
   pinMode(HORN_PIN, INPUT_PULLUP);
   pinMode(BUTTON_2_PIN, INPUT_PULLUP);
-  pinMode(BRAKE_PIN, INPUT_PULLUP);
+  pinMode(SERVICE_BRAKE_PIN, INPUT_PULLUP);
   pinMode(SWITCH_2_PIN, INPUT_PULLUP);
 
   pinMode(DIRECTION_MODE_PIN, INPUT);
@@ -171,7 +171,7 @@ void StoppedMode(){
 * @brief Pre Operational Function, calls HandleDirection and HandleChallenge
 */
 void PreOpMode(){
-  //Serial.println("Pre-Op Mode");
+  Serial.println("Pre-Op Mode");
   HandleDirection();
   HandleChallenge();
   HandleParking();
@@ -182,7 +182,7 @@ void PreOpMode(){
 *@brief OperationMode function - Calls HandleChallenge and HandleInputs
 */
 void OperationalMode(){
-  //Serial.println("Op Mode");
+  Serial.println("Op Mode");
   HandleChallenge();
   HandleParking();
   // HandleHorn();
@@ -239,7 +239,7 @@ void SendAllNMT(uint8_t operatingMode) {
 void HandleInputs() {
   // ===== Potentiometer Inputs =====
   od_regen_brake = 1023 - readADC_HighZ(BRAKE_PIN);
-  od_motor_command = readADC_HighZ(THROTTLE_PIN);
+  od_motor_command = 1023 - readADC_HighZ(THROTTLE_PIN);
 
   Serial.print("Brake: ");
   Serial.print(od_regen_brake);
@@ -274,7 +274,7 @@ void HandleHorn() {
  */
 void HandleParking() {
   Serial.print("Parking Handle: ");
-  int newServiceBrake = digitalRead(BRAKE_PIN);
+  int newServiceBrake = digitalRead(SERVICE_BRAKE_PIN);
   Serial.println(newServiceBrake);
   if (od_service_brake_dc != newServiceBrake) {
     
