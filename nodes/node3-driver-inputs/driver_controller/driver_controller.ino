@@ -296,6 +296,7 @@ void HandleParking() {
 void HandleDirection() {
   Serial.print("Direction Handle: ");
   int newDirectionMode = readStable3Pos(DIRECTION_MODE_PIN);
+  Serial.println(readADC_HighZ(DIRECTION_MODE_PIN));
   Serial.println(newDirectionMode);
   if ((od_direction_mode != newDirectionMode) && (newDirectionMode > 0)) {
     // 1 is forawrd, 2 is neutral, 3 is back 
