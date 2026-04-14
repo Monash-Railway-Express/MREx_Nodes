@@ -24,7 +24,6 @@
 
 // User code begin: ------------------------------------------------------
 // --- CAN MREx initialisation ---
-uint8_t nodeID = 3;
 
 
 // --- OD definitions ---
@@ -107,13 +106,13 @@ void setup() {
 
   
   // Initialize CANMREX protocol
-  initCANMREX(TX_GPIO_NUM, RX_GPIO_NUM, nodeID);
+  initCANMREX(TX_GPIO_NUM, RX_GPIO_NUM, NODE_ID);
 
   xTaskCreatePinnedToCore(
     CAN_Task,
     "CAN Task",
     4096,
-    &nodeID,   // <--- passed into pvParameters
+    &NODE_ID,   // <--- passed into pvParameters
     3,
     NULL,
     0
@@ -128,7 +127,7 @@ void setup() {
   registerODEntry(0x6062, 0x00, 2, sizeof(od_challenge_mode), &od_challenge_mode);
 
   // --- Register TPDOs ---
-  configureTPDO(0, 0x180 + nodeID, 255, 100, 100);  // COB-ID, transType, inhibit, event
+  configureTPDO(0, 0x180 + NODE_ID, 255, 100, 100);  // COB-ID, transType, inhibit, event
   
   PdoMapEntry tpdoEntries[] = {
     {0x60FF, 0x00, 16},
@@ -276,7 +275,7 @@ void HandleHorn() {
   if (od_horn_toggle != newHornToggle) {
     od_horn_toggle = newHornToggle;
     uint8_t invertedBtn1 = (uint8_t)!od_horn_toggle;
-    //executeSDOWrite(nodeID, AUDIO_ID, 0x6065, 0x00, sizeof(od_horn_toggle), &invertedBtn1);
+    //executeSDOWrite(NODE_ID, AUDIO_ID, 0x6065, 0x00, sizeof(od_horn_toggle), &invertedBtn1);
   }
 }
 
@@ -291,8 +290,8 @@ void HandleParking() {
     
     //1 is brake on - 0 is off
     od_service_brake = newServiceBrake;
-    //executeSDOWrite(nodeID, BRAKES_ID, 0x3012, 0x01, sizeof(od_service_brake), &od_service_brake);
-    //executeSDOWrite(nodeID, MOTOR_ID, 0x3012, 0x01, sizeof(od_service_brake), &od_service_brake);
+    //executeSDOWrite(NODE_ID, BRAKES_ID, 0x3012, 0x01, sizeof(od_service_brake), &od_service_brake);
+    //executeSDOWrite(NODE_ID, MOTOR_ID, 0x3012, 0x01, sizeof(od_service_brake), &od_service_brake);
     Serial.print("Sending Parking");
     Serial.println(od_service_brake);
   }
@@ -308,8 +307,8 @@ void HandleDirection() {
   if (od_direction_mode != newDirectionMode && newDirectionMode > 0) {
     // 1 is forawrd, 2 is neutral, 3 is back 
     od_direction_mode = newDirectionMode;
-    executeSDOWrite(nodeID, MOTOR_ID, 0x6060, 0x00, sizeof(od_direction_mode), &od_direction_mode);
-    executeSDOWrite(nodeID, LIGHTS_ID, 0x6060, 0x00, sizeof(od_direction_mode), &od_direction_mode);
+    executeSDOWrite(NODE_ID, MOTOR_ID, 0x6060, 0x00, sizeof(od_direction_mode), &od_direction_mode);
+    executeSDOWrite(NODE_ID, LIGHTS_ID, 0x6060, 0x00, sizeof(od_direction_mode), &od_direction_mode);
 
     Serial.print("Sending direction");
     Serial.println(od_direction_mode);
@@ -326,7 +325,7 @@ void HandleChallenge() {
   if (od_challenge_mode != newChallengeMode) {
     // 1 is forawrd, 2 is neutral, 3 is back 
     od_challenge_mode = newChallengeMode;
-    executeSDOWrite(nodeID, MOTOR_ID, 0x6062, 0x00, sizeof(od_challenge_mode), &od_challenge_mode);
+    executeSDOWrite(NODE_ID, MOTOR_ID, 0x6062, 0x00, sizeof(od_challenge_mode), &od_challenge_mode);
     Serial.print("Sending Challenge");
     Serial.println(od_challenge_mode);
   }
@@ -341,7 +340,7 @@ void HandleCondition(){
   //Only sends the new condition object as an SDO if there has been a change in the condition. 
   if(od_condition_mode != newConditionMode){
     od_condition_mode = newConditionMode;
-    executeSDOWrite(nodeID,MOTOR_ID,0x6061,0x00,sizeof(od_condition_mode),&od_condition_mode);
+    executeSDOWrite(NODE_ID,MOTOR_ID,0x6061,0x00,sizeof(od_condition_mode),&od_condition_mode);
     Serial.print("Sending Condition");
     Serial.println("od_condition_mode");
     

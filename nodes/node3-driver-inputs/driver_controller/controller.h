@@ -43,6 +43,8 @@ int readStable5Pos(int pin);
 #define CONDITION_MODE_PIN 20
 #define OP_MODE_PIN 5
 
+uint8_t NODE_ID = 3;
+
 //Defining Node ID's
 #define MOTOR_ID 0x01
 #define BRAKES_ID 0x02
