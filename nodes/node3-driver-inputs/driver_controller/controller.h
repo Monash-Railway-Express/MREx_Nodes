@@ -27,8 +27,8 @@ int readStable5Pos(int pin);
 
 
 //defining Pins
-#define TX_GPIO_NUM GPIO_NUM_41 // Set GPIO pin for CAN Transmit
-#define RX_GPIO_NUM GPIO_NUM_42 // Set GPIO pins for CAN Receive
+#define TX_GPIO_NUM GPIO_NUM_40 // Set GPIO pin for CAN Transmit
+#define RX_GPIO_NUM GPIO_NUM_41 // Set GPIO pins for CAN Receive
 
 #define BRAKE_PIN GPIO_NUM_1
 #define THROTTLE_PIN GPIO_NUM_2

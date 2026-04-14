@@ -122,7 +122,7 @@ void setup() {
   configureTPDO(0, 0x180 + NODE_ID, 255, 100, 100);  // COB-ID, transType, inhibit, event
   
   PdoMapEntry tpdoEntries[] = {
-    {0x3012, 0x00, 16}    // regen brake
+    {0x3012, 0x00, 16},    // regen brake
     {0x606A, 0x00, 16},   // motor command
   };
   mapTPDO(0, tpdoEntries, 2);
@@ -208,7 +208,7 @@ void UpdateOpMode(){
     nodeOperatingMode = enumOpMode;  
     Serial.println(nodeOperatingMode);
     // Update local state
-    //SendAllNMT(enumOpMode);
+    SendAllNMT(enumOpMode);
   }
 }
 
@@ -223,7 +223,7 @@ void SendAllNMT(uint8_t operatingMode) {
   //ID's have been changed to variable names to aid readability
   sendNMT(operatingMode, MOTOR_ID); // motor previously 0x01
   sendNMT(operatingMode, BRAKES_ID); // brakes previously 0x02
-//   sendNMT(operatingMode, LIGHTS_ID); // lights previously 0x04
+  sendNMT(operatingMode, LIGHTS_ID); // lights previously 0x04
 //   sendNMT(operatingMode, AUDIO_ID); // audio sys previously 0x05
 //   sendNMT(operatingMode, AUTOSTOP_ID);
 //   sendNMT(operatingMode, BATTERY_ID);     
