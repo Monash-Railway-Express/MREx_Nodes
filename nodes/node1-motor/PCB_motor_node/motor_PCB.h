@@ -108,4 +108,13 @@ void EnergyRecoveryChallenge(float speed_kmh);
 void GetPreferences();
 void PutPreferences();
 
+// PI controller gains — tuned by MUNT
+struct FloatPair {
+    String key;
+    float_t value;
+    uint16_t index;
+    uint8_t subindex;
+};
+
 #endif // MOTOR_PCB_H
+

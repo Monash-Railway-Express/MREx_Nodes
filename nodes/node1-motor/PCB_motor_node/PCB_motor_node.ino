@@ -76,13 +76,7 @@ unsigned long previous_millis = 0;
 // Preferences API for non-volatile memory
 Preferences preferences;
 
-// PI controller gains — tuned by MUNT
-struct FloatPair {
-    String key;
-    float_t value;
-    uint16_t index;
-    uint8_t subindex;
-};
+
 
 const int numFloatPairs = 15;
 struct FloatPair floatPairs[numFloatPairs];
