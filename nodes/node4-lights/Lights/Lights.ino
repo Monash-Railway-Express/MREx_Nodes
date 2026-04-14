@@ -1,32 +1,24 @@
 /**
- * @file lights_and_sensors.ino
- * @brief This code is for the lights & sensor node (Node 4 on the loco). 
+ * CAN MREX Lighting control file
  *
- * @details
- * LIGHTS_FWD will be the control for the white lights on the front and red on the back,
- * LIGHTS_REV will be the control for the red lights on the front and white on the back
- * LIGHTS_PREOP control the yellow lights on all faces of the loc
- * TEMPER
+ * File:            Lights.ino
+ * Organisation:    MREX
+ * Author:          Aung Hpone Thant, Chiara Gillam, Oscar Boulter
+ * Date Created:    5/10/2025
+ * Last Modified:   26/03/2026
+ * Version:         1.1
  *
- * @author Aung Hpone Thant 
- * @author Chiara Gillam
- * @author Oscar Boulter
- *
- * @date 		30/03/2026
- *
- * @version 1.1.1
- *
- * @organisation MREX
- *
- * @see CAN_MREx.h
- *
+ *This code is for the lighting node (Node 4 on the loco). 
+ *LIGHTS_FWD will be the control for the white lights on the front and red on the back,
+ *LIGHTS_REV will be the control for the red lights on the front and white on the back
+ *LIGHTS_PREOP control the yellow lights on all faces of the loco.
  */
 
 #include <CAN_MREx.h> // inlcudes all CAN MREX files
 
 // User code begin: ------------------------------------------------------
 // --- CAN MREx initialisation ---
-uint8_t NODE_ID = 4;  // Change this to set your device's node ID
+uint8_t nodeID = 4;  // Change this to set your device's node ID
 
 // --- Pin Definitions ---
 #define TX_GPIO_NUM GPIO_NUM_4 // Set GPIO pin for CAN Transmit
@@ -35,39 +27,39 @@ uint8_t NODE_ID = 4;  // Change this to set your device's node ID
 #define LIGHT_FWD 15
 #define LIGHT_REV 16
 #define SMOKE_PIN 4 // arbitrary, change values when required
-#define TEMPERATURE_FRONT_PIN 5
-#define TEMPERATURE_REAR_PIN 6
-
-enum {OFF, PREOP, NEUTRAL, FORWARD, REVERSE} drive_state = OFF;
+#define TEMPERATURE_F_PIN 5
+#define TEMPERATURE_R_PIN 6
+enum {Off, PreOp, Neutral, Forward, Reverse} driveState = Off;
 
 
 // --- OD definitions ---
-uint16_t od_temperature_front;
-uint16_t od_temperature_rear; 
+uint32_t dirMode32;
+uint8_t dirMode;
+
+// If we want to log internal tempature and air quality in the future
+uint16_t tempF;
+uint16_t tempR; 
 
 //misc variables
-unsigned long next_poll_time; //used for non blocking delay to request the current motor direction from motor controller
-uint32_t dir_mode32; // Will these eventually be ODs?
-uint8_t dir_mode;
+unsigned long nextPollTime; //used for non blocking delay to request the current motor direction from motor controller
+
 
 
 // User code end ---------------------------------------------------------
 
-/**
- * @brief Initial Set up of Object Dictionary & Pin communication
- */
+
 void setup() {
   Serial.begin(115200);
   delay(1000);
   Serial.println("Serial Coms started at 115200 baud");
   
   //Initialize CANMREX protocol
-  initCANMREX(TX_GPIO_NUM, RX_GPIO_NUM, NODE_ID);
+  initCANMREX(TX_GPIO_NUM, RX_GPIO_NUM, nodeID);
   xTaskCreatePinnedToCore(
       CAN_Task,
       "CAN Task",
       6144,
-      &NODE_ID,
+      &nodeID,
       3,
       NULL,
       0
@@ -75,11 +67,11 @@ void setup() {
   enableHeartbeatMonitoring(true);
   // User code Setup Begin: -------------------------------------------------
   // --- Register OD entries ---
-  registerODEntry(0x1004, 0x00, 2, sizeof(od_temperature_front), &od_temperature_front);
-  registerODEntry(0x1004, 0x01, 2, sizeof(od_temperature_rear), &od_temperature_rear);
+  registerODEntry(0x1004, 0x00, 2, sizeof(tempF), &tempF);
+  registerODEntry(0x1004, 0x01, 2, sizeof(tempR), &tempR);
 
   // --- Register TPDOs ---
-  configureTPDO(0, 0x184 + NODE_ID, 255, 100, 100);
+  configureTPDO(0, 0x184 + nodeID, 255, 100, 100);
 
   PdoMapEntry tpdoEntries[] = {
       {0x1004, 0x00, 16},  // Example: index 0x2000, subindex 1, 16 bits
@@ -94,9 +86,6 @@ void setup() {
   pinMode(LIGHT_PREOP, OUTPUT);
   pinMode(LIGHT_FWD, OUTPUT);
   pinMode(LIGHT_REV, OUTPUT);
-  pinMode(SMOKE_PIN, INPUT);
-  pinMode(TEMPERATURE_FRONT_PIN, INPUT);
-  pinMode(TEMPERATURE_REAR_PIN, INPUT);
 
 
   //run lights self test. Flash all lights
@@ -106,35 +95,33 @@ void setup() {
 
 }
 
-/**
- * @brief Main loop of the program, checks the sensors each loop, assigns the drive state depending on mode
- */
+
 void loop() {
   //User Code begin loop() ----------------------------------------------------
   unsigned long  currentMillis = millis();
   
-  CheckSensors(); // always check the sensors
+  checkSensors(); // always check the sensors
   
   // --- Stopped mode (This is default starting point) ---
   if (nodeOperatingMode == 0x02){ 
-    //handleCAN(NODE_ID);
-    drive_state = OFF;
+    //handleCAN(nodeID);
+    driveState = Off;
   }
 
   // --- Pre operational state (This is where you can do checks and make sure that everything is okay) ---
   if (nodeOperatingMode == 0x80){ 
-    //handleCAN(NODE_ID);
-    drive_state = PREOP;
+    //handleCAN(nodeID);
+    driveState = PreOp;
   }
 
   // --- Operational state (Normal operating mode) ---
   if (nodeOperatingMode == 0x01){ 
-    //handleCAN(NODE_ID);
+    //handleCAN(nodeID);
     //request the state of the motor drive direction every 200ms
-    if (currentMillis >= next_poll_time)
+    if (currentMillis >= nextPollTime)
     {
       HandleDirStates();
-      next_poll_time = currentMillis + 200;
+      nextPollTime = currentMillis + 200;
     }
 
   }
@@ -142,36 +129,32 @@ void loop() {
   //User code end loop() --------------------------------------------------------
 }
 
-/**
- * @brief Handles the direction selector in operational state
- */
+//handles the direction selector in operational state
 void HandleDirStates()
 {
   //reads the motor direction from the controller.
-  dir_mode32 = executeSDORead(NODE_ID, 3, 0x6060, 0x00); 
+  dirMode32 = executeSDORead(nodeID, 3, 0x6060, 0x00); 
   //dirMode = 1;
-  //executeSDOWrite(NODE_ID, 3, 0x6060, 0x00, sizeof(uint8_t), &dirMode);
-  dir_mode = (uint8_t)dir_mode32;
+  //executeSDOWrite(nodeID, 3, 0x6060, 0x00, sizeof(uint8_t), &dirMode);
+  dirMode = (uint8_t)dirMode32;
 
   //switches the drive state based on the motor direction
   //TODO: clarify codes and implement accordingly. Currently using 3 for fwd and 1 for rev.
-  if(dir_mode == 2)
+  if(dirMode == 2)
   {
-    drive_state = NEUTRAL;
+    driveState = Neutral;
   }
-  if(dir_mode == 3)
+  if(dirMode == 3)
   {
-    drive_state = FORWARD;
+    driveState = Forward;
   }
-  if(dir_mode == 1)
+  if(dirMode == 1)
   {
-    drive_state = REVERSE;
+    driveState = Reverse;
   }
 }
 
-/**
- * @brief Function that flashes all lights on power on. 
- */
+//function that flashes all lights on power on. 
 void LightsSelfTest()
 {
   digitalWrite(LIGHT_PREOP, LOW);
@@ -195,38 +178,35 @@ void LightsSelfTest()
   digitalWrite(LIGHT_REV, LOW);
 }
 
-/**
- * @brief Function that flashes writes to the Light pins depending on the drive state (direction/operating mode) of the locomotive
- */
 void HandleOpMode()
 {
-  switch (drive_state)
+  switch (driveState)
   {
-    case FORWARD:
+    case Forward:
       digitalWrite(LIGHT_FWD, HIGH);
       digitalWrite(LIGHT_REV, LOW);
       digitalWrite(LIGHT_PREOP, HIGH);
       break;
     
-    case REVERSE:
+    case Reverse:
       digitalWrite(LIGHT_FWD, LOW);
       digitalWrite(LIGHT_REV, HIGH);
       digitalWrite(LIGHT_PREOP, HIGH);
       break;
 
-    case PREOP:
+    case PreOp:
       digitalWrite(LIGHT_FWD, LOW);
       digitalWrite(LIGHT_REV, LOW);
       digitalWrite(LIGHT_PREOP, HIGH);
       break;
 
-    case NEUTRAL:
+    case Neutral:
     digitalWrite(LIGHT_FWD, HIGH);
     digitalWrite(LIGHT_REV, HIGH);
     digitalWrite(LIGHT_PREOP, HIGH);
       break;
 
-    case OFF:
+    case Off:
       digitalWrite(LIGHT_FWD, LOW);
       digitalWrite(LIGHT_REV, LOW);
       digitalWrite(LIGHT_PREOP, LOW);
@@ -234,24 +214,21 @@ void HandleOpMode()
   }
 }
 
-
-/**
- * @brief Function for Checking the Temperature and Air Quality of the Sensors. Assumes we are using the digital Output of the Smoke Detector
- */
-void CheckSensors(){
+// Function for Checking the Temperature and Air Quality of the Sensors
+// Assume we are using the digital Output of the Smoke Detector
+void checkSensors(){
 
   bool smokeEMCY;
-  bool heatFrontEMCY;
-  bool heatRearEMCY;
+  bool heatF_EMCY;
+  bool heatR_EMCY;
 
-  uint16_t temperatureFront;
-  uint16_t temperatureRear;
-  uint16_t allowableTemperature = 70;
+  uint16_t tempF;
+  uint16_t tempR;
 
   smokeEMCY = (digitalRead(SMOKE_PIN) == HIGH); 
   
-  temperatureFront = analogRead(TEMPERATURE_FRONT_PIN);
-  temperatureRear = analogRead(TEMPERATURE_REAR_PIN);
+  tempF = analogRead(TEMPERATURE_F_PIN);
+  tempR = analogRead(TEMPERATURE_R_PIN);
 
   /*
   - Turn the thermistor reading into a celsius temperature (will need callibration)
@@ -266,40 +243,37 @@ void CheckSensors(){
     Ta: The Temperature (C)
   */
   
-  int voltage0 = 156; // 500mv Converted to 0-1029 Scale
-  int temperature_Coef = 3; // 10mV Converted to 0-1029 Scale
+  int Voltage0 = 156; // 500mv Converted to 0-1029 Scale
+  int Temperature_Coef = 31; // 10mV Converted to 0-1029 Scale
 
-  temperatureFront = ( temperatureFront - voltage0 ) / temperature_Coef;
+  tempF = ( tempF - Voltage0 ) / Temperature_Coef;
 
-  temperatureRear = ( temperatureRear - voltage0 ) / temperature_Coef;
-
-  od_temperature_front = temperatureFront;
-  od_temperature_rear = temperatureRear;
+  tempR = ( tempR - Voltage0 ) / Temperature_Coef;
 
 
   //Debugging
   Serial.println("Temperature:");
-  Serial.print("  Rear: ");
-  Serial.print(temperatureRear);
-  Serial.print("  Front: ");
-  Serial.print(temperatureFront);
+  Serial.print("  R: ");
+  Serial.print(tempR);
+  Serial.print("  F: ");
+  Serial.print(tempF);
 
-  heatFrontEMCY = temperatureFront > allowableTemperature;
-  heatRearEMCY = temperatureRear > allowableTemperature;
+  heatF_EMCY = tempF > 70;
+  heatR_EMCY = tempR > 70;
 
   if (smokeEMCY){
-    Serial.println("Smoke Detected in the Locomotive!");
-    sendEMCY(0, NODE_ID, 0x00505);
+    Serial.println("Smoke Error!");
+    sendEMCY(0, nodeID, 0x00505);
   }
 
-  if (heatFrontEMCY) {
-    Serial.println("Tempetaure inside Locomotive Front is Too High!");
-    sendEMCY(0, NODE_ID, 0x00506);
+  if (heatF_EMCY) {
+    Serial.println("Temperature F Error!");
+    sendEMCY(0, nodeID, 0x00506);
   }
 
-    if (heatRearEMCY) {
-    Serial.println("Tempetaure inside Locomotive Rear is Too High!");
-    sendEMCY(0, NODE_ID, 0x00507);
+    if (heatR_EMCY) {
+    Serial.println("Temperature R Error!");
+    sendEMCY(0, nodeID, 0x00507);
   }
 
 }

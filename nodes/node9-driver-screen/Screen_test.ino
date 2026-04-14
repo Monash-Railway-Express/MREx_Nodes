@@ -11,7 +11,7 @@
  */
 
 #include <Arduino.h>
-#include <CAN_MREx.h>
+#include <can_mrex.h>
 #include <TFT_eSPI.h>
 
 #define LV_CONF_INCLUDE_SIMPLE 1
@@ -91,8 +91,8 @@ bool displayDataUpdated = false;
 // These are placeholders for now, gotta replace with the actual ones 
 // -----------------------------------------------------------------------------
 
-uint16_t desiredSpeed = 0;
-uint16_t regenBrake = 0;
+uint16_t odDesiredSpeed = 0;
+uint16_t odRegenBrake = 0;
 // uint8_t odMode = 0;
 // uint8_t odChallenge = 0;
 // uint16_t odPackV = 0;
@@ -466,8 +466,6 @@ static void update_challenge_modes(uint8_t activeIndex)
 
 static void refresh_display()
 {
-  Serial.print("Speed set: ");
-  Serial.println(rx_speed_kmh);
   update_gauges(rx_speed_kmh, rx_brake_pct);
   update_bottom_panels(rx_majorAlert, rx_minorAlert, rx_packV, rx_packA, rx_soc, rx_tempC, rx_modeStr);
   update_left_panels(rx_powerCapPct, rx_recoveredWh, rx_brakesApplied);
@@ -481,8 +479,8 @@ static void copy_can_data_to_display()
 {
   // Examples only — replace these with your real received values
 
-  rx_speed_kmh = (desiredSpeed / 1023.0f) * 25.0f;
-  rx_brake_pct = (int)((regenBrake / 1023.0f) * 100.0f);
+  rx_speed_kmh = (odDesiredSpeed / 1023.0f) * 25.0f;
+  rx_brake_pct = (int)((odRegenBrake / 1023.0f) * 100.0f);
   // rx_packV = odPackV / 10.0f;
   // rx_packA = odPackA / 10.0f;
   // rx_soc = odSOC;
@@ -517,17 +515,17 @@ void setup() {
 
   // Eg:
   // registerODEntry(...);
-    registerODEntry(0x60FF, 0x00, 2, sizeof(desiredSpeed), &desiredSpeed);
-    registerODEntry(0x3012, 0x00, 2, sizeof(regenBrake), &regenBrake);
+    registerODEntry(0x60FF, 0x00, 2, sizeof(odDesiredSpeed), &odDesiredSpeed);
+    registerODEntry(0x3012, 0x00, 2, sizeof(odRegenBrake), &odRegenBrake);
 
-    configureRPDO(0, 0x183, 255, 100);
+    configureRPDO(0, 0x183, 255);
 
     PdoMapEntry rpdoEntries[] = {
         {0x60FF, 0x00, 16},
         {0x3012, 0x00, 16}
-};
+    };
 
-  mapRPDO(0, rpdoEntries, 2);
+mapRPDO(0, rpdoEntries, 2);
   // ===========================================================================
   // ===== RPDO REGISTRATION HERE =====
   // Register the RPDOs that receive data from Node 3
