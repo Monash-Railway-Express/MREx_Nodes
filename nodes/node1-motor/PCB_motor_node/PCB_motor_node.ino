@@ -268,7 +268,7 @@ void OperationalMode() {
     if (speed_kmh > MAX_SPEED_KMH) {
         WriteDAC(THROTTLE_CHANNEL, 0);
         integrator = 0.0f;
-        sendEMCY(1, MOTOR_ID, 0x00510);     // send minor emergency - TODO: DECIDE ON PROPER ERROR CODE
+        // sendEMCY(1, MOTOR_ID, 0x00510);     // send minor emergency - TODO: DECIDE ON PROPER ERROR CODE
         Serial.println("[OperationalMode] Speed cap exceeded — throttle cut.");
         return;
     }
