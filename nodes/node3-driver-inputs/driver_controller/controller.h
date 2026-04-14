@@ -33,9 +33,9 @@ int readStable5Pos(int pin);
 #define BRAKE_PIN 1
 #define THROTTLE_PIN 2
 
-#define HORN_PIN 6   //Horn
+#define HORN_PIN 7   //Horn
 #define BUTTON_2_PIN 35   
-#define SERVICE_BRAKE_PIN 15   //Parking Brake 
+#define SERVICE_BRAKE_PIN 6   //Parking Brake 
 #define SWITCH_2_PIN 37   //Location Annoucement
 
 #define DIRECTION_MODE_PIN 4
@@ -63,7 +63,7 @@ enum OperatingMode : uint8_t {
     MODE_OPERATIONAL   = 0x01
 };
 
-const OperatingMode opModes[3] = {MODE_STOPPED, MODE_PREOP, MODE_OPERATIONAL};
+const OperatingMode opModes[3] = {MODE_STOPPED, MODE_STOPPED, MODE_PREOP, MODE_OPERATIONAL};
 
 // ---------- ADC / filtering settings ----------
 const int ADC_RES_BITS = 10;         // 0..1023       DO NOT F**KING CHANGE!!!!!!
