@@ -122,8 +122,8 @@ void setup() {
   configureTPDO(0, 0x180 + NODE_ID, 255, 100, 100);  // COB-ID, transType, inhibit, event
   
   PdoMapEntry tpdoEntries[] = {
-    {0x606A, 0x00, 16},   // motor command
     {0x3012, 0x00, 16}    // regen brake
+    {0x606A, 0x00, 16},   // motor command
   };
   mapTPDO(0, tpdoEntries, 2);
   // --- Register RPDOs ---
