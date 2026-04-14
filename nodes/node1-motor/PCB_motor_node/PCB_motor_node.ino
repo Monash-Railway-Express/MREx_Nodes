@@ -343,10 +343,7 @@ void SpeedControl(float speed_kmh) {
         motor_dac  = 0;
         brake_dac  = od_regen_brake;
         integrator = 0.0f;
-       //od_service_brake_mc = (speed_kmh <= SERVICE_BRAKE_SPEED_KMH) ? 1 : 0;
     } else {
-       //od_service_brake_mc = 0;
-
         // Scale od_motor_command (0–1023) to speed setpoint (0–MAX_SPEED_KMH)
         float speed_setpoint = ((float)od_motor_command / 1023.0f) * MAX_SPEED_KMH;
         float error = speed_setpoint - speed_kmh;
@@ -370,83 +367,12 @@ void SpeedControl(float speed_kmh) {
 
     WriteDAC(THROTTLE_CHANNEL, motor_dac);
     WriteDAC(REGEN_CHANNEL, brake_dac);
-    // executeSDOWrite(NODE_ID, 2, 0x3012, 0x01, sizeof(od_service_brake_mc), od_service_brake_mc) {
 
     Serial.print("[SpeedControl] Setpoint: "); Serial.print(((float)od_motor_command / 1023.0f) * MAX_SPEED_KMH);
     Serial.print(" | Speed: ");                Serial.print(speed_kmh);
     Serial.print(" | Motor DAC: ");            Serial.print(motor_dac);
     Serial.print(" | Brake DAC: ");            Serial.println(brake_dac);
 }
-
-// spare speed control function in case other does not work
-
-// /**
-//  * @brief Simple speed controller — accelerates below target speed and brakes above it.
-//  *
-//  * @details
-//  * No PI loop. The motor command is treated as a target speed request:
-//  * - below target speed  -> drive motor
-//  * - above target speed  -> apply brake
-//  * - within a small deadband -> do nothing
-//  *
-//  * Regen brake still overrides throttle.
-//  *
-//  * @param speed_kmh Current measured speed in km/h.
-//  */
-// void SpeedControl(float speed_kmh) {
-//     uint16_t motor_dac = 0;
-//     uint16_t brake_dac = 0;
-
-//     // Convert raw command (0–1023) to speed setpoint (0–MAX_SPEED_KMH)
-//     float speed_setpoint = ((float)od_motor_command / 1023.0f) * MAX_SPEED_KMH;
-//     float error = speed_setpoint - speed_kmh;
-
-//     const float deadband = 0.5f;     // km/h
-//     const float motor_gain = 80.0f;  // tune to suit
-//     const float brake_gain = 80.0f;  // tune to suit
-
-//     // Regen brake override
-//     if (od_regen_brake > REGEN_BRAKE_THRESHOLD) {
-//         motor_dac = 0;
-//         brake_dac = od_regen_brake;
-//         od_service_brake = (speed_kmh <= SERVICE_BRAKE_SPEED_KMH) ? 1 : 0;
-//     }
-//     else {
-//         od_service_brake = 0;
-
-//         if (error > deadband) {
-//             // Below target speed -> accelerate
-//             float cmd = error * motor_gain;
-//             if (cmd > DAC_MAX) cmd = DAC_MAX;
-//             motor_dac = (uint16_t)cmd;
-//             brake_dac = 0;
-//         }
-//         else if (error < -deadband) {
-//             // Above target speed -> decelerate
-//             float cmd = (-error) * brake_gain;
-//             if (cmd > DAC_MAX) cmd = DAC_MAX;
-//             motor_dac = 0;
-//             brake_dac = (uint16_t)cmd;
-//         }
-//         else {
-//             // Close enough to target
-//             motor_dac = 0;
-//             brake_dac = 0;
-//         }
-//     }
-
-//     WriteDAC(THROTTLE_CHANNEL, motor_dac);
-//     WriteDAC(REGEN_CHANNEL, brake_dac);
-
-//     Serial.print("[SpeedControl] Setpoint: ");
-//     Serial.print(speed_setpoint);
-//     Serial.print(" | Speed: ");
-//     Serial.print(speed_kmh);
-//     Serial.print(" | Motor DAC: ");
-//     Serial.print(motor_dac);
-//     Serial.print(" | Brake DAC: ");
-//     Serial.println(brake_dac);
-// }
 
 
 
