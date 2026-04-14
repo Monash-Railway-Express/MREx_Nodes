@@ -102,9 +102,16 @@ const float WHEEL_CIRCUMFERENCE_M = 0.3*3.14159f;
 
 // --- Operating Modes ---
 enum OperatingMode : uint8_t {
-    MODE_STOPPED     = 0x02,
-    MODE_PREOP       = 0x80,
-    MODE_OPERATIONAL = 0x01
+    MODE_STOPPED        = 0x02,
+    MODE_PREOP          = 0x80,
+    MODE_OPERATIONAL    = 0x01
+};
+
+// --- Direction Mode ---
+enum DirectionMode : uint8_t {
+    REVERSE_MODE        = 1,
+    NEUTRAL_MODE        = 2,
+    FORWARD_MODE        = 3
 };
 
 // --- Function Prototypes ---
