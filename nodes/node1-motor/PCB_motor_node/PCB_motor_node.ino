@@ -246,28 +246,29 @@ void OperationalMode() {
 
     // --- Read pulse count BEFORE ReadSpeedKMH() clears the counter ---
     int16_t pulse_count = 0;
-    pcnt_get_counter_value(PCNT_UNIT_0, &pulse_count);
+    pcnt_get_counter_value(PCNT_UNIT_0, &pulse_count);      // grabs count value from rotary encoder
 
     // Accumulate total pulses for distance tracking
-    total_pulse_accum += (int32_t)pulse_count;
+    total_pulse_accum += (int32_t)pulse_count;              // adds value to accumulated pulses
 
-    float speed_kmh = ReadSpeedKMH(previous_millis);  // clears counter here
+    float speed_kmh = ReadSpeedKMH(previous_millis);        // clears counter here
     previous_millis = current_millis;
     od_true_speed   = (uint32_t)speed_kmh;
 
     switch (od_challenge_mode) {
-        case CHALLENGE_THROTTLE:        ThrottleControl(speed_kmh);                   break;
-        case CHALLENGE_SPEED_CONTROL:   SpeedControl(speed_kmh);                      break;
-        case CHALLENGE_AUTO_STOP:       AutoStopChallenge(speed_kmh, total_pulse_accum); break;
-        case CHALLENGE_ENERGY_RECOVERY: EnergyRecoveryChallenge(speed_kmh);           break;
-        case CHALLENGE_TRACTION:        TractionChallenge(speed_kmh);                 break;
-        default:                        ThrottleControl(speed_kmh);                   break;
+        case CHALLENGE_THROTTLE:        ThrottleControl(speed_kmh);                         break;
+        case CHALLENGE_SPEED_CONTROL:   SpeedControl(speed_kmh);                            break;
+        case CHALLENGE_AUTO_STOP:       AutoStopChallenge(speed_kmh, total_pulse_accum);    break;
+        case CHALLENGE_ENERGY_RECOVERY: EnergyRecoveryChallenge(speed_kmh);                 break;
+        case CHALLENGE_TRACTION:        TractionChallenge(speed_kmh);                       break;
+        default:                        ThrottleControl(speed_kmh);                         break;
     }
 
     // Hard speed cap
     if (speed_kmh > MAX_SPEED_KMH) {
         WriteDAC(THROTTLE_CHANNEL, 0);
         integrator = 0.0f;
+        sendEMCY(1, MOTOR_ID, 0x00510);     // send minor emergency - TODO: DECIDE ON PROPER ERROR CODE
         Serial.println("[OperationalMode] Speed cap exceeded — throttle cut.");
         return;
     }
@@ -277,6 +278,52 @@ void OperationalMode() {
 // =============================================================================
 // CONTROL MODES
 // =============================================================================
+/**
+ * @brief Throttle control using motor_command.
+ *
+ * @details
+ * Uses od_motor_command directly (like your snippet):
+ * - high command + no regen  -> motor on
+ * - high command + regen     -> brake
+ * - low command + regen      -> brake + service brake
+ * - otherwise                -> stop + service brake
+ *
+ * @param speed_kmh Current measured speed in km/h.
+ */
+void ThrottleControl(float speed_kmh) {
+    uint16_t motor_dac = 0;
+    uint16_t brake_dac = 0;
+
+    if (od_motor_command > 10 && od_regen_brake <= 10) {
+        motor_dac = od_motor_command;   // full 10-bit range
+        brake_dac = 0;
+    }
+    else if (od_motor_command > 10 && od_regen_brake > 10) {
+        motor_dac = 0;
+        brake_dac = od_regen_brake;
+    }
+    else if (od_motor_command <= 10 && od_regen_brake > 10) {
+        motor_dac = 0;
+        brake_dac = od_regen_brake;
+    }
+    else {
+        motor_dac = 0;
+        brake_dac = 0;
+    }
+
+    // Write to Throttle and Regen DACs
+    WriteDAC(THROTTLE_CHANNEL, motor_dac);
+    WriteDAC(REGEN_CHANNEL, brake_dac);
+
+    Serial.print("[SpeedControl] CMD: ");
+    Serial.print(od_motor_command);
+    Serial.print(" | Speed: ");
+    Serial.print(speed_kmh);
+    Serial.print(" | Motor DAC: ");
+    Serial.print(motor_dac);
+    Serial.print(" | Brake DAC: ");
+    Serial.print(brake_dac);
+}
 
 /**
  * @brief PI speed controller — drives to od_motor_command setpoint.
@@ -401,57 +448,6 @@ void SpeedControl(float speed_kmh) {
 //     Serial.println(brake_dac);
 // }
 
-/**
- * @brief Throttle control using motor_command.
- *
- * @details
- * Uses od_motor_command directly (like your snippet):
- * - high command + no regen  -> motor on
- * - high command + regen     -> brake
- * - low command + regen      -> brake + service brake
- * - otherwise                -> stop + service brake
- *
- * @param speed_kmh Current measured speed in km/h.
- */
-void ThrottleControl(float speed_kmh) {
-    uint16_t motor_dac = 0;
-    uint16_t brake_dac = 0;
-
-    if (od_motor_command > 10 && od_regen_brake <= 10) {
-        motor_dac = od_motor_command;   // full 10-bit range
-        brake_dac = 0;
-       //od_service_brake_mc= 0;
-    }
-    else if (od_motor_command > 10 && od_regen_brake > 10) {
-        motor_dac = 0;
-        brake_dac = od_regen_brake;
-       //od_service_brake_mc= 0;
-    }
-    else if (od_motor_command <= 10 && od_regen_brake > 10) {
-        motor_dac = 0;
-        brake_dac = od_regen_brake;
-       //od_service_brake_mc= (speed_kmh <= SERVICE_BRAKE_SPEED_KMH) ? 1 : 0;
-    }
-    else {
-        motor_dac = 0;
-        brake_dac = 0;
-       //od_service_brake_mc= 1;
-    }
-
-    WriteDAC(THROTTLE_CHANNEL, motor_dac);
-    WriteDAC(REGEN_CHANNEL, brake_dac);
-
-    Serial.print("[SpeedControl] CMD: ");
-    Serial.print(od_motor_command);
-    Serial.print(" | Speed: ");
-    Serial.print(speed_kmh);
-    Serial.print(" | Motor DAC: ");
-    Serial.print(motor_dac);
-    Serial.print(" | Brake DAC: ");
-    Serial.print(brake_dac);
-    // Serial.print(" | Service Brake: ");
-    // Serial.println(od_service_brake_mc);
-}
 
 
 /**
