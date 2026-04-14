@@ -391,13 +391,14 @@ void SpeedControl(float speed_kmh) {
  * @param pulse_accum Total accumulated pulse count from OperationalMode().
  */
 void AutoStopChallenge(float speed_kmh, int32_t pulse_accum) {
-    static bool    entered_auto_stop     = false;
-    static int32_t pulse_start = 0;
+    static bool    entered_auto_stop     = false;               // flag for first entry into autostop challenge mode
+    static int32_t pulse_start = 0;                             // initialise rotary encoder pulse
 
     uint16_t motor_dac = 0;
     uint16_t brake_dac = 0;
 
     // --- Initialise on first entry ---
+    // gets current pulse count from rotary encoder
     if (!entered_auto_stop) {
         pulse_start = pulse_accum;
         entered_auto_stop = true;
@@ -465,21 +466,22 @@ void AutoStopChallenge(float speed_kmh, int32_t pulse_accum) {
  * TODO(Sean): Tune TRACTION_SLIP_MARGIN_KMH once hardware testing is complete.
  */
 void TractionChallenge(float speed_kmh) {
-    const float TRACTION_SLIP_MARGIN_KMH = 2.0f;
+    // const float TRACTION_SLIP_MARGIN_KMH = 2.0f;
 
-    float speed_setpoint = ((float)od_motor_command / 1023.0f) * MAX_SPEED_KMH;
+    // float speed_setpoint = ((float)od_motor_command / 1023.0f) * MAX_SPEED_KMH;
 
-    if (speed_kmh > speed_setpoint + TRACTION_SLIP_MARGIN_KMH) {
-        WriteDAC(THROTTLE_CHANNEL, 0);
-        WriteDAC(REGEN_CHANNEL, 0);
-       //od_service_brake_mc = 0;
-        integrator = 0.0f;
+    // if (speed_kmh > speed_setpoint + TRACTION_SLIP_MARGIN_KMH) {
+    //     WriteDAC(THROTTLE_CHANNEL, 0);
+    //     WriteDAC(REGEN_CHANNEL, 0);
+    //    //od_service_brake_mc = 0;
+    //     integrator = 0.0f;
 
-        Serial.print("[Traction] Slip detected. Speed: "); Serial.println(speed_kmh);
-        return;
-    }
+    //     Serial.print("[Traction] Slip detected. Speed: "); Serial.println(speed_kmh);
+    //     return;
+    // }
 
-    SpeedControl(speed_kmh);
+    // SpeedControl(speed_kmh);
+    ThrottleControl(speed_kmh);
 }
 
 
@@ -525,21 +527,7 @@ void EnergyRecoveryChallenge(float speed_kmh) {
         case PHASE_WAITING_FOR_BRAKE:
         // Throttle control active — waiting for driver to initiate braking
         // ----------------------------------------------------------------
-           //od_service_brake_mc = 0;
-
-            if (od_motor_command > 10 && od_regen_brake <= 10) {
-                motor_dac = od_motor_command;
-                brake_dac = 0;
-            } else if (od_regen_brake > 10) {
-                motor_dac = 0;
-                brake_dac = od_regen_brake;
-            } else {
-                motor_dac = 0;
-                brake_dac = 0;
-            }
-
-            WriteDAC(THROTTLE_CHANNEL, motor_dac);
-            WriteDAC(REGEN_CHANNEL, brake_dac);
+            ThrottleControl(speed_kmh);
 
             // Transition to braking phase on first regen brake input
             if (od_regen_brake > REGEN_BRAKE_THRESHOLD) {
@@ -561,7 +549,7 @@ void EnergyRecoveryChallenge(float speed_kmh) {
             WriteDAC(THROTTLE_CHANNEL, motor_dac);
             WriteDAC(REGEN_CHANNEL, brake_dac);
 
-            digitalWrite(ISOLATING_RELAY, HIGH);
+            digitalWrite(ISOLATING_RELAY, LOW);
 
             // Transition to idle once train is stopped
             if (speed_kmh <= 0.1f) {
@@ -618,20 +606,7 @@ void EnergyRecoveryChallenge(float speed_kmh) {
 
             // Budget remaining — raw throttle pass-through
            //od_service_brake_mc = 0;
-
-            if (od_motor_command > 10 && od_regen_brake <= 10) {
-                motor_dac = od_motor_command;
-                brake_dac = 0;
-            } else if (od_regen_brake > 10) {
-                motor_dac = 0;
-                brake_dac = od_regen_brake;
-            } else {
-                motor_dac = 0;
-                brake_dac = 0;
-            }
-
-            WriteDAC(THROTTLE_CHANNEL, motor_dac);
-            WriteDAC(REGEN_CHANNEL, brake_dac);
+            ThrottleControl(speed_kmh);
 
             Serial.print("[EnergyRecovery] Used: "); Serial.print(energy_used);
             Serial.print(" / ");                     Serial.print(energy_recovered);
