@@ -179,10 +179,9 @@ void setup() {
 
 void loop() {
 
-    OperatingMode mode = static_cast<OperatingMode>(nodeOperatingMode);         // cast operating mode to ENUM
 
     // completing operation mode functionality
-    switch (mode) {
+    switch (nodeOperatingMode) {
         case MODE_STOPPED:     StoppedMode();     break;
         case MODE_PREOP:       PreOpMode();       break;
         case MODE_OPERATIONAL: OperationalMode(); break;
