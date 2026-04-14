@@ -72,9 +72,9 @@ void setup() {
   pinMode(BRAKE_PIN, INPUT);
   pinMode(THROTTLE_PIN, INPUT);
   
-  pinMode(BUTTON_1_PIN, INPUT_PULLUP);
+  pinMode(HORN_PIN, INPUT_PULLUP);
   pinMode(BUTTON_2_PIN, INPUT_PULLUP);
-  pinMode(SWITCH_1_PIN, INPUT_PULLUP);
+  pinMode(BRAKE_PIN, INPUT_PULLUP);
   pinMode(SWITCH_2_PIN, INPUT_PULLUP);
 
   pinMode(DIRECTION_MODE_PIN, INPUT);
@@ -105,19 +105,21 @@ void setup() {
 
   // User code Setup Begin: -------------------------------------------------
   // --- Register OD entries ---
-  registerODEntry(0x60FF, 0x00, 2, sizeof(od_motor_command), &od_motor_command);
+  registerODEntry(0x606A, 0x00, 2, sizeof(od_motor_command), &od_motor_command);
   registerODEntry(0x3012, 0x00, 2, sizeof(od_regen_brake), &od_regen_brake);
   registerODEntry(0x6060, 0x00, 2, sizeof(od_direction_mode), &od_direction_mode);
   registerODEntry(0x6061, 0x00, 2, sizeof(od_condition_mode), &od_condition_mode);
   registerODEntry(0x6062, 0x00, 2, sizeof(od_challenge_mode), &od_challenge_mode);
+  registerODEntry(0x6065, 0x00, 2, sizeof(od_horn_toggle), &od_horn_toggle);
+  registerODEntry(0x3012, 0x02, 2, sizeof(od_service_brake_dc), &od_service_brake_dc);
+
 
   // --- Register TPDOs ---
   configureTPDO(0, 0x180 + NODE_ID, 255, 100, 100);  // COB-ID, transType, inhibit, event
   
   PdoMapEntry tpdoEntries[] = {
-    {0x60FF, 0x00, 16},
-    {0x3012, 0x00, 16},
-    {0x6062, 0x00, 8}
+    {0x606A, 0x00, 16},   // motor command
+    {0x3012, 0x00, 16}    // regen brake
   };
   mapTPDO(0, tpdoEntries, 2);
   // --- Register RPDOs ---
@@ -255,7 +257,7 @@ void HandleInputs() {
  */
 void HandleHorn() {
   Serial.print("Horn Handle: ");
-  int newHornToggle = digitalRead(BUTTON_1_PIN);
+  int newHornToggle = digitalRead(HORN_PIN);
   Serial.println(newHornToggle);
   if (od_horn_toggle != newHornToggle) {
     od_horn_toggle = newHornToggle;
@@ -269,7 +271,7 @@ void HandleHorn() {
  */
 void HandleParking() {
   Serial.print("Parking Handle: ");
-  int newServiceBrake = digitalRead(SWITCH_1_PIN);
+  int newServiceBrake = digitalRead(BRAKE_PIN);
   Serial.println(newServiceBrake);
   if (od_service_brake != newServiceBrake) {
     

@@ -33,9 +33,9 @@ int readStable5Pos(int pin);
 #define BRAKE_PIN 1
 #define THROTTLE_PIN 2
 
-#define BUTTON_1_PIN 6   //Horn
+#define HORN_PIN 6   //Horn
 #define BUTTON_2_PIN 35   
-#define SWITCH_1_PIN 15   //Parking Brake 
+#define BRAKE_PIN 15   //Parking Brake 
 #define SWITCH_2_PIN 37   //Location Annoucement
 
 #define DIRECTION_MODE_PIN 4
