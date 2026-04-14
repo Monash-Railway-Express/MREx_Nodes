@@ -36,7 +36,7 @@ uint32_t od_true_speed = 0;
 // OD 0x3012:00 – Regen brake request (0–1023). RW. Mapped to RPDO0.
 uint16_t od_regen_brake = 0;
 
-// OD 0x3012:01 – Service brake active flag (0 = "Braking", 1 = "Not Braking"). RW. Mapped to TPDO0.
+// OD 0x3012:01 – Service brake active flag (0 = "Braking", 1 = "Not Braking"). RW. Mapped to SDO.
 uint8_t od_service_brake_mc = 0;
 
 // OD 0x606A:00 – Raw motor command (0–255). RW. Mapped to RPDO0.
@@ -76,9 +76,8 @@ unsigned long previous_millis = 0;
 // Preferences API for non-volatile memory
 Preferences preferences;
 
-
-
 const int numFloatPairs = 15;
+
 struct FloatPair floatPairs[numFloatPairs];
 
 // =============================================================================
@@ -91,7 +90,7 @@ void setup() {
     Serial.println("Serial Coms started at 115200 baud");
 
     preferences.begin("od_params", false);
-    GetPreferences();
+    GetPreferences();                           // obtains existing PID parameters
 
     initCANMREX(TX_GPIO_NUM, RX_GPIO_NUM, NODE_ID);
 
@@ -105,21 +104,25 @@ void setup() {
         0
     );
 
+    // Setting up DAC
     Wire.begin(SDA_PIN, SCL_PIN);
     CommonConfig();
+
+    // Setting up Rotary Encoder
     SetupPCNT();
 
     pinMode(REVERSING_CONTACTOR, OUTPUT);
     pinMode(ISOLATING_RELAY, OUTPUT);
 
     // --- Register OD entries ---
-    registerODEntry(0x606C, 0x00, 2, sizeof(od_true_speed), &od_true_speed);          // TPDO - 32bit
-    registerODEntry(0x3012, 0x00, 2, sizeof(od_regen_brake), &od_regen_brake);      // RPDO - 16bit
-    registerODEntry(0x606A, 0x00, 2, sizeof(od_motor_command), &od_motor_command);  // RPDO - 8bit
-    registerODEntry(0x6061, 0x00, 2, sizeof(od_condition_mode), &od_condition_mode);// RPDO - 8bit
-    registerODEntry(0x6060, 0x00, 2, sizeof(od_direction_mode), &od_direction_mode);// RPDO - 8bit
-    registerODEntry(0x6062, 0x00, 2, sizeof(od_challenge_mode), &od_challenge_mode);// RPDO - 8bit
-    registerODEntry(0x2000, 0x04, 2, sizeof(od_recovered_energy), &od_recovered_energy); // RPDO - 32bit
+    registerODEntry(0x606C, 0x00, 2, sizeof(od_true_speed), &od_true_speed);                // TPDO - 32bit
+    registerODEntry(0x3012, 0x00, 2, sizeof(od_regen_brake), &od_regen_brake);              // RPDO - 16bit
+    registerODEntry(0x606A, 0x00, 2, sizeof(od_motor_command), &od_motor_command);          // RPDO - 8bit
+    registerODEntry(0x6061, 0x00, 2, sizeof(od_condition_mode), &od_condition_mode);        // RPDO - 8bit
+    registerODEntry(0x6060, 0x00, 2, sizeof(od_direction_mode), &od_direction_mode);        // RPDO - 8bit
+    registerODEntry(0x6062, 0x00, 2, sizeof(od_challenge_mode), &od_challenge_mode);        // RPDO - 8bit
+    registerODEntry(0x2000, 0x00, 2, sizeof(od_recovered_energy), &od_recovered_energy);    // RPDO - 32bit
+    registerODEntry(0x3012, 0x01, 2, sizeof(od_service_brake_mc), &od_service_brake_mc);    // SDO - 8bit
     
     // When adding a new pair, ensure to update numFloatPairs
     // Assign values here rather than statically above as floats do not initialise properly otherwise
