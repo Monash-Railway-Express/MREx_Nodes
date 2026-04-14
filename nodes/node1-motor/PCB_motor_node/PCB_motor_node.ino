@@ -162,11 +162,14 @@ void setup() {
     };
     mapRPDO(0, rpdo_entries, 2);
 
-    configureRPDO(1, 0x280 + BATTERY_ID, 255, 0);  // COB-ID matches battery node TPDO2 (0x280 + nodeID 7)
-    PdoMapEntry rpdo1_entries[] = {
-        {0x2000, 0x04, 32}  // recovered_energy_can
-    };
-    mapRPDO(1, rpdo1_entries, 1);
+    /**
+    * TODO
+    */
+    // configureRPDO(1, 0x280 + BATTERY_ID, 255, 0);  // COB-ID matches battery node TPDO2 (0x280 + nodeID 7)
+    // PdoMapEntry rpdo1_entries[] = {
+    //     {0x2000, 0x04, 32}  // recovered_energy_can
+    // };
+    // mapRPDO(1, rpdo1_entries, 1);
 }
 
 
@@ -175,10 +178,10 @@ void setup() {
 // =============================================================================
 
 void loop() {
-    OperatingMode mode = static_cast<OperatingMode>(nodeOperatingMode);
 
-    
+    OperatingMode mode = static_cast<OperatingMode>(nodeOperatingMode);         // cast operating mode to ENUM
 
+    // completing operation mode functionality
     switch (mode) {
         case MODE_STOPPED:     StoppedMode();     break;
         case MODE_PREOP:       PreOpMode();       break;
@@ -196,8 +199,8 @@ void loop() {
  * @brief Stopped state — zero all outputs, reset integrator and put preferences to NVM.
  */
 void StoppedMode() {
-    WriteDAC(0, 0);
-    WriteDAC(1, 0);
+    WriteDAC(THROTTLE_CHANNEL, 0);
+    WriteDAC(REGEN_CHANNEL, 0);
     integrator = 0.0f;
     PutPreferences();
 }
@@ -210,8 +213,8 @@ void StoppedMode() {
  * Mode 1 = reverse, 2 = neutral (contactor off), 3 = forward.
  */
 void PreOpMode() {
-    WriteDAC(0, 0);
-    WriteDAC(1, 0);
+    WriteDAC(THROTTLE_CHANNEL, 0);
+    WriteDAC(REGEN_CHANNEL, 0);
     integrator = 0.0f;
 
     switch (od_direction_mode) {
@@ -261,7 +264,7 @@ void OperationalMode() {
 
     // Hard speed cap
     if (speed_kmh > MAX_SPEED_KMH) {
-        WriteDAC(0, 0);
+        WriteDAC(THROTTLE_CHANNEL, 0);
         integrator = 0.0f;
         Serial.println("[OperationalMode] Speed cap exceeded — throttle cut.");
         return;
@@ -316,8 +319,8 @@ void SpeedControl(float speed_kmh) {
         brake_dac = 0;
     }
 
-    WriteDAC(0, motor_dac);
-    WriteDAC(1, brake_dac);
+    WriteDAC(THROTTLE_CHANNEL, motor_dac);
+    WriteDAC(REGEN_CHANNEL, brake_dac);
     // executeSDOWrite(NODE_ID, 2, 0x3012, 0x01, sizeof(od_service_brake_mc), od_service_brake_mc) {
 
     Serial.print("[SpeedControl] Setpoint: "); Serial.print(((float)od_motor_command / 1023.0f) * MAX_SPEED_KMH);
@@ -383,8 +386,8 @@ void SpeedControl(float speed_kmh) {
 //         }
 //     }
 
-//     WriteDAC(0, motor_dac);
-//     WriteDAC(1, brake_dac);
+//     WriteDAC(THROTTLE_CHANNEL, motor_dac);
+//     WriteDAC(REGEN_CHANNEL, brake_dac);
 
 //     Serial.print("[SpeedControl] Setpoint: ");
 //     Serial.print(speed_setpoint);
@@ -433,8 +436,8 @@ void ThrottleControl(float speed_kmh) {
        //od_service_brake_mc= 1;
     }
 
-    WriteDAC(0, motor_dac);
-    WriteDAC(1, brake_dac);
+    WriteDAC(THROTTLE_CHANNEL, motor_dac);
+    WriteDAC(REGEN_CHANNEL, brake_dac);
 
     Serial.print("[SpeedControl] CMD: ");
     Serial.print(od_motor_command);
@@ -484,8 +487,8 @@ void AutoStopChallenge(float speed_kmh, int32_t pulse_accum) {
 
     // --- Zone 1: Fully stopped ---
     if (speed_kmh <= 0.1f) {
-        WriteDAC(0, 0);
-        WriteDAC(1, 0);
+        WriteDAC(THROTTLE_CHANNEL, 0);
+        WriteDAC(REGEN_CHANNEL, 0);
        //od_service_brake_mc = 1;
         integrator       = 0.0f;
         entered_auto_stop = false;  // Reset for next run
@@ -501,8 +504,8 @@ void AutoStopChallenge(float speed_kmh, int32_t pulse_accum) {
 
         brake_dac = (uint16_t)(DAC_MAX);
 
-        WriteDAC(0, motor_dac);
-        WriteDAC(1, brake_dac);
+        WriteDAC(THROTTLE_CHANNEL, motor_dac);
+        WriteDAC(REGEN_CHANNEL, brake_dac);
 
         Serial.print("[AutoStop] Coasting to stop — Distance: "); Serial.print(distance_m);
         Serial.print("m | Speed: ");                              Serial.print(speed_kmh);
@@ -518,8 +521,8 @@ void AutoStopChallenge(float speed_kmh, int32_t pulse_accum) {
     brake_dac = 0;
    //od_service_brake_mc = 0;
 
-    WriteDAC(0, motor_dac);
-    WriteDAC(1, brake_dac);
+    WriteDAC(THROTTLE_CHANNEL, motor_dac);
+    WriteDAC(REGEN_CHANNEL, brake_dac);
 
     Serial.print("[AutoStop] Tapering — Distance: "); Serial.print(distance_m);
     Serial.print("m | Fraction: ");                   Serial.print(distance_fraction);
@@ -543,8 +546,8 @@ void TractionChallenge(float speed_kmh) {
     float speed_setpoint = ((float)od_motor_command / 1023.0f) * MAX_SPEED_KMH;
 
     if (speed_kmh > speed_setpoint + TRACTION_SLIP_MARGIN_KMH) {
-        WriteDAC(0, 0);
-        WriteDAC(1, 0);
+        WriteDAC(THROTTLE_CHANNEL, 0);
+        WriteDAC(REGEN_CHANNEL, 0);
        //od_service_brake_mc = 0;
         integrator = 0.0f;
 
@@ -611,8 +614,8 @@ void EnergyRecoveryChallenge(float speed_kmh) {
                 brake_dac = 0;
             }
 
-            WriteDAC(0, motor_dac);
-            WriteDAC(1, brake_dac);
+            WriteDAC(THROTTLE_CHANNEL, motor_dac);
+            WriteDAC(REGEN_CHANNEL, brake_dac);
 
             // Transition to braking phase on first regen brake input
             if (od_regen_brake > REGEN_BRAKE_THRESHOLD) {
@@ -631,8 +634,8 @@ void EnergyRecoveryChallenge(float speed_kmh) {
             brake_dac        = od_regen_brake;
            //od_service_brake_mc = 0;  // Suppress — keep energy in regen circuit
 
-            WriteDAC(0, motor_dac);
-            WriteDAC(1, brake_dac);
+            WriteDAC(THROTTLE_CHANNEL, motor_dac);
+            WriteDAC(REGEN_CHANNEL, brake_dac);
 
             digitalWrite(ISOLATING_RELAY, HIGH);
 
@@ -641,8 +644,8 @@ void EnergyRecoveryChallenge(float speed_kmh) {
                 energy_brake_end  = od_recovered_energy;
                 energy_recovered  = energy_brake_end - energy_brake_start;
                //od_service_brake_mc = 1;
-                WriteDAC(0, 0);
-                WriteDAC(1, 0);
+                WriteDAC(THROTTLE_CHANNEL, 0);
+                WriteDAC(REGEN_CHANNEL, 0);
                 phase = PHASE_STOPPED_IDLE;
 
                 Serial.print("[EnergyRecovery] Stopped — energy recovered: ");
@@ -657,8 +660,8 @@ void EnergyRecoveryChallenge(float speed_kmh) {
         case PHASE_STOPPED_IDLE:
         // Stationary — holding service brake, waiting for first throttle input
         // ----------------------------------------------------------------
-            WriteDAC(0, 0);
-            WriteDAC(1, 0);
+            WriteDAC(THROTTLE_CHANNEL, 0);
+            WriteDAC(REGEN_CHANNEL, 0);
            //od_service_brake_mc = 1;
 
             if (od_motor_command > 10) {
@@ -681,8 +684,8 @@ void EnergyRecoveryChallenge(float speed_kmh) {
                                  : 0;
 
             if (energy_used >= energy_recovered) {
-                WriteDAC(0, 0);
-                WriteDAC(1, 0);
+                WriteDAC(THROTTLE_CHANNEL, 0);
+                WriteDAC(REGEN_CHANNEL, 0);
                //od_service_brake_mc = 0;
                 phase            = PHASE_BUDGET_EXHAUSTED;
                 Serial.println("[EnergyRecovery] Energy budget exhausted — throttle cut.");
@@ -703,8 +706,8 @@ void EnergyRecoveryChallenge(float speed_kmh) {
                 brake_dac = 0;
             }
 
-            WriteDAC(0, motor_dac);
-            WriteDAC(1, brake_dac);
+            WriteDAC(THROTTLE_CHANNEL, motor_dac);
+            WriteDAC(REGEN_CHANNEL, brake_dac);
 
             Serial.print("[EnergyRecovery] Used: "); Serial.print(energy_used);
             Serial.print(" / ");                     Serial.print(energy_recovered);
@@ -718,8 +721,8 @@ void EnergyRecoveryChallenge(float speed_kmh) {
         // Throttle permanently cut — challenge complete
         // ----------------------------------------------------------------
             digitalWrite(ISOLATING_RELAY, HIGH);
-            WriteDAC(0, 0);
-            WriteDAC(1, 0);
+            WriteDAC(THROTTLE_CHANNEL, 0);
+            WriteDAC(REGEN_CHANNEL, 0);
            //od_service_brake_mc = 0;
             integrator       = 0.0f;
 

@@ -47,6 +47,9 @@ uint8_t NODE_ID = 1;
 #define SDA_PIN   GPIO_NUM_2
 #define SCL_PIN   GPIO_NUM_1
 
+#define THROTTLE_CHANNEL 0
+#define REGEN_CHANNEL 1
+
 // --- GPIO Pins ---
 #define REVERSING_SWITCH_MC  GPIO_NUM_5
 #define BRAKE_SWITCH         GPIO_NUM_6
