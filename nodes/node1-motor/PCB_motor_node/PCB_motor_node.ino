@@ -216,9 +216,7 @@ void PreOpMode() {
     WriteDAC(REGEN_CHANNEL, 0);
     integrator = 0.0f;
 
-    DirectionMode direction = static_cast<DirectionMode>(od_direction_mode);         // cast direction mode to ENUM
-
-    switch (direction) {
+    switch (od_direction_mode) {
         case REVERSE_MODE:  // Reverse
             digitalWrite(REVERSING_CONTACTOR, HIGH);
             Serial.println("[PreOp] Direction: Reverse");
