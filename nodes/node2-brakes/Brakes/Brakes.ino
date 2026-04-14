@@ -1,15 +1,29 @@
-#include "CAN_MREx.h"
+#include <CAN_MREx.h>
+#include <Adafruit_NeoPixel.h>
 
 uint8_t nodeID = 2; // brakes node id is 2
 
-#define TX_GPIO_NUM GPIO_NUM_18
-#define RX_GPIO_NUM GPIO_NUM_19
-#define SERVICE_BRAKE_PIN GPIO_NUM_22  // HIGH energises relay -> 24V to coil -> Release brakes
-#define  LED_LIGHT GPIO_NUM_33
+#define TX_GPIO_NUM GPIO_NUM_8 //18
+#define RX_GPIO_NUM GPIO_NUM_7 //19
+#define SERVICE_BRAKE_PIN GPIO_NUM_9  // 22 HIGH energises relay -> 24V to coil -> Release brakes
+//LED pins
+
+#define  LED_LIGHT GPIO_NUM_38
+#define LED_COUNT 1
+Adafruit_NeoPixel pixel(LED_COUNT, LED_LIGHT, NEO_GRB + NEO_KHZ800);
+
 uint8_t lastOut = 255 ;// remembers what the brake output was last time
 // manually set it high at the start because when the code runs it will se a change and print a message
 
-uint8_t mcServiceBrakeRequest = 1; // 1 brakes on 0 brakes off
+
+// OD 0x3012:01 – Service brake request from motor node (0 = no brake, 1 = apply)
+uint8_t od_service_brake = 0;
+
+
+// OD 0x6060:00 – Direction mode from motor node (1=rev, 2=neutral, 3=fwd)
+uint8_t od_direction_mode = 0;
+
+
 
 
 void setup() {
@@ -18,60 +32,158 @@ void setup() {
   Serial.println("Brakes node started (Node 2)");
 
   initCANMREX(TX_GPIO_NUM, RX_GPIO_NUM, nodeID);
-  xTaskCreatePinnedToCore(
-    CAN_Task,
-    "CAN Task",
-    4096,
-    &nodeID,   // <--- passed into pvParameters
-    3,
-    NULL,
-    0
-  );
 
   pinMode(SERVICE_BRAKE_PIN, OUTPUT);
-  pinMode(LED_LIGHT, OUTPUT);
+  // pinMode(LED_LIGHT, OUTPUT);
+  //onboard LED setup
+  pixel.begin();
+  pixel.clear();
+  pixel.show();
+  
 
   // Fail-safe startup: APPLY brakes in the beginning (no power to coil)
   digitalWrite(SERVICE_BRAKE_PIN, LOW);
 
-  registerODEntry(0x3012, 0x01, 2, sizeof(mcServiceBrakeRequest), &mcServiceBrakeRequest);
-
   // IMPORTANT: Do NOT force operational mode here. ONLY for testing
   // nodeOperatingMode should be controlled by NMT messages on the CAN network.
   // nodeOperatingMode = 0x01; 
+  
+// register od entries
+  registerODEntry(0x3012, 0x01, 2, sizeof(od_service_brake), &od_service_brake); // brake flag
+  registerODEntry(0x6060, 0x00, 2, sizeof(od_direction_mode), &od_direction_mode); // direction mode
+
+  // Listen to Motor Node TPDO0 (Node ID = 3 => 0x180 + 3 = 0x183)
+  configureRPDO(0, 0x180 + 3, 255, 0);
+
+  PdoMapEntry rpdo_entries[] = {
+    {0x3012, 0x01, 8},  // Service brake command
+    {0x6060, 0x00, 8},  // Direction / neutral mode
+  };
+  mapRPDO(0, rpdo_entries, 2);
+
+
+
+
+
+  xTaskCreatePinnedToCore(
+      CAN_Task,
+      "CAN Task",
+      6144,
+      &nodeID,
+      3,
+      NULL,
+      0
+  );
+
+
+  
+ 
+ 
+
+
 }
+
+
 
 void loop() {
   // Always process CAN traffic (including NMT state changes)
+  // handleCAN(nodeID);
 
   uint8_t out; // variable for brake pin output
 
-  // STOPPED (0x02) or PRE-OP (0x80) => APPLY friction brakes => relay OFF
-  if (nodeOperatingMode == 0x02 || nodeOperatingMode == 0x80) {
-    out = LOW;   // relay de-energised -> no 24V -> brake APPLIED
-    digitalWrite(LED_LIGHT,LOW);
-
-  }
-  // OPERATIONAL (0x01) => RELEASE friction brakes => relay ON
-  else if (nodeOperatingMode == 0x01 && mcServiceBrakeRequest == 0) {
-    out = HIGH;  // relay energised -> 24V -> brake RELEASED
-    digitalWrite(LED_LIGHT,HIGH);
-  }
-  // Unknown state => fail-safe APPLY
-  else {
+  
+  // Priority order:
+  // 1. STOPPED            => APPLY
+  // 2. PRE‑OP + neutral   => RELEASE (push mode)
+  // 3. PRE‑OP + not neutral => APPLY
+  // 4. OPERATIONAL + service brake => APPLY
+  // 5. OPERATIONAL + no service brake => RELEASE
+  // 6. Unknown => APPLY
+  
+  // STOPPED
+  if (nodeOperatingMode == 0x02) {
     out = LOW;
-    digitalWrite(LED_LIGHT,HIGH);
+    pixel.setPixelColor(0, pixel.Color(50, 0, 0)); // Red
   }
+
+  // PRE‑OPERATIONAL
+  else if (nodeOperatingMode == 0x80) {
+
+    // Neutral => allow pushing
+    if (od_direction_mode == 2) {
+      out = HIGH;
+      pixel.setPixelColor(0, pixel.Color(50, 50, 0)); // Yellow
+    }
+    else {
+      out = LOW;
+      pixel.setPixelColor(0, pixel.Color(50, 0, 0));  // Red
+    }
+  }
+
+  // OPERATIONAL
+  else if (nodeOperatingMode == 0x01) {
+
+    // Service brake requested
+    if (od_service_brake == 1) {
+      out = LOW;
+      pixel.setPixelColor(0, pixel.Color(50, 0, 0));  // Red
+    }
+    else {
+      out = HIGH;
+      pixel.setPixelColor(0, pixel.Color(0, 50, 0));  // Green
+    }
+  }
+
+  
+  // Unknown => fail‑safe
+    else {
+      out = LOW;
+      pixel.setPixelColor(0, pixel.Color(50, 0, 0));    // Red
+    }
+
+
+  pixel.show();
+
+
+  // old code based on operating mode only
+
+  // // STOPPED (0x02) or PRE-OP (0x80) => APPLY friction brakes => relay OFF
+  // if (nodeOperatingMode == 0x02 || nodeOperatingMode == 0x80) {
+  //   out = LOW;   // relay de-energised -> no 24V -> brake APPLIED
+  //   // digitalWrite(LED_LIGHT,LOW);
+  //   pixel.setPixelColor(0, pixel.Color(50, 0, 0)); // red = applied
+  //   pixel.show();
+
+  // }
+  // // OPERATIONAL (0x01) => RELEASE friction brakes => relay ON
+  // else if (nodeOperatingMode == 0x01) {
+  //   out = HIGH;  // relay energised -> 24V -> brake RELEASED
+  //   // digitalWrite(LED_LIGHT,HIGH);
+  //   pixel.setPixelColor(0, pixel.Color(0, 50, 0)); // green = released
+  //   pixel.show();
+
+  // }
+  // // Unknown state => fail-safe APPLY
+  // else {
+  //   out = LOW;
+  //   // digitalWrite(LED_LIGHT,HIGH);
+  //   pixel.setPixelColor(0, pixel.Color(50, 0, 0)); // red = applied
+  //   pixel.show();
+
+  // }
 
   // Only update + print when it changes, to make seeing changes more clear
+  
   if (out != lastOut) {
-    lastOut = out; // chance old state to new state
-    digitalWrite(SERVICE_BRAKE_PIN, out); // write new state to brakes pin
+    lastOut = out;
+    digitalWrite(SERVICE_BRAKE_PIN, out);
 
-    // printing status of braeks
     Serial.print("Mode = 0x");
     Serial.print(nodeOperatingMode, HEX);
+    Serial.print(" | Service brake flag = ");
+    Serial.print(od_service_brake);
     Serial.print(" | Friction brake: ");
     Serial.println(out == HIGH ? "RELEASED (relay ON)" : "APPLIED (relay OFF)");
   }
+
 }
