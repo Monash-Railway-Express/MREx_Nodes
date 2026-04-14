@@ -48,10 +48,13 @@ uint8_t NODE_ID = 3;
 //Defining Node ID's
 #define MOTOR_ID 0x01
 #define BRAKES_ID 0x02
+#define DRIVER_ID 0x03
 #define LIGHTS_ID 0x04
 #define AUDIO_ID 0x05
+#define AUTOSTOP_ID 0x06
+#define BATTERY_ID 0x07
+#define LOGGER_ID 0x08
 #define LCD_ID 0x09
-
 
 //Defining operating mode enum
 enum OperatingMode : uint8_t {
@@ -59,6 +62,8 @@ enum OperatingMode : uint8_t {
     MODE_PREOP         = 0x80,
     MODE_OPERATIONAL   = 0x01
 };
+
+const OperatingMode opModes[3] = {MODE_STOPPED, MODE_PREOP, MODE_OPERATIONAL};
 
 // ---------- ADC / filtering settings ----------
 const int ADC_RES_BITS = 10;         // 0..1023       DO NOT F**KING CHANGE!!!!!!
