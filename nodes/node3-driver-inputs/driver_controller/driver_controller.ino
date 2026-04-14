@@ -175,7 +175,7 @@ void PreOpMode(){
   HandleDirection();
   HandleChallenge();
   HandleParking();
-  HandleHorn();
+  // HandleHorn();
 }
 
 /**
@@ -185,7 +185,7 @@ void OperationalMode(){
   //Serial.println("Op Mode");
   HandleChallenge();
   HandleParking();
-  HandleHorn();
+  // HandleHorn();
   HandleInputs();
 }
 
@@ -223,11 +223,11 @@ void SendAllNMT(uint8_t operatingMode) {
   //ID's have been changed to variable names to aid readability
   sendNMT(operatingMode, MOTOR_ID); // motor previously 0x01
   sendNMT(operatingMode, BRAKES_ID); // brakes previously 0x02
-  sendNMT(operatingMode, LIGHTS_ID); // lights previously 0x04
-  sendNMT(operatingMode, AUDIO_ID); // audio sys previously 0x05
-  sendNMT(operatingMode, AUTOSTOP_ID);
-  sendNMT(operatingMode, BATTERY_ID);     
-  sendNMT(operatingMode, LCD_ID); // LCD screen previously 0x09
+//   sendNMT(operatingMode, LIGHTS_ID); // lights previously 0x04
+//   sendNMT(operatingMode, AUDIO_ID); // audio sys previously 0x05
+//   sendNMT(operatingMode, AUTOSTOP_ID);
+//   sendNMT(operatingMode, BATTERY_ID);     
+//   sendNMT(operatingMode, LCD_ID); // LCD screen previously 0x09
 }
 
 
@@ -301,7 +301,7 @@ void HandleDirection() {
     // 1 is forawrd, 2 is neutral, 3 is back 
     od_direction_mode = newDirectionMode;
     executeSDOWrite(NODE_ID, MOTOR_ID, 0x6060, 0x00, sizeof(od_direction_mode), &od_direction_mode);
-    executeSDOWrite(NODE_ID, LIGHTS_ID, 0x6060, 0x00, sizeof(od_direction_mode), &od_direction_mode);
+    // executeSDOWrite(NODE_ID, LIGHTS_ID, 0x6060, 0x00, sizeof(od_direction_mode), &od_direction_mode);
 
     Serial.print("Sending direction");
     Serial.println(od_direction_mode);
