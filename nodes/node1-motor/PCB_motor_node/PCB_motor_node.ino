@@ -52,7 +52,7 @@ uint8_t od_direction_mode = 0;
 //                4=EnergyRecovery, 5=Traction). RW. Mapped to RPDO0.
 uint8_t od_challenge_mode = 0;
 
-// OD 0x2000:00 – Recovered energy from battery node (Wh). Read-only. Mapped to RPDO1.
+// OD 0x2000:04 – Recovered energy from battery node (Wh). Read-only. Mapped to RPDO1.
 uint32_t od_recovered_energy = 0;
 
 // 
@@ -122,7 +122,7 @@ void setup() {
     registerODEntry(0x6061, 0x00, 2, sizeof(od_condition_mode), &od_condition_mode);        // SDO - 8bit
     registerODEntry(0x6060, 0x00, 2, sizeof(od_direction_mode), &od_direction_mode);        // SDO - 8bit
     registerODEntry(0x6062, 0x00, 2, sizeof(od_challenge_mode), &od_challenge_mode);        // SDO - 8bit
-    registerODEntry(0x2000, 0x00, 2, sizeof(od_recovered_energy), &od_recovered_energy);    // RPDO - 32bit
+    registerODEntry(0x2000, 0x04, 2, sizeof(od_recovered_energy), &od_recovered_energy);    // RPDO - 32bit
     
     
     // When adding a new pair, ensure to update numFloatPairs
@@ -148,23 +148,23 @@ void setup() {
     }
 
     // --- Register TPDOs ---
-    configureTPDO(0, 0x180 + NODE_ID, 255, 100, 100);
+    configureTPDO(0, 0x180 + MOTOR_ID, 255, 100, 100);
     PdoMapEntry tpdo_entries[] = {
         {0x606C, 0x00, 32}  // od_true_speed
     };
     mapTPDO(0, tpdo_entries, 1);
 
     // --- Register RPDOs ---
-    configureRPDO(0, 0x180 + 3, 255, 0);
+    configureRPDO(0, 0x180 + DRIVER_ID, 255, 0);
     PdoMapEntry rpdo_entries[] = {
         {0x3012, 0x00, 16},  // od_regen_brake
         {0x606A, 0x00, 16}   // od_motor_command
     };
     mapRPDO(0, rpdo_entries, 2);
 
-    configureRPDO(1, 0x280 + 7, 255, 0);  // COB-ID matches battery node TPDO2 (0x280 + nodeID 7)
+    configureRPDO(1, 0x280 + BATTERY_ID, 255, 0);  // COB-ID matches battery node TPDO2 (0x280 + nodeID 7)
     PdoMapEntry rpdo1_entries[] = {
-        {0x2000, 0x04, 32},  // recovered_energy_can
+        {0x2000, 0x04, 32}  // recovered_energy_can
     };
     mapRPDO(1, rpdo1_entries, 1);
 }
