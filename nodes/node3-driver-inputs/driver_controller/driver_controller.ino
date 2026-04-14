@@ -23,8 +23,6 @@
 */
 
 // User code begin: ------------------------------------------------------
-// --- CAN MREx initialisation ---
-
 
 // --- OD definitions ---
 
@@ -49,26 +47,13 @@ uint8_t od_horn_toggle = 0;
 //Free 
 uint8_t od_button_2 = 0;
 
-// OD 0x3012:01 - Electromagnetic Brake Toggle (switch) (1-on, 0-off). <RW>. 
-uint8_t od_service_brake = 0; //parking (1)=on and (0)=off
+// OD 0x3012:02 - Electromagnetic Brake Toggle (switch) (1-on, 0-off). <RW>. 
+uint8_t od_service_brake_dc = 0; //parking (1)=on and (0)=off
 
 //Free
 uint8_t od_switch_2 = 0;  
 
-// ---------- ADC / filtering settings ----------
-const int ADC_RES_BITS = 10;         // 0..1023
-const int ADC_SAMPLES  = 20;         // more averaging for 100k sources
-const int POT_DEADBAND = 10;         // print only if changed enough
 
-
-// ---------- Expected raw ADC levels ----------
-// 3-position ladder, 4 equal resistors:
-// taps are roughly 1/4, 2/4, 3/4 of Vref
-const int THREE_LEVELS[3] = {256, 512, 768};
-
-// 5-position ladder, 6 equal resistors:
-// taps are roughly 1/6, 2/6, 3/6, 4/6, 5/6 of Vref
-const int FIVE_LEVELS[5] = {171, 341, 512, 682, 853};
 
 //Timing for a non blocking function occuring every two seconds
 unsigned long previousMillis = 0;

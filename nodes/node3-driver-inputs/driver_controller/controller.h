@@ -60,5 +60,20 @@ enum OperatingMode : uint8_t {
     MODE_OPERATIONAL   = 0x01
 };
 
+// ---------- ADC / filtering settings ----------
+const int ADC_RES_BITS = 10;         // 0..1023       DO NOT F**KING CHANGE!!!!!!
+const int ADC_SAMPLES  = 20;         // more averaging for 10k sources
+const int POT_DEADBAND = 10;         // print only if changed enough
+
+
+// ---------- Expected raw ADC levels ----------
+// 3-position ladder, 4 equal resistors:
+// taps are roughly 1/4, 2/4, 3/4 of Vref
+const int THREE_LEVELS[3] = {256, 512, 768};
+
+// 5-position ladder, 6 equal resistors:
+// taps are roughly 1/6, 2/6, 3/6, 4/6, 5/6 of Vref
+const int FIVE_LEVELS[5] = {171, 341, 512, 682, 853};
+
 
 #endif // CONTROLLER
