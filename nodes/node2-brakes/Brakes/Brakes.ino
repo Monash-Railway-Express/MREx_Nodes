@@ -16,9 +16,11 @@ uint8_t lastOut = 255 ;// remembers what the brake output was last time
 // manually set it high at the start because when the code runs it will se a change and print a message
 
 
-// OD 0x3012:01 – Service brake request from motor node (0 = no brake, 1 = apply)
-uint8_t od_service_brake = 0;
+// OD 0x3012:02 – Service brake request from motor node (1 = no brake, 0 = apply)
+uint8_t od_service_brake_dc = 0;
 
+// OD 0x3012:01 – Service brake request from motor node (1 = no brake, 0 = apply)
+uint8_t od_service_brake_mc = 0;
 
 // OD 0x6060:00 – Direction mode from motor node (1=rev, 2=neutral, 3=fwd)
 uint8_t od_direction_mode = 0;
@@ -27,7 +29,7 @@ uint8_t od_direction_mode = 0;
 
 
 void setup() {
-  Serial.begin(9600);
+  Serial.begin(115200);
   delay(1000); // wait to help connection
   Serial.println("Brakes node started (Node 2)");
 
@@ -49,21 +51,9 @@ void setup() {
   // nodeOperatingMode = 0x01; 
   
 // register od entries
-  registerODEntry(0x3012, 0x01, 2, sizeof(od_service_brake), &od_service_brake); // brake flag
+  registerODEntry(0x3012, 0x01, 2, sizeof(od_service_brake_mc), &od_service_brake_mc); // brake flag motor controls
+  registerODEntry(0x3012, 0x02, 2, sizeof(od_service_brake_dc), &od_service_brake_dc); // brake flag driver controls
   registerODEntry(0x6060, 0x00, 2, sizeof(od_direction_mode), &od_direction_mode); // direction mode
-
-  // Listen to Motor Node TPDO0 (Node ID = 3 => 0x180 + 3 = 0x183)
-  configureRPDO(0, 0x180 + 3, 255, 0);
-
-  PdoMapEntry rpdo_entries[] = {
-    {0x3012, 0x01, 8},  // Service brake command
-    {0x6060, 0x00, 8},  // Direction / neutral mode
-  };
-  mapRPDO(0, rpdo_entries, 2);
-
-
-
-
 
   xTaskCreatePinnedToCore(
       CAN_Task,
@@ -74,24 +64,10 @@ void setup() {
       NULL,
       0
   );
-
-
-  
- 
- 
-
-
 }
-
-
-
 void loop() {
-  // Always process CAN traffic (including NMT state changes)
-  // handleCAN(nodeID);
+  uint8_t out = LOW; // variable for brake pin output
 
-  uint8_t out; // variable for brake pin output
-
-  
   // Priority order:
   // 1. STOPPED            => APPLY
   // 2. PRE‑OP + neutral   => RELEASE (push mode)
@@ -108,9 +84,8 @@ void loop() {
 
   // PRE‑OPERATIONAL
   else if (nodeOperatingMode == 0x80) {
-
     // Neutral => allow pushing
-    if (od_direction_mode == 2) {
+    if (od_service_brake_dc) {
       out = HIGH;
       pixel.setPixelColor(0, pixel.Color(50, 50, 0)); // Yellow
     }
@@ -124,25 +99,38 @@ void loop() {
   else if (nodeOperatingMode == 0x01) {
 
     // Service brake requested
-    if (od_service_brake == 1) {
-      out = LOW;
-      pixel.setPixelColor(0, pixel.Color(50, 0, 0));  // Red
-    }
-    else {
+    if (od_service_brake_dc) {
       out = HIGH;
       pixel.setPixelColor(0, pixel.Color(0, 50, 0));  // Green
     }
+    else {
+      out = LOW;
+      pixel.setPixelColor(0, pixel.Color(50, 0, 0));  // Red
+    }
   }
-
-  
   // Unknown => fail‑safe
     else {
       out = LOW;
       pixel.setPixelColor(0, pixel.Color(50, 0, 0));    // Red
     }
-
-
   pixel.show();
+
+  // Only update + print when it changes, to make seeing changes more clear
+
+  if (out != lastOut) {
+    lastOut = out;
+    digitalWrite(SERVICE_BRAKE_PIN, out);
+
+    Serial.print("Mode = 0x");
+    Serial.print(nodeOperatingMode, HEX);
+    Serial.print(" | Service brake flag = ");
+    Serial.print(od_service_brake_dc);
+    Serial.print(" | Friction brake: ");
+    Serial.println(out == HIGH ? "RELEASED (relay ON)" : "APPLIED (relay OFF)");
+  }
+
+}
+
 
 
   // old code based on operating mode only
@@ -171,19 +159,3 @@ void loop() {
   //   pixel.show();
 
   // }
-
-  // Only update + print when it changes, to make seeing changes more clear
-  
-  if (out != lastOut) {
-    lastOut = out;
-    digitalWrite(SERVICE_BRAKE_PIN, out);
-
-    Serial.print("Mode = 0x");
-    Serial.print(nodeOperatingMode, HEX);
-    Serial.print(" | Service brake flag = ");
-    Serial.print(od_service_brake);
-    Serial.print(" | Friction brake: ");
-    Serial.println(out == HIGH ? "RELEASED (relay ON)" : "APPLIED (relay OFF)");
-  }
-
-}
