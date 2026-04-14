@@ -36,7 +36,7 @@ uint32_t od_true_speed = 0;
 // OD 0x3012:00 – Regen brake request (0–1023). RW. Mapped to RPDO0.
 uint16_t od_regen_brake = 0;
 
-// OD 0x3012:01 – Service brake active flag (0=off, 1=on). RW. Mapped to TPDO0.
+// OD 0x3012:01 – Service brake active flag (0 = "Braking", 1 = "Not Braking"). RW. Mapped to TPDO0.
 uint8_t od_service_brake_mc = 0;
 
 // OD 0x606A:00 – Raw motor command (0–255). RW. Mapped to RPDO0.
@@ -48,11 +48,11 @@ uint8_t od_condition_mode = 0;
 // OD 0x6060:00 – Direction mode mirror. RW. Mapped to RPDO0.
 uint8_t od_direction_mode = 0;
 
-// OD 0x6062:00 – Challenge mode selector (0=Normal, 1=Speed, 2=AutoStop,
-//                3=Traction, 4=EnergyRecovery). RW. Mapped to RPDO0.
+// OD 0x6062:00 – Challenge mode selector (1=Normal, 2=Speed, 3=AutoStop,
+//                4=EnergyRecovery, 5=Traction). RW. Mapped to RPDO0.
 uint8_t od_challenge_mode = 0;
 
-// OD 0x2000:04 – Recovered energy from battery node (Wh). Read-only. Mapped to RPDO1.
+// OD 0x2000:00 – Recovered energy from battery node (Wh). Read-only. Mapped to RPDO1.
 uint32_t od_recovered_energy = 0;
 
 // 
