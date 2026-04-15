@@ -210,7 +210,7 @@ void UpdateOpMode(){
     nodeOperatingMode = enumOpMode;  
     Serial.print(nodeOperatingMode);
     // Update local state
-    // SendAllNMT(enumOpMode);
+    SendAllNMT(enumOpMode);
   }
 }
 
