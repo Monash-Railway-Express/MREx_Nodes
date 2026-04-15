@@ -54,6 +54,7 @@ const int SD_CS = 26;
 File logFile;
 String logFilename;
 String indexHTML = "";
+const char* indexHTMLc;
 
 // Ring buffer config
 const int BUFFER_SIZE = 32;
@@ -150,6 +151,7 @@ void setup() {
   indexHTML += "<h1>Hello from the MREx CAN logger.</h1><p>Live feed: <a href=\"http://10.0.0.1/feed\">http://10.0.0.1/feed</a> (WebSocket: ws://10.0.0.1/ws)</p><h2>Directory listing</h2><ul>";
   indexHTML += listDir(SD, "/", 1000);
   indexHTML += "</ul></body></html>";
+  indexHTMLc = indexHTML.c_str();
   
   //Initialize CANMREX protocol
   initCANMREX(TX_GPIO_NUM, RX_GPIO_NUM, nodeID); // this or below
@@ -173,7 +175,15 @@ void setup() {
   delay(100);
 
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
-    request->send(200, "text/html", indexHTML);
+    request->sendChunked("text/html", [](uint8_t *buffer, size_t maxLen, size_t index) -> size_t {
+      if (indexHTML.length() <= index) {
+        return 0;
+      }
+
+      const size_t chunkSize = min((size_t)32768, min(maxLen, indexHTML.length()-index));
+      memcpy(buffer, indexHTMLc+index, chunkSize);
+      return chunkSize;
+    });
   });
 
   server.on(AsyncURIMatcher::exact(FILEPATH), HTTP_GET, [](AsyncWebServerRequest *request) {
@@ -255,12 +265,12 @@ void setup() {
   Serial.println(SSID);
   Serial.print("Password: ");
   Serial.println(PASSWORD);
-  Serial.print("HTTP: https://");
+  Serial.print("HTTP: http://");
   Serial.println(URL);
   Serial.print("WebSocket: ws://");
   Serial.print(URL);
   Serial.println("/ws");
-  Serial.print("MUNT: https://");
+  Serial.print("MUNT: http://");
   Serial.print(URL);
   Serial.println("/munt");
 }
