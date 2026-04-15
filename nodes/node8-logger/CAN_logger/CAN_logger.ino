@@ -53,8 +53,10 @@ DFRobot_DS3231M rtc;
 const int SD_CS = 26;
 File logFile;
 String logFilename;
-String indexHTML = "";
-const char* indexHTMLc;
+String dirList;
+const char*dirListC;
+String indexHtml = "";
+const char* indexHtmlC;
 
 // Ring buffer config
 const int BUFFER_SIZE = 32;
@@ -147,11 +149,14 @@ void setup() {
     while (1);
   }
 
-  indexHTML += "<!DOCTYPE html><html lang=\"en\"><head><title>MREx CAN Logger</title><head><body>";
-  indexHTML += "<h1>Hello from the MREx CAN logger.</h1><p>Live feed: <a href=\"http://10.0.0.1/feed\">http://10.0.0.1/feed</a> (WebSocket: ws://10.0.0.1/ws)</p><h2>Directory listing</h2><ul>";
-  indexHTML += listDir(SD, "/", 1000);
-  indexHTML += "</ul></body></html>";
-  indexHTMLc = indexHTML.c_str();
+  dirList = listDir(SD, "/", 1000);
+  dirListC = dirList.c_str();
+
+  indexHtml += "<!DOCTYPE html><html lang=\"en\"><head><title>MREx CAN Logger</title><head><body>";
+  indexHtml += "<h1>Hello from the MREx CAN logger.</h1><p>Live feed: <a href=\"http://10.0.0.1/feed\">http://10.0.0.1/feed</a> (WebSocket: ws://10.0.0.1/ws)</p><h2>Directory listing</h2><ul>";
+  indexHtml += dirList;
+  indexHtml += "</ul></body></html>";
+  indexHtmlC = indexHtml.c_str();
   
   //Initialize CANMREX protocol
   initCANMREX(TX_GPIO_NUM, RX_GPIO_NUM, nodeID); // this or below
@@ -176,18 +181,26 @@ void setup() {
 
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
     request->sendChunked("text/html", [](uint8_t *buffer, size_t maxLen, size_t index) -> size_t {
-      if (indexHTML.length() <= index) {
+      if (indexHtml.length() <= index) {
         return 0;
       }
 
-      const size_t chunkSize = min((size_t)32768, min(maxLen, indexHTML.length()-index));
-      memcpy(buffer, indexHTMLc+index, chunkSize);
+      const size_t chunkSize = min((size_t)32768, min(maxLen, indexHtml.length()-index));
+      memcpy(buffer, indexHtmlC+index, chunkSize);
       return chunkSize;
     });
   });
 
   server.on(AsyncURIMatcher::exact(FILEPATH), HTTP_GET, [](AsyncWebServerRequest *request) {
-    request->send(200, "text/plain", listDir(SD, "/", 1000));
+    request->sendChunked("text/plain", [](uint8_t *buffer, size_t maxLen, size_t index) -> size_t {
+      if (dirList.length() <= index) {
+        return 0;
+      }
+
+      const size_t chunkSize = min((size_t)32768, min(maxLen, dirList.length()-index));
+      memcpy(buffer, dirListC+index, chunkSize);
+      return chunkSize;
+    });
   });
 
   server.on("/feed", HTTP_GET, [](AsyncWebServerRequest *request) {
