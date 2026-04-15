@@ -222,8 +222,8 @@ void UpdateOpMode(){
 void SendAllNMT(uint8_t operatingMode) {
   //ID's have been changed to variable names to aid readability
   sendNMT(operatingMode, MOTOR_ID); // motor previously 0x01
-  sendNMT(operatingMode, BRAKES_ID); // brakes previously 0x02
-  sendNMT(operatingMode, LIGHTS_ID); // lights previously 0x04
+//  sendNMT(operatingMode, BRAKES_ID); // brakes previously 0x02
+//  sendNMT(operatingMode, LIGHTS_ID); // lights previously 0x04
 //   sendNMT(operatingMode, AUDIO_ID); // audio sys previously 0x05
 //   sendNMT(operatingMode, AUTOSTOP_ID);
 //   sendNMT(operatingMode, BATTERY_ID);     
@@ -245,6 +245,7 @@ void HandleInputs() {
   Serial.print(od_regen_brake);
   Serial.print("   ||   Throttle: ");
   Serial.println(od_motor_command);
+
 }
 
 
@@ -283,6 +284,7 @@ void HandleParking() {
     executeSDOWrite(NODE_ID, BRAKES_ID, 0x3012, 0x02, sizeof(od_service_brake_dc), &od_service_brake_dc);
     Serial.print("Sending Parking");
     Serial.println(od_service_brake_dc);
+    
   }
 }
 
@@ -302,7 +304,7 @@ void HandleDirection() {
     // 1 is forawrd, 2 is neutral, 3 is back 
     od_direction_mode = newDirectionMode;
     executeSDOWrite(NODE_ID, MOTOR_ID, 0x6060, 0x00, sizeof(od_direction_mode), &od_direction_mode);
-    // executeSDOWrite(NODE_ID, LIGHTS_ID, 0x6060, 0x00, sizeof(od_direction_mode), &od_direction_mode);
+    executeSDOWrite(NODE_ID, LIGHTS_ID, 0x6060, 0x00, sizeof(od_direction_mode), &od_direction_mode);
 
     Serial.print("Sending direction");
     Serial.println(od_direction_mode);
