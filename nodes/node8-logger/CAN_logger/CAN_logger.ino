@@ -152,10 +152,10 @@ void setup() {
   dirList = listDir(SD, "/", 1000);
   dirListC = dirList.c_str();
 
-  indexHtml += "<!DOCTYPE html><html lang=\"en\"><head><title>MREx CAN Logger</title><head><body>";
-  indexHtml += "<h1>Hello from the MREx CAN logger.</h1><p>Live feed: <a href=\"http://10.0.0.1/feed\">http://10.0.0.1/feed</a> (WebSocket: ws://10.0.0.1/ws)</p><h2>Directory listing</h2><ul>";
-  indexHtml += dirList;
-  indexHtml += "</ul></body></html>";
+  // indexHtml += "<!DOCTYPE html><html lang=\"en\"><head><title>MREx CAN Logger</title><head><body>";
+  // indexHtml += "<h1>Hello from the MREx CAN logger.</h1><p>Live feed: <a href=\"http://10.0.0.1/feed\">http://10.0.0.1/feed</a> (WebSocket: ws://10.0.0.1/ws)</p><h2>Directory listing</h2><ul>";
+  // indexHtml += dirList;
+  // indexHtml += "</ul></body></html>";
   indexHtmlC = indexHtml.c_str();
   
   //Initialize CANMREX protocol
@@ -289,7 +289,6 @@ void setup() {
 }
 
 void loop() {
-  // handleCAN(nodeID); // causes unnecessary logging delays
   twai_message_t message;
   if (twai_receive(&message, pdMS_TO_TICKS(10)) == ESP_OK) {
     rtc.getNowTime();
