@@ -181,8 +181,7 @@ void setup() {
 // =============================================================================
 
 void loop() {
-
-
+    
     // completing operation mode functionality
     switch (nodeOperatingMode) {
         case MODE_STOPPED:     StoppedMode();     break;

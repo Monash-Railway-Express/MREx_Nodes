@@ -149,8 +149,8 @@ void setup() {
     while (1);
   }
 
-  dirList = listDir(SD, "/", 1000);
-  dirListC = dirList.c_str();
+  // dirList = listDir(SD, "/", 1000);
+  // dirListC = dirList.c_str();
 
   // indexHtml += "<!DOCTYPE html><html lang=\"en\"><head><title>MREx CAN Logger</title><head><body>";
   // indexHtml += "<h1>Hello from the MREx CAN logger.</h1><p>Live feed: <a href=\"http://10.0.0.1/feed\">http://10.0.0.1/feed</a> (WebSocket: ws://10.0.0.1/ws)</p><h2>Directory listing</h2><ul>";
