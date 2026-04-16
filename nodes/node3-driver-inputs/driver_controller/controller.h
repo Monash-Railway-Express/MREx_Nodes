@@ -34,7 +34,7 @@ int readStable5Pos(int pin);
 #define THROTTLE_PIN GPIO_NUM_2
 
 #define HORN_PIN GPIO_NUM_15   //Horn
-#define BUTTON_2_PIN 35   
+#define BUTTON_2_PIN GPIO_NUM_16   
 #define SERVICE_BRAKE_PIN GPIO_NUM_6   //Parking Brake 
 #define SWITCH_2_PIN 37   //Location Annoucement
 
