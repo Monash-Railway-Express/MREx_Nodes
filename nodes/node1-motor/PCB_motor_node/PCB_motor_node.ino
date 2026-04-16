@@ -55,7 +55,9 @@ uint8_t od_challenge_mode = 0;
 // OD 0x2000:04 – Recovered energy from battery node (Wh). Read-only. Mapped to RPDO1.
 uint32_t od_recovered_energy = 0;
 
-// 
+// OD 0x1050:00 - Autostop lineside marker detection. unsigned 0 or 1, edge=detected
+uint8_t prev_od_autostop_detection = 0;
+uint8_t od_autostop_detection = 0;
 
 // =============================================================================
 // Global Variables
@@ -123,6 +125,7 @@ void setup() {
     registerODEntry(0x6060, 0x00, 2, sizeof(od_direction_mode), &od_direction_mode);        // SDO - 8bit
     registerODEntry(0x6062, 0x00, 2, sizeof(od_challenge_mode), &od_challenge_mode);        // SDO - 8bit
     registerODEntry(0x2000, 0x04, 2, sizeof(od_recovered_energy), &od_recovered_energy);    // RPDO - 32bit
+    registerODEntry(0x1050, 0x00, 2, sizeof(od_autostop_detection), &od_autostop_detection);    // SDO - 8bit
     
     
     // When adding a new pair, ensure to update numFloatPairs
@@ -394,61 +397,71 @@ void AutoStopChallenge(float speed_kmh, int32_t pulse_accum) {
     uint16_t motor_dac = 0;
     uint16_t brake_dac = 0;
 
-    // --- Initialise on first entry ---
-    // gets current pulse count from rotary encoder
     if (!entered_auto_stop) {
+        if (od_autostop_detection == prev_od_autostop_detection) { // 10km/h approach
+            ThrottleControl(speed_kmh);
+            return;
+        }
+
+        // od_autostop_detection edge - lineside marker detected
+        // --- Initialise on first entry ---
+        // gets current pulse count from rotary encoder
         pulse_start = pulse_accum;
         entered_auto_stop = true;
         Serial.println("[AutoStop] Challenge started — throttle tapering over 25m.");
     }
 
-    // --- Compute distance from accumulated pulses ---
-    // 200 pulses = 1 rev = 0.3m  →  25m ≈ 16,667 pulses
-    int32_t pulses_since_start = pulse_accum - pulse_start;
-    float distance_m = ((float)pulses_since_start / PULSES_PER_REV) * WHEEL_CIRCUMFERENCE_M;
+    prev_od_autostop_detection = od_autostop_detection;
 
-    // --- Zone 1: Fully stopped ---
-    if (speed_kmh <= 0.1f) {
-        WriteDAC(THROTTLE_CHANNEL, 0);
-        WriteDAC(REGEN_CHANNEL, 0);
-       //od_service_brake_mc = 1;
-        integrator       = 0.0f;
-        entered_auto_stop = false;  // Reset for next run
-        Serial.println("[AutoStop] Stopped — service brake applied.");
-        return;
-    }
+    if (entered_auto_stop) {
+        // --- Compute distance from accumulated pulses ---
+        // 200 pulses = 1 rev = 0.3m  →  25m ≈ 16,667 pulses
+        int32_t pulses_since_start = pulse_accum - pulse_start;
+        float distance_m = ((float)pulses_since_start / PULSES_PER_REV) * WHEEL_CIRCUMFERENCE_M;
 
-    // --- Zone 2: 25m reached — throttle zero, regen brake holds until stopped ---
-    if (distance_m >= AUTO_STOP_DISTANCE_M) {
-        motor_dac        = 0;
-       //od_service_brake_mc = 0;
-        integrator       = 0.0f;
+        // --- Zone 1: Fully stopped ---
+        if (speed_kmh <= 0.1f) {
+            WriteDAC(THROTTLE_CHANNEL, 0);
+            WriteDAC(REGEN_CHANNEL, 0);
+        //od_service_brake_mc = 1;
+            integrator       = 0.0f;
+            entered_auto_stop = false;  // Reset for next run
+            Serial.println("[AutoStop] Stopped — service brake applied.");
+            return;
+        }
 
-        brake_dac = (uint16_t)(DAC_MAX);
+        // --- Zone 2: 25m reached — throttle zero, regen brake holds until stopped ---
+        if (distance_m >= AUTO_STOP_DISTANCE_M) {
+            motor_dac        = 0;
+        //od_service_brake_mc = 0;
+            integrator       = 0.0f;
+
+            brake_dac = (uint16_t)(DAC_MAX);
+
+            WriteDAC(THROTTLE_CHANNEL, motor_dac);
+            WriteDAC(REGEN_CHANNEL, brake_dac);
+
+            Serial.print("[AutoStop] Coasting to stop — Distance: "); Serial.print(distance_m);
+            Serial.print("m | Speed: ");                              Serial.print(speed_kmh);
+            Serial.print(" | Brake DAC: ");                           Serial.println(brake_dac);
+            return;
+        }
+
+        // --- Zone 3: Under 25m — throttle tapers proportionally to distance remaining ---
+        // At 0m  → distance_fraction = 1.0 → full od_motor_command
+        // At 25m → distance_fraction = 0.0 → zero throttle
+        float distance_fraction = 1.0f - (distance_m / AUTO_STOP_DISTANCE_M);
+        motor_dac = (uint16_t)(od_motor_command * distance_fraction);
+        brake_dac = 0;
+    //od_service_brake_mc = 0;
 
         WriteDAC(THROTTLE_CHANNEL, motor_dac);
         WriteDAC(REGEN_CHANNEL, brake_dac);
 
-        Serial.print("[AutoStop] Coasting to stop — Distance: "); Serial.print(distance_m);
-        Serial.print("m | Speed: ");                              Serial.print(speed_kmh);
-        Serial.print(" | Brake DAC: ");                           Serial.println(brake_dac);
-        return;
+        Serial.print("[AutoStop] Tapering — Distance: "); Serial.print(distance_m);
+        Serial.print("m | Fraction: ");                   Serial.print(distance_fraction);
+        Serial.print(" | Motor DAC: ");                   Serial.println(motor_dac);
     }
-
-    // --- Zone 3: Under 25m — throttle tapers proportionally to distance remaining ---
-    // At 0m  → distance_fraction = 1.0 → full od_motor_command
-    // At 25m → distance_fraction = 0.0 → zero throttle
-    float distance_fraction = 1.0f - (distance_m / AUTO_STOP_DISTANCE_M);
-    motor_dac = (uint16_t)(od_motor_command * distance_fraction);
-    brake_dac = 0;
-   //od_service_brake_mc = 0;
-
-    WriteDAC(THROTTLE_CHANNEL, motor_dac);
-    WriteDAC(REGEN_CHANNEL, brake_dac);
-
-    Serial.print("[AutoStop] Tapering — Distance: "); Serial.print(distance_m);
-    Serial.print("m | Fraction: ");                   Serial.print(distance_fraction);
-    Serial.print(" | Motor DAC: ");                   Serial.println(motor_dac);
 }
 
 /**
