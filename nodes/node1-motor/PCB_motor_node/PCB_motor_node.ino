@@ -130,8 +130,8 @@ void setup() {
     
     // When adding a new pair, ensure to update numFloatPairs
     // Assign values here rather than statically above as floats do not initialise properly otherwise
-    floatPairs[0] = {"od_kp_1", 0.1f, 0x60F6, 0x00};
-    floatPairs[1] = {"od_ki_1", 0.2f, 0x60F6, 0x01};
+    floatPairs[0] = {"od_kp_1", 8.6633e-5f, 0x60F6, 0x00};
+    floatPairs[1] = {"od_ki_1", 8.1338e-3f, 0x60F6, 0x01};
     floatPairs[2] = {"od_kd_1", 0.3f, 0x60F6, 0x02};
     floatPairs[3] = {"od_kp_2", 0.4f, 0x60F6, 0x03};
     floatPairs[4] = {"od_ki_2", 0.5f, 0x60F6, 0x04};
@@ -344,7 +344,8 @@ void SpeedControl(float speed_kmh) {
         integrator = 0.0f;
     } else {
         // Scale od_motor_command (0–1023) to speed setpoint (0–MAX_SPEED_KMH)
-        float speed_setpoint = ((float)od_motor_command / 1023.0f) * MAX_SPEED_KMH;
+        // float speed_setpoint = ((float)od_motor_command / 1023.0f) * MAX_SPEED_KMH;
+        float speed_setpoint = ((float)od_motor_command / (float)DAC_MAX) * MAX_SPEED_KMH;
         float error = speed_setpoint - speed_kmh;
 
         // CONSTANT TRACTION MODE 1
@@ -358,7 +359,8 @@ void SpeedControl(float speed_kmh) {
 
         float control = (error * kp) + integrator;
         if (control < 0.0f)    control = 0.0f;
-        if (control > DAC_MAX) control = (float)DAC_MAX;
+        // if (control > DAC_MAX) control = (float)DAC_MAX;
+        if (control > (float)DAC_MAX) control = (float)DAC_MAX;
 
         motor_dac = (uint16_t)control;
         brake_dac = 0;
