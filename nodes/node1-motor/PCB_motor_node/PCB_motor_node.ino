@@ -130,8 +130,8 @@ void setup() {
     
     // When adding a new pair, ensure to update numFloatPairs
     // Assign values here rather than statically above as floats do not initialise properly otherwise
-    floatPairs[0] = {"od_kp_1", 0.1f, 0x60F6, 0x00};
-    floatPairs[1] = {"od_ki_1", 0.2f, 0x60F6, 0x01};
+    floatPairs[0] = {"od_kp_1", 8.6633e-5f, 0x60F6, 0x00};
+    floatPairs[1] = {"od_ki_1", 8.1338e-3f, 0x60F6, 0x01};
     floatPairs[2] = {"od_kd_1", 0.3f, 0x60F6, 0x02};
     floatPairs[3] = {"od_kp_2", 0.4f, 0x60F6, 0x03};
     floatPairs[4] = {"od_ki_2", 0.5f, 0x60F6, 0x04};
