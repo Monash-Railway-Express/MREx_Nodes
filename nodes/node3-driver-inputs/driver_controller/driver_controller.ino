@@ -240,8 +240,14 @@ void SendAllNMT(uint8_t operatingMode) {
  */
 void HandleInputs() {
   // ===== Potentiometer Inputs =====
+  uint16_t motorCommand = 1023 - readADC_HighZ(THROTTLE_PIN);
   od_regen_brake = 1023 - readADC_HighZ(BRAKE_PIN);
-  od_motor_command = 1023 - readADC_HighZ(THROTTLE_PIN);
+
+  if (od_service_brake_dc) { // 1, not braking
+    od_motor_command = motorCommand;
+  } else { // 0, braking
+    od_motor_command = 0;
+  }
 
   Serial.print("   ||   Brake: ");
   Serial.print(od_regen_brake);
