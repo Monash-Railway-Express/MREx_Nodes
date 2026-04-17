@@ -344,7 +344,8 @@ void SpeedControl(float speed_kmh) {
         integrator = 0.0f;
     } else {
         // Scale od_motor_command (0–1023) to speed setpoint (0–MAX_SPEED_KMH)
-        float speed_setpoint = ((float)od_motor_command / 1023.0f) * MAX_SPEED_KMH;
+        // float speed_setpoint = ((float)od_motor_command / 1023.0f) * MAX_SPEED_KMH;
+        float speed_setpoint = ((float)od_motor_command / (float)DAC_MAX) * MAX_SPEED_KMH;
         float error = speed_setpoint - speed_kmh;
 
         // CONSTANT TRACTION MODE 1
@@ -358,7 +359,8 @@ void SpeedControl(float speed_kmh) {
 
         float control = (error * kp) + integrator;
         if (control < 0.0f)    control = 0.0f;
-        if (control > DAC_MAX) control = (float)DAC_MAX;
+        // if (control > DAC_MAX) control = (float)DAC_MAX;
+        if (control > (float)DAC_MAX) control = (float)DAC_MAX;
 
         motor_dac = (uint16_t)control;
         brake_dac = 0;
