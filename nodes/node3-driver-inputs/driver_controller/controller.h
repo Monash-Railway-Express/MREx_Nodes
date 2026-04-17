@@ -27,21 +27,21 @@ int readStable5Pos(int pin);
 
 
 //defining Pins
-#define TX_GPIO_NUM GPIO_NUM_41 // Set GPIO pin for CAN Transmit
-#define RX_GPIO_NUM GPIO_NUM_42 // Set GPIO pins for CAN Receive
+#define TX_GPIO_NUM GPIO_NUM_40 // Set GPIO pin for CAN Transmit
+#define RX_GPIO_NUM GPIO_NUM_41 // Set GPIO pins for CAN Receive
 
-#define BRAKE_PIN 1
-#define THROTTLE_PIN 2
+#define BRAKE_PIN GPIO_NUM_1
+#define THROTTLE_PIN GPIO_NUM_2
 
-#define HORN_PIN 6   //Horn
-#define BUTTON_2_PIN 35   
-#define BRAKE_PIN 15   //Parking Brake 
+#define HORN_PIN GPIO_NUM_15   //Horn
+#define BUTTON_2_PIN GPIO_NUM_16   
+#define SERVICE_BRAKE_PIN GPIO_NUM_6   //Parking Brake 
 #define SWITCH_2_PIN 37   //Location Annoucement
 
-#define DIRECTION_MODE_PIN 4
-#define CHALLENGE_MODE_PIN 19
-#define CONDITION_MODE_PIN 20
-#define OP_MODE_PIN 5
+#define DIRECTION_MODE_PIN GPIO_NUM_4
+#define CHALLENGE_MODE_PIN GPIO_NUM_19
+#define CONDITION_MODE_PIN GPIO_NUM_14
+#define OP_MODE_PIN GPIO_NUM_5
 
 uint8_t NODE_ID = 3;
 
@@ -63,7 +63,7 @@ enum OperatingMode : uint8_t {
     MODE_OPERATIONAL   = 0x01
 };
 
-const OperatingMode opModes[3] = {MODE_STOPPED, MODE_PREOP, MODE_OPERATIONAL};
+const OperatingMode opModes[4] = {MODE_STOPPED, MODE_STOPPED, MODE_PREOP, MODE_OPERATIONAL};
 
 // ---------- ADC / filtering settings ----------
 const int ADC_RES_BITS = 10;         // 0..1023       DO NOT F**KING CHANGE!!!!!!

@@ -37,7 +37,7 @@ uint16_t od_regen_brake = 0;
 uint16_t od_motor_command = 0;
 
 // OD 0x6060:00 - Selecting locomotive travel direction mode (switch) (1-back, 2-neutral, 3-forward). <RW>. 
-uint8_t od_direction_mode = 0;
+uint8_t od_direction_mode = 3;
 
 // OD 0x6061:00 - Traction condition selector (switch) (int values 1 to 5, 5 being the slipperist). <RW>. 
 uint8_t od_condition_mode = 0;
@@ -78,7 +78,7 @@ void setup() {
   
   pinMode(HORN_PIN, INPUT_PULLUP);
   pinMode(BUTTON_2_PIN, INPUT_PULLUP);
-  pinMode(BRAKE_PIN, INPUT_PULLUP);
+  pinMode(SERVICE_BRAKE_PIN, INPUT_PULLUP);
   pinMode(SWITCH_2_PIN, INPUT_PULLUP);
 
   pinMode(DIRECTION_MODE_PIN, INPUT);
@@ -122,8 +122,8 @@ void setup() {
   configureTPDO(0, 0x180 + NODE_ID, 255, 100, 100);  // COB-ID, transType, inhibit, event
   
   PdoMapEntry tpdoEntries[] = {
+    {0x3012, 0x00, 16},    // regen brake
     {0x606A, 0x00, 16},   // motor command
-    {0x3012, 0x00, 16}    // regen brake
   };
   mapTPDO(0, tpdoEntries, 2);
   // --- Register RPDOs ---
@@ -153,6 +153,8 @@ void loop() {
 
       default: StoppedMode(); break; // fail-safe
     }
+
+    Serial.println(" ");
   }
 }
 
@@ -171,7 +173,7 @@ void StoppedMode(){
 * @brief Pre Operational Function, calls HandleDirection and HandleChallenge
 */
 void PreOpMode(){
-  //Serial.println("Pre-Op Mode");
+  Serial.print("Pre-Op Mode");
   HandleDirection();
   HandleChallenge();
   HandleParking();
@@ -182,7 +184,7 @@ void PreOpMode(){
 *@brief OperationMode function - Calls HandleChallenge and HandleInputs
 */
 void OperationalMode(){
-  //Serial.println("Op Mode");
+  Serial.print("Op Mode");
   HandleChallenge();
   HandleParking();
   HandleHorn();
@@ -206,9 +208,9 @@ void UpdateOpMode(){
   if(nodeOperatingMode != enumOpMode){
     // Send command to all nodes
     nodeOperatingMode = enumOpMode;  
-    Serial.println(nodeOperatingMode);
+    Serial.print(nodeOperatingMode);
     // Update local state
-    //SendAllNMT(enumOpMode);
+    SendAllNMT(enumOpMode);
   }
 }
 
@@ -239,12 +241,13 @@ void SendAllNMT(uint8_t operatingMode) {
 void HandleInputs() {
   // ===== Potentiometer Inputs =====
   od_regen_brake = 1023 - readADC_HighZ(BRAKE_PIN);
-  od_motor_command = readADC_HighZ(THROTTLE_PIN);
+  od_motor_command = 1023 - readADC_HighZ(THROTTLE_PIN);
 
-  Serial.print("Brake: ");
+  Serial.print("   ||   Brake: ");
   Serial.print(od_regen_brake);
   Serial.print("   ||   Throttle: ");
-  Serial.println(od_motor_command);
+  Serial.print(od_motor_command);
+
 }
 
 
@@ -255,9 +258,9 @@ void HandleInputs() {
  * @brief function that does edge detection on horn button and calls SDO write to horn node
  */
 void HandleHorn() {
-  Serial.print("Horn Handle: ");
+  Serial.print("   ||   Horn Handle: ");
   int newHornToggle = !(digitalRead(HORN_PIN));
-  Serial.println(newHornToggle);
+  Serial.print(newHornToggle);
   if (od_horn_toggle != newHornToggle) {
     od_horn_toggle = newHornToggle;
     executeSDOWrite(NODE_ID, AUDIO_ID, 0x6065, 0x00, sizeof(od_horn_toggle), &od_horn_toggle);
@@ -273,9 +276,9 @@ void HandleHorn() {
  * @brief Reads the switch which controls the parking break, if the new digital read does not equal the old the parking is sent to the brakes and motors)
  */
 void HandleParking() {
-  Serial.print("Parking Handle: ");
-  int newServiceBrake = digitalRead(BRAKE_PIN);
-  Serial.println(newServiceBrake);
+  Serial.print("   ||   Parking Handle: ");
+  int newServiceBrake = digitalRead(SERVICE_BRAKE_PIN);
+  Serial.print(newServiceBrake);
   if (od_service_brake_dc != newServiceBrake) {
     
     //1 is not braking - 0 is braking
@@ -283,6 +286,7 @@ void HandleParking() {
     executeSDOWrite(NODE_ID, BRAKES_ID, 0x3012, 0x02, sizeof(od_service_brake_dc), &od_service_brake_dc);
     Serial.print("Sending Parking");
     Serial.println(od_service_brake_dc);
+
   }
 }
 
@@ -294,9 +298,9 @@ void HandleParking() {
 *@brief HandleDirection function reads the desired direction from the 3 positions switch and sends relevent direction to motor and lights
 */
 void HandleDirection() {
-  Serial.print("Direction Handle: ");
+  Serial.print("   ||   Direction Handle: ");
   int newDirectionMode = readStable3Pos(DIRECTION_MODE_PIN);
-  Serial.println(newDirectionMode);
+  Serial.print(newDirectionMode);
   if ((od_direction_mode != newDirectionMode) && (newDirectionMode > 0)) {
     // 1 is forawrd, 2 is neutral, 3 is back 
     od_direction_mode = newDirectionMode;
@@ -315,13 +319,14 @@ void HandleDirection() {
 *@brief Function reads challange 5 position switch, checks if the challenge has changed, and if so writes new challenge to motors. 
 */
 void HandleChallenge() {
-  Serial.print("Challenge Handle");
+  Serial.print("   ||   Challenge Handle: ");
   int newChallengeMode = readStable5Pos(CHALLENGE_MODE_PIN);
-  Serial.println(newChallengeMode);
+  Serial.print(newChallengeMode);
   if ((od_challenge_mode != newChallengeMode) && (newChallengeMode > 0)) {
     // 1 is forawrd, 2 is neutral, 3 is back 
     od_challenge_mode = newChallengeMode;
     executeSDOWrite(NODE_ID, MOTOR_ID, 0x6062, 0x00, sizeof(od_challenge_mode), &od_challenge_mode);
+    executeSDOWrite(NODE_ID, AUTOSTOP_ID, 0x6062, 0x00, sizeof(od_challenge_mode), &od_challenge_mode);
     Serial.print("Sending Challenge");
     Serial.println(od_challenge_mode);
   }
@@ -335,9 +340,9 @@ void HandleChallenge() {
 *@brief Function reads the condition pin, if new state is different to previous state the SDO for the condition is sent to the motor. 
 */
 void HandleCondition(){
-  Serial.print("Condition Handle");
+  Serial.print("   ||   Condition Handle");
   int newConditionMode = readStable5Pos(CONDITION_MODE_PIN);
-  Serial.println(newConditionMode);
+  Serial.print(newConditionMode);
   //Only sends the new condition object as an SDO if there has been a change in the condition. 
   if(od_condition_mode != newConditionMode){
     od_condition_mode = newConditionMode;

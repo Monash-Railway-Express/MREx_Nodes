@@ -17,3 +17,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 - None
+
+## [1.2]  - 2026-04-16
+
+### Added
+
+- None
+
+### Changed
+
+- Pre-op (yellow) lights now stay on as long as power is supplied to ESP32. 
+- Fixed pin numbering for CAN TX/RX
+
+### Removed
+- None

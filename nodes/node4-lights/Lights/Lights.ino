@@ -5,8 +5,8 @@
  * Organisation:    MREX
  * Author:          Aung Hpone Thant, Chiara Gillam, Oscar Boulter
  * Date Created:    5/10/2025
- * Last Modified:   26/03/2026
- * Version:         1.1
+ * Last Modified:   16/04/2026
+ * Version:         1.2
  *
  *This code is for the lighting node (Node 4 on the loco). 
  *LIGHTS_FWD will be the control for the white lights on the front and red on the back,
@@ -21,8 +21,8 @@
 uint8_t nodeID = 4;  // Change this to set your device's node ID
 
 // --- Pin Definitions ---
-#define TX_GPIO_NUM GPIO_NUM_4 // Set GPIO pin for CAN Transmit
-#define RX_GPIO_NUM GPIO_NUM_5 // Set GPIO pins for CAN Receive
+#define TX_GPIO_NUM GPIO_NUM_5 // Set GPIO pin for CAN Transmit
+#define RX_GPIO_NUM GPIO_NUM_4 // Set GPIO pins for CAN Receive
 #define LIGHT_PREOP 17
 #define LIGHT_FWD 15
 #define LIGHT_REV 16
@@ -69,6 +69,7 @@ void setup() {
   // --- Register OD entries ---
   registerODEntry(0x1004, 0x00, 2, sizeof(tempF), &tempF);
   registerODEntry(0x1004, 0x01, 2, sizeof(tempR), &tempR);
+  registerODEntry(0x6060, 0x00, 2, sizeof(dirMode), &dirMode);
 
   // --- Register TPDOs ---
   configureTPDO(0, 0x184 + nodeID, 255, 100, 100);
@@ -90,6 +91,9 @@ void setup() {
 
   //run lights self test. Flash all lights
   LightsSelfTest();
+
+  //permanently turn yellow lights on
+  digitalWrite(LIGHT_PREOP, HIGH);
   // User code Setup end ------------------------------------------------------
 
 
@@ -100,7 +104,7 @@ void loop() {
   //User Code begin loop() ----------------------------------------------------
   unsigned long  currentMillis = millis();
   
-  checkSensors(); // always check the sensors
+  //checkSensors(); // always check the sensors
   
   // --- Stopped mode (This is default starting point) ---
   if (nodeOperatingMode == 0x02){ 
@@ -132,11 +136,11 @@ void loop() {
 //handles the direction selector in operational state
 void HandleDirStates()
 {
-  //reads the motor direction from the controller.
-  dirMode32 = executeSDORead(nodeID, 3, 0x6060, 0x00); 
-  //dirMode = 1;
-  //executeSDOWrite(nodeID, 3, 0x6060, 0x00, sizeof(uint8_t), &dirMode);
-  dirMode = (uint8_t)dirMode32;
+  // //reads the motor direction from the controller.
+  // dirMode32 = executeSDORead(nodeID, 3, 0x6060, 0x00); 
+  // //dirMode = 1;
+  // //executeSDOWrite(nodeID, 3, 0x6060, 0x00, sizeof(uint8_t), &dirMode);
+  // dirMode = (uint8_t)dirMode32;
 
   //switches the drive state based on the motor direction
   //TODO: clarify codes and implement accordingly. Currently using 3 for fwd and 1 for rev.
@@ -209,7 +213,7 @@ void HandleOpMode()
     case Off:
       digitalWrite(LIGHT_FWD, LOW);
       digitalWrite(LIGHT_REV, LOW);
-      digitalWrite(LIGHT_PREOP, LOW);
+      //digitalWrite(LIGHT_PREOP, LOW);
       break;
   }
 }
