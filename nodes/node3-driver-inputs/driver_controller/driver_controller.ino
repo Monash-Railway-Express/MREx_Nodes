@@ -226,10 +226,10 @@ void SendAllNMT(uint8_t operatingMode) {
   sendNMT(operatingMode, MOTOR_ID); // motor previously 0x01
   sendNMT(operatingMode, BRAKES_ID); // brakes previously 0x02
   sendNMT(operatingMode, LIGHTS_ID); // lights previously 0x04
-  // sendNMT(operatingMode, AUDIO_ID); // audio sys previously 0x05
-//   sendNMT(operatingMode, AUTOSTOP_ID);
-//   sendNMT(operatingMode, BATTERY_ID);     
-//   sendNMT(operatingMode, LCD_ID); // LCD screen previously 0x09
+  sendNMT(operatingMode, AUDIO_ID); // audio sys previously 0x05
+  sendNMT(operatingMode, AUTOSTOP_ID);
+  sendNMT(operatingMode, BATTERY_ID);     
+  sendNMT(operatingMode, LCD_ID); // LCD screen previously 0x09
 }
 
 
@@ -326,6 +326,7 @@ void HandleChallenge() {
     // 1 is forawrd, 2 is neutral, 3 is back 
     od_challenge_mode = newChallengeMode;
     executeSDOWrite(NODE_ID, MOTOR_ID, 0x6062, 0x00, sizeof(od_challenge_mode), &od_challenge_mode);
+    executeSDOWrite(NODE_ID, AUTOSTOP_ID, 0x6062, 0x00, sizeof(od_challenge_mode), &od_challenge_mode);
     Serial.print("Sending Challenge");
     Serial.println(od_challenge_mode);
   }
