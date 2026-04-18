@@ -19,7 +19,7 @@
 VeDirectFrameHandler myparser;
 
 // --- CAN MREx initialisation ---
-const uint8_t nodeID = 7;  // battery is node 7
+uint8_t nodeID = 7;  // battery is node 7
 const bool nmtMaster = false;
 const bool heartbeatConsumer = false;
 
@@ -70,6 +70,16 @@ void setup() {
   
   //Initialize CANMREX protocol
   initCANMREX(TX_GPIO_NUM, RX_GPIO_NUM, nodeID);
+
+  xTaskCreatePinnedToCore(
+      CAN_Task,
+      "CAN Task",
+      6144,
+      &nodeID,
+      3,
+      NULL,
+      0
+  );
 
   // User code Setup Begin: -------------------------------------------------
 
@@ -241,17 +251,10 @@ void updateODentries(){
 
 
 void loop(){
-  //User Code begin loop() ----------------------------------------------------
-  nodeOperatingMode == 0x01
-  // --- Stopped mode (This is default starting point) ---
-  if (nodeOperatingMode == 0x02){ 
-    handleCAN(nodeID); // heartbeat is handled in handleCAN.
-  }
-  
+  //User Code begin loop() ----------------------------------------------------  
   // --- Pre operational state (This is where you can do checks and make sure that everything is okay) ---
   // In pre-op state, we check if the data is received from the shunt, parsed and stored in the buffer
   if (nodeOperatingMode == 0x80){ 
-    handleCAN(nodeID);
     ReadVEData(); // this function passes each incoming byte into rxData. rxData stores the name-value pairs in the buffer (array of structs - 1 struct is 1 name-value pair).
     // EverySecond(); // Debug: print the data in the buffer every second.
     if (myparser.isDataAvailable()) {
@@ -270,7 +273,6 @@ void loop(){
 
   // --- Operational state (Normal operating mode) ---
   if (nodeOperatingMode == 0x01){ 
-    handleCAN(nodeID);
     ReadVEData(); // this function passes each incoming byte into rxData. rxData stores the name-value pairs in the buffer (array of structs - 1 struct is 1 name-value pair).
     // EverySecond();
     if (myparser.isDataAvailable()) { // Update OD entries every s. A new block is received every second.
