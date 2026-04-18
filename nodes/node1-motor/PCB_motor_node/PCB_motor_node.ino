@@ -426,7 +426,6 @@ void AutoStopChallenge(float speed_kmh, int32_t pulse_accum) {
             WriteDAC(REGEN_CHANNEL, 0);
         //od_service_brake_mc = 1;
             integrator       = 0.0f;
-            entered_auto_stop = false;  // Reset for next run
             Serial.println("[AutoStop] Stopped — service brake applied.");
             return;
         }
@@ -441,6 +440,7 @@ void AutoStopChallenge(float speed_kmh, int32_t pulse_accum) {
 
             WriteDAC(THROTTLE_CHANNEL, motor_dac);
             WriteDAC(REGEN_CHANNEL, brake_dac);
+            od_autostop_detection = 0;
 
             Serial.print("[AutoStop] Coasting to stop — Distance: "); Serial.print(distance_m);
             Serial.print("m | Speed: ");                              Serial.print(speed_kmh);
@@ -513,6 +513,7 @@ void TractionChallenge(float speed_kmh) {
  * @param speed_kmh Current measured speed in km/h.
  */
 void EnergyRecoveryChallenge(float speed_kmh) {
+    digitalWrite(ISOLATING_RELAY, LOW);
 
     // Challenge phases
     enum EnergyPhase : uint8_t {
@@ -560,7 +561,6 @@ void EnergyRecoveryChallenge(float speed_kmh) {
             WriteDAC(THROTTLE_CHANNEL, motor_dac);
             WriteDAC(REGEN_CHANNEL, brake_dac);
 
-            digitalWrite(ISOLATING_RELAY, LOW);
 
             // Transition to idle once train is stopped
             if (speed_kmh <= 0.1f) {
