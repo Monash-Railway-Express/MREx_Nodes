@@ -235,14 +235,14 @@ void updateODentries(){
        }
        else if (strcmp(myparser.veData[i].veName, "I") == 0){
         current = atoi(myparser.veData[i].veValue);
-        current_can = current 
+        current_can = current; 
        }
        else if (strcmp(myparser.veData[i].veName, "SOC") == 0){
         state_of_charge = atoi(myparser.veData[i].veValue); // needs to be divided by 10 to get it in percentage. 995/10 = 99.5%.
        }
        else if (strcmp(myparser.veData[i].veName, "P") == 0){
         power = atoi(myparser.veData[i].veValue);
-        power_can = power 
+        power_can = power; 
         findRecoveredEnergy(); 
        }
   }
