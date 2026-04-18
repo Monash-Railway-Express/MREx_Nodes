@@ -75,13 +75,13 @@ void setup() {
 
   // --- Register OD entries ---
  
-  registerODEntry(0x2000, 0x00, 0, sizeof(current_can), &current_can); 
-  registerODEntry(0x2000, 0x01, 0, sizeof(voltage), &voltage); 
-  registerODEntry(0x2000, 0x02, 0, sizeof(state_of_charge), &state_of_charge); 
-  registerODEntry(0x2000, 0x03, 0, sizeof(power_can), &power_can);
-  registerODEntry(0x2000, 0x04, 0, sizeof(recovered_energy_can), &recovered_energy_can);
-  registerODEntry(0x2000, 0x05, 0, sizeof(motor_command), &motor_command);
-  registerODEntry(0x2000, 0x06, 0, sizeof(regen_brake), &regen_brake);
+  registerODEntry(0x2000, 0x00, 2, sizeof(current_can), &current_can); 
+  registerODEntry(0x2000, 0x01, 2, sizeof(voltage), &voltage); 
+  registerODEntry(0x2000, 0x02, 2, sizeof(state_of_charge), &state_of_charge); 
+  registerODEntry(0x2000, 0x03, 2, sizeof(power_can), &power_can);
+  registerODEntry(0x2000, 0x04, 2, sizeof(recovered_energy_can), &recovered_energy_can);
+  registerODEntry(0x606A, 0x00, 2, sizeof(motor_command), &motor_command);
+  registerODEntry(0x3012, 0x00, 2, sizeof(regen_brake), &regen_brake);
 
   // --- Configure TPDOs and RPDOs ---
 
@@ -103,8 +103,8 @@ void setup() {
     };
     
   PdoMapEntry rpdoEntries[] = {
-    {0x2000, 0x05, 16}, 
-    {0x2000, 0x06, 16}   
+    {0x606A, 0x00, 16}, 
+    {0x3012, 0x00, 16}   
   };
 
   // --- Map TPDOs and RPDOs ---
