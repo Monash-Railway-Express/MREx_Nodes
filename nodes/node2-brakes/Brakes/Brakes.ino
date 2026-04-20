@@ -99,13 +99,13 @@ void loop() {
   else if (nodeOperatingMode == 0x01) {
 
     // Service brake requested
-    if (od_service_brake_dc) {
-      out = HIGH;
-      pixel.setPixelColor(0, pixel.Color(0, 50, 0));  // Green
-    }
-    else {
+    if (!od_service_brake_dc || !od_service_brake_mc) {
       out = LOW;
       pixel.setPixelColor(0, pixel.Color(50, 0, 0));  // Red
+    }
+    else {
+      out = HIGH;
+      pixel.setPixelColor(0, pixel.Color(0, 50, 0));  // Green
     }
   }
   // Unknown => fail‑safe

@@ -26,9 +26,13 @@
 #include "motor_PCB.h"
 #include "driver/pcnt.h"
 
+
+
 // =============================================================================
 // OD Variable Definitions
 // =============================================================================
+
+
 
 // OD 0x606C:00 – Actual vehicle speed in km/h (0–UINT32_MAX). RW. Mapped to TPDO0.
 uint32_t od_true_speed = 0;
@@ -50,7 +54,7 @@ uint8_t od_direction_mode = 0;
 
 // OD 0x6062:00 – Challenge mode selector (1=Normal, 2=Speed, 3=AutoStop,
 //                4=EnergyRecovery, 5=Traction). RW. Mapped to RPDO0.
-uint8_t od_challenge_mode = 0;
+uint8_t od_challenge_mode = 1;
 uint8_t prev_challenge_mode = 0;
 
 // OD 0x2000:04 – Recovered energy from battery node (Wh). Read-only. Mapped to RPDO1.
@@ -59,9 +63,13 @@ uint32_t od_recovered_energy = 0;
 // OD 0x1050:00 - Autostop lineside marker detection. unsigned 0 or 1, edge=detected
 uint8_t od_autostop_detection = 0;
 
+
+
 // =============================================================================
 // Global Variables
 // =============================================================================
+
+
 
 // Cumulative pulse count for distance tracking — updated each loop before counter clear
 int32_t total_pulse_accum = 0;
@@ -82,9 +90,15 @@ const int numFloatPairs = 15;
 
 struct FloatPair floatPairs[numFloatPairs];
 
+bool new_autostop_instance = true;
+
+
+
 // =============================================================================
 // SETUP
 // =============================================================================
+
+
 
 void setup() {
     Serial.begin(115200);
@@ -176,12 +190,14 @@ void setup() {
 }
 
 
+
 // =============================================================================
 // LOOP
 // =============================================================================
 
+
+
 void loop() {
-    
     // completing operation mode functionality
     switch (nodeOperatingMode) {
         case MODE_STOPPED:     StoppedMode();     break;
@@ -203,7 +219,7 @@ void StoppedMode() {
     WriteDAC(THROTTLE_CHANNEL, 0);
     WriteDAC(REGEN_CHANNEL, 0);
     integrator = 0.0f;
-    PutPreferences();
+    PutPreferences(); // we need to add a params dirty od entry so we only update these when they change
 }
 
 /**
@@ -254,6 +270,14 @@ void OperationalMode() {
     previous_millis = current_millis;
     od_true_speed   = (uint32_t)speed_kmh;
 
+
+    // Detect mode transitions
+    if (od_challenge_mode != prev_challenge_mode) {
+        OnChallengeModeExit(prev_challenge_mode);
+        OnChallengeModeEnter(od_challenge_mode);
+    }
+
+
     switch (od_challenge_mode) {
         case CHALLENGE_THROTTLE:        ThrottleControl(speed_kmh);                         break;
         case CHALLENGE_SPEED_CONTROL:   SpeedControl(speed_kmh);                            break;
@@ -275,6 +299,26 @@ void OperationalMode() {
     }
 
 }
+
+
+/**
+ * @brief When exiting a challenge mode it will change these 
+ */
+void OnChallengeModeExit(uint8_t old_mode) {
+    if (old_mode == CHALLENGE_AUTO_STOP) {
+        SetServiceBrake(false);   // release
+        new_autostop_instance = true;
+    }
+}
+
+
+/**
+ * @brief Gets variable values from non-volatile memory.
+ */
+void OnChallengeModeEnter(uint8_t new_mode) {
+    // entry setup per mode, if needed
+}
+
 
 // =============================================================================
 // CONTROL MODES
@@ -396,18 +440,14 @@ void SpeedControl(float speed_kmh) {
 void AutoStopChallenge(float speed_kmh, int32_t pulse_accum) {
     static bool    entered_auto_stop = false;
     static int32_t pulse_start       = 0;
-    static uint8_t prev_od_autostop_detection = 0;
+
 
     uint16_t motor_dac = 0;
     uint16_t brake_dac = 0;
 
-    // Reset on challenge mode change
-    if (prev_challenge_mode != od_challenge_mode) {
-        entered_auto_stop = false;
-    }
 
-    if (!entered_auto_stop) {
-        if (od_autostop_detection == prev_od_autostop_detection) {
+    if (!entered_auto_stop && new_autostop_instance) {
+        if (od_autostop_detection == 0) {
             // Waiting for lineside marker — normal throttle control
             ThrottleControl(speed_kmh);
             return;
@@ -415,46 +455,48 @@ void AutoStopChallenge(float speed_kmh, int32_t pulse_accum) {
 
         pulse_start                = pulse_accum;
         entered_auto_stop          = true;
-        Serial.print("[AutoStop] Challenge started — iteration: ");
+        Serial.println("[AutoStop] Challenge started");
     }
 
     if (entered_auto_stop) {
-        int32_t pulses_since_start = pulse_accum - pulse_start;
-        float distance_m = ((float)pulses_since_start / PULSES_PER_REV) * WHEEL_CIRCUMFERENCE_M;
+    int32_t pulses_since_start = pulse_accum - pulse_start;
+    float distance_m = ((float)pulses_since_start / PULSES_PER_REV) * WHEEL_CIRCUMFERENCE_M;
 
-        // --- Zone 2: Stopped ---
-        if (speed_kmh <= 0.1f) {
-            WriteDAC(THROTTLE_CHANNEL, 0);
-            WriteDAC(REGEN_CHANNEL, 0);
-            integrator        = 0.0f;
-            entered_auto_stop = false;
-            Serial.println("[AutoStop] Stopped — service brake applied.");
-            return;
-        }
 
-        // --- Zone 3: 25m reached — full regen brake ---
-        if (distance_m >= AUTO_STOP_DISTANCE_M) {
-            integrator            = 0.0f;
-            
-            WriteDAC(THROTTLE_CHANNEL, 0);
-            WriteDAC(REGEN_CHANNEL, DAC_MAX);
-            Serial.print("[AutoStop] Coasting to stop — Distance: "); Serial.print(distance_m);
-            Serial.print("m | Speed: ");                              Serial.print(speed_kmh);
-            Serial.print(" | Brake DAC: ");                           Serial.println(DAC_MAX);
-            
-            od_autostop_detection = 0;
-            return;
-        }
-
-        // --- Zone 1: Throttle taper ---
-        float distance_fraction = 1.0f - (distance_m / AUTO_STOP_DISTANCE_M);
-        motor_dac = (uint16_t)(od_motor_command * distance_fraction);
-        WriteDAC(THROTTLE_CHANNEL, motor_dac);
+    // --- Zone 2: Stopped ---
+    if (speed_kmh <= 0.1f) {
+        WriteDAC(THROTTLE_CHANNEL, 0);
         WriteDAC(REGEN_CHANNEL, 0);
-        Serial.print("[AutoStop] Tapering — Distance: ");   Serial.print(distance_m);
-        Serial.print(" | Fraction: ");                      Serial.print(distance_fraction);
-        Serial.print(" | Motor DAC: ");                     Serial.print(motor_dac);
-        Serial.print(" | Speed: ");                         Serial.println(speed_kmh);
+        integrator = 0.0f;
+        SetServiceBrake(true);
+        od_autostop_detection = 0;
+        entered_auto_stop     = false;
+        new_autostop_instance = false;
+        Serial.println("[AutoStop] Stopped — service brake applied.");
+        return;
+    }
+
+    // --- Zone 3: 25m reached — full regen brake ---
+    if (distance_m >= AUTO_STOP_DISTANCE_M) {
+        integrator = 0.0f;
+        WriteDAC(THROTTLE_CHANNEL, 0);
+        WriteDAC(REGEN_CHANNEL, DAC_MAX);
+        Serial.print("[AutoStop] Coasting to stop — Distance: "); Serial.print(distance_m);
+        Serial.print("m | Speed: "); Serial.print(speed_kmh);
+        Serial.print(" | Brake DAC: "); Serial.println(DAC_MAX);
+        return;
+    }
+
+    // --- Zone 1: Throttle taper (under 25m, still moving) ---
+    float distance_fraction = 1.0f - (distance_m / AUTO_STOP_DISTANCE_M);
+    if (distance_fraction < 0.0f) distance_fraction = 0.0f;
+    motor_dac = (uint16_t)(od_motor_command * distance_fraction);
+    WriteDAC(THROTTLE_CHANNEL, motor_dac);
+    WriteDAC(REGEN_CHANNEL, 0);
+    Serial.print("[AutoStop] Tapering — Distance: "); Serial.print(distance_m);
+    Serial.print(" | Fraction: ");                    Serial.print(distance_fraction);
+    Serial.print(" | Motor DAC: ");                   Serial.print(motor_dac);
+    Serial.print(" | Speed: ");                       Serial.println(speed_kmh);
     }
 }
 /**
@@ -729,6 +771,17 @@ void SetupPCNT() {
     pcnt_counter_pause(PCNT_UNIT_0);
     pcnt_counter_clear(PCNT_UNIT_0);
     pcnt_counter_resume(PCNT_UNIT_0);
+}
+
+
+/**
+ * @brief Sets od_service_brake_mc variable as brakes engaged or unengaged
+ */
+void SetServiceBrake(bool engaged) {
+    od_service_brake_mc = engaged ? 0 : 1;   // 0 = braking, 1 = not braking
+    uint8_t value = od_service_brake_mc;
+    executeSDOWrite(NODE_ID, 2, 0x3012, 0x01, sizeof(value), &value);
+    // ^ check your CAN_MREx signature — adjust args to match
 }
 
 /**
