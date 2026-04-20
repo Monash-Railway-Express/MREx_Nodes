@@ -51,12 +51,12 @@ uint8_t od_direction_mode = 0;
 // OD 0x6062:00 – Challenge mode selector (1=Normal, 2=Speed, 3=AutoStop,
 //                4=EnergyRecovery, 5=Traction). RW. Mapped to RPDO0.
 uint8_t od_challenge_mode = 0;
+uint8_t prev_challenge_mode = 0;
 
 // OD 0x2000:04 – Recovered energy from battery node (Wh). Read-only. Mapped to RPDO1.
 uint32_t od_recovered_energy = 0;
 
 // OD 0x1050:00 - Autostop lineside marker detection. unsigned 0 or 1, edge=detected
-uint8_t prev_od_autostop_detection = 0;
 uint8_t od_autostop_detection = 0;
 
 // =============================================================================
@@ -130,8 +130,8 @@ void setup() {
     
     // When adding a new pair, ensure to update numFloatPairs
     // Assign values here rather than statically above as floats do not initialise properly otherwise
-    floatPairs[0] = {"od_kp_1", 8.6633e-5f, 0x60F6, 0x00};
-    floatPairs[1] = {"od_ki_1", 8.1338e-3f, 0x60F6, 0x01};
+    floatPairs[0] = {"od_kp_1", 0.016442f, 0x60F6, 0x00};
+    floatPairs[1] = {"od_ki_1", 1.7177f, 0x60F6, 0x01};
     floatPairs[2] = {"od_kd_1", 0.3f, 0x60F6, 0x02};
     floatPairs[3] = {"od_kp_2", 0.4f, 0x60F6, 0x03};
     floatPairs[4] = {"od_ki_2", 0.5f, 0x60F6, 0x04};
@@ -263,6 +263,8 @@ void OperationalMode() {
         default:                        ThrottleControl(speed_kmh);                         break;
     }
 
+    prev_challenge_mode = od_challenge_mode;
+
     // Hard speed cap
     if (speed_kmh > MAX_SPEED_KMH) {
         WriteDAC(THROTTLE_CHANNEL, 0);
@@ -392,79 +394,69 @@ void SpeedControl(float speed_kmh) {
  * @param pulse_accum Total accumulated pulse count from OperationalMode().
  */
 void AutoStopChallenge(float speed_kmh, int32_t pulse_accum) {
-    static bool    entered_auto_stop     = false;               // flag for first entry into autostop challenge mode
-    static int32_t pulse_start = 0;                             // initialise rotary encoder pulse
+    static bool    entered_auto_stop = false;
+    static int32_t pulse_start       = 0;
+    static uint8_t prev_od_autostop_detection = 0;
 
     uint16_t motor_dac = 0;
     uint16_t brake_dac = 0;
 
+    // Reset on challenge mode change
+    if (prev_challenge_mode != od_challenge_mode) {
+        entered_auto_stop = false;
+    }
+
     if (!entered_auto_stop) {
-        if (od_autostop_detection == prev_od_autostop_detection) { // 10km/h approach
+        if (od_autostop_detection == prev_od_autostop_detection) {
+            // Waiting for lineside marker — normal throttle control
             ThrottleControl(speed_kmh);
             return;
         }
 
-        // od_autostop_detection edge - lineside marker detected
-        // --- Initialise on first entry ---
-        // gets current pulse count from rotary encoder
-        pulse_start = pulse_accum;
-        entered_auto_stop = true;
-        Serial.println("[AutoStop] Challenge started — throttle tapering over 25m.");
+        pulse_start                = pulse_accum;
+        entered_auto_stop          = true;
+        Serial.print("[AutoStop] Challenge started — iteration: ");
     }
 
-    prev_od_autostop_detection = od_autostop_detection;
-
     if (entered_auto_stop) {
-        // --- Compute distance from accumulated pulses ---
-        // 200 pulses = 1 rev = 0.3m  →  25m ≈ 16,667 pulses
         int32_t pulses_since_start = pulse_accum - pulse_start;
         float distance_m = ((float)pulses_since_start / PULSES_PER_REV) * WHEEL_CIRCUMFERENCE_M;
 
-        // --- Zone 1: Fully stopped ---
+        // --- Zone 2: Stopped ---
         if (speed_kmh <= 0.1f) {
             WriteDAC(THROTTLE_CHANNEL, 0);
             WriteDAC(REGEN_CHANNEL, 0);
-        //od_service_brake_mc = 1;
-            integrator       = 0.0f;
+            integrator        = 0.0f;
+            entered_auto_stop = false;
             Serial.println("[AutoStop] Stopped — service brake applied.");
             return;
         }
 
-        // --- Zone 2: 25m reached — throttle zero, regen brake holds until stopped ---
+        // --- Zone 3: 25m reached — full regen brake ---
         if (distance_m >= AUTO_STOP_DISTANCE_M) {
-            motor_dac        = 0;
-        //od_service_brake_mc = 0;
-            integrator       = 0.0f;
-
-            brake_dac = (uint16_t)(DAC_MAX);
-
-            WriteDAC(THROTTLE_CHANNEL, motor_dac);
-            WriteDAC(REGEN_CHANNEL, brake_dac);
-            od_autostop_detection = 0;
-
+            integrator            = 0.0f;
+            
+            WriteDAC(THROTTLE_CHANNEL, 0);
+            WriteDAC(REGEN_CHANNEL, DAC_MAX);
             Serial.print("[AutoStop] Coasting to stop — Distance: "); Serial.print(distance_m);
             Serial.print("m | Speed: ");                              Serial.print(speed_kmh);
-            Serial.print(" | Brake DAC: ");                           Serial.println(brake_dac);
+            Serial.print(" | Brake DAC: ");                           Serial.println(DAC_MAX);
+            
+            od_autostop_detection = 0;
             return;
         }
 
-        // --- Zone 3: Under 25m — throttle tapers proportionally to distance remaining ---
-        // At 0m  → distance_fraction = 1.0 → full od_motor_command
-        // At 25m → distance_fraction = 0.0 → zero throttle
+        // --- Zone 1: Throttle taper ---
         float distance_fraction = 1.0f - (distance_m / AUTO_STOP_DISTANCE_M);
         motor_dac = (uint16_t)(od_motor_command * distance_fraction);
-        brake_dac = 0;
-    //od_service_brake_mc = 0;
-
         WriteDAC(THROTTLE_CHANNEL, motor_dac);
-        WriteDAC(REGEN_CHANNEL, brake_dac);
-
-        Serial.print("[AutoStop] Tapering — Distance: "); Serial.print(distance_m);
-        Serial.print("m | Fraction: ");                   Serial.print(distance_fraction);
-        Serial.print(" | Motor DAC: ");                   Serial.println(motor_dac);
+        WriteDAC(REGEN_CHANNEL, 0);
+        Serial.print("[AutoStop] Tapering — Distance: ");   Serial.print(distance_m);
+        Serial.print(" | Fraction: ");                      Serial.print(distance_fraction);
+        Serial.print(" | Motor DAC: ");                     Serial.print(motor_dac);
+        Serial.print(" | Speed: ");                         Serial.println(speed_kmh);
     }
 }
-
 /**
  * @brief Traction challenge — speed control with wheel slip detection.
  *
@@ -513,7 +505,7 @@ void TractionChallenge(float speed_kmh) {
  * @param speed_kmh Current measured speed in km/h.
  */
 void EnergyRecoveryChallenge(float speed_kmh) {
-    digitalWrite(ISOLATING_RELAY, LOW);
+    digitalWrite(ISOLATING_RELAY, HIGH);
 
     // Challenge phases
     enum EnergyPhase : uint8_t {
