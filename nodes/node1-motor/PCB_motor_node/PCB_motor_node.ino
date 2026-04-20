@@ -295,15 +295,15 @@ void ThrottleControl(float speed_kmh) {
     uint16_t motor_dac = 0;
     uint16_t brake_dac = 0;
 
-    if (od_motor_command > 10 && od_regen_brake <= 10) {
+    if (od_motor_command > 0 && od_regen_brake <= 0) {
         motor_dac = od_motor_command;   // full 10-bit range
         brake_dac = 0;
     }
-    else if (od_motor_command > 10 && od_regen_brake > 10) {
+    else if (od_motor_command > 0 && od_regen_brake > 0) {
         motor_dac = 0;
         brake_dac = od_regen_brake;
     }
-    else if (od_motor_command <= 10 && od_regen_brake > 10) {
+    else if (od_motor_command <= 0 && od_regen_brake > 0) {
         motor_dac = 0;
         brake_dac = od_regen_brake;
     }
