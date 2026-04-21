@@ -19,11 +19,23 @@ void HandleDirection();
 void HandleChallenge();
 void HandleCondition();
 
-int readADC_HighZ(int pin, int samples = 20);
+
 int decodeNearest3(int raw);
 int decodeNearest5(int raw);
-int readStable3Pos(int pin);
-int readStable5Pos(int pin);
+
+#define BUF_SIZE 15 
+
+typedef struct { 
+    int samples[BUF_SIZE]; 
+    int index; 
+} ADCBuffer;
+
+void InputTask(void* pvParameters);
+int readStable5PosBuffered(ADCBuffer* buf);
+int readStable3PosBuffered(ADCBuffer* buf);
+int getAverage(ADCBuffer* buf);
+void updateADCBuffer(ADCBuffer* buf, int pin);
+void initBuffer(ADCBuffer* buf, int pin);
 
 
 //defining Pins
@@ -79,6 +91,5 @@ const int THREE_LEVELS[3] = {256, 512, 768};
 // 5-position ladder, 6 equal resistors:
 // taps are roughly 1/6, 2/6, 3/6, 4/6, 5/6 of Vref
 const int FIVE_LEVELS[5] = {171, 341, 512, 682, 853};
-
 
 #endif // CONTROLLER
