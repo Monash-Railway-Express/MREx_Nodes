@@ -69,7 +69,8 @@ uint8_t od_autostop_detection = 0;
 // Global Variables
 // =============================================================================
 
-
+bool    entered_auto_stop = false;
+int32_t pulse_start       = 0;
 
 // Cumulative pulse count for distance tracking — updated each loop before counter clear
 int32_t total_pulse_accum = 0;
@@ -279,12 +280,34 @@ void OperationalMode() {
 
 
     switch (od_challenge_mode) {
-        case CHALLENGE_THROTTLE:        ThrottleControl(speed_kmh);                         break;
-        case CHALLENGE_SPEED_CONTROL:   SpeedControl(speed_kmh);                            break;
-        case CHALLENGE_AUTO_STOP:       AutoStopChallenge(speed_kmh, total_pulse_accum);    break;
-        case CHALLENGE_ENERGY_RECOVERY: EnergyRecoveryChallenge(speed_kmh);                 break;
-        case CHALLENGE_TRACTION:        TractionChallenge(speed_kmh);                       break;
-        default:                        ThrottleControl(speed_kmh);                         break;
+        case CHALLENGE_THROTTLE:        
+            entered_auto_stop = false;
+            ThrottleControl(speed_kmh);   
+            break;
+
+        case CHALLENGE_SPEED_CONTROL:   
+            entered_auto_stop = false;
+            SpeedControl(speed_kmh);                            
+            break;
+
+        case CHALLENGE_AUTO_STOP:       
+            AutoStopChallenge(speed_kmh, total_pulse_accum);    
+            break;
+
+        case CHALLENGE_ENERGY_RECOVERY: 
+            entered_auto_stop = false;
+            EnergyRecoveryChallenge(speed_kmh);                 
+            break;
+
+        case CHALLENGE_TRACTION:        
+            entered_auto_stop = false;
+            TractionChallenge(speed_kmh);                       
+            break;
+
+        default:                        
+            entered_auto_stop = false;
+            ThrottleControl(speed_kmh);                         
+            break;
     }
 
     prev_challenge_mode = od_challenge_mode;
@@ -308,6 +331,10 @@ void OnChallengeModeExit(uint8_t old_mode) {
     if (old_mode == CHALLENGE_AUTO_STOP) {
         SetServiceBrake(false);   // release
         new_autostop_instance = true;
+    }
+    if (old_mode == CHALLENGE_ENERGY_RECOVERY) {
+        digitalWrite(ISOLATING_RELAY, LOW);
+        SetServiceBrake(false);   // release
     }
 }
 
@@ -406,7 +433,12 @@ void SpeedControl(float speed_kmh) {
         float control = (error * kp) + integrator;
         if (control < 0.0f)    control = 0.0f;
         // if (control > DAC_MAX) control = (float)DAC_MAX;
-        if (control > (float)DAC_MAX) control = (float)DAC_MAX;
+        
+        //multiplying control by 1024;
+        //I think PI params were caculated for 0 to 1 output signal not 0 to 1024
+        //just multiplying by 100
+        control = control * 100;
+        if (control > DAC_MAX) control = (float)DAC_MAX;
 
         motor_dac = (uint16_t)control;
         brake_dac = 0;
@@ -438,8 +470,7 @@ void SpeedControl(float speed_kmh) {
  * @param pulse_accum Total accumulated pulse count from OperationalMode().
  */
 void AutoStopChallenge(float speed_kmh, int32_t pulse_accum) {
-    static bool    entered_auto_stop = false;
-    static int32_t pulse_start       = 0;
+
 
 
     uint16_t motor_dac = 0;
