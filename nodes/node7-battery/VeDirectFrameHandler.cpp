@@ -207,24 +207,3 @@ void VeDirectFrameHandler::frameEndEvent(bool valid) {
   frameIndex = 0;    // reset frame
 }
 
-/*int findRecoveredEnergy(){
-if (myparser.isDataAvailable(){ // if there is data available in the buffer. Now "new" data should be available every second.
-  for (int i = 0; i < myparser.veEnd; ++i) { // go through the buffer 
-  if (strcmp(myparser.veData[i].veName, "P") == 0){ // extract power
-  power = atoi(myparser.veData[i].veValue); 
-  if(power < 0){
-  for (int i = 0; i < regen_brake_duration ; ++i){
-  latest_power_value = -power; // Value in watts W. Just take the absolute value.
-  slice = ((lastest_power_value + prev_power_value)/2)*1 // the shunt sends a new block every second so the time between new power samples is 1 s.
-  recovered_energy += slice; // keep accumulating
-  prev_power_value = latest_power_value;
-  if (power == 0){
-  time_regen_brake_end = millis(); // if power is 0, that is when regen ends
-  }
-  regen_brake_duration = time_regen_brake_end - time_regen_brake_start;
-} 
-}
-}
-return recovered_energy;
-}
-*/
