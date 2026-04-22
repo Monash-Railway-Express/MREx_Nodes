@@ -44,7 +44,7 @@ IPAddress GATEWAY(10, 0, 0, 1);
 IPAddress SUBNET(255, 255, 255, 0);
 const char* FILEPATH = "/files";
 AsyncWebServer server(80);
-AsyncWebSocket ws("/ws");
+AsyncEventSource events("/events");
 
 // RTC
 DFRobot_DS3231M rtc;
@@ -159,18 +159,7 @@ void setup() {
   indexHtmlC = indexHtml.c_str();
   
   //Initialize CANMREX protocol
-  initCANMREX(TX_GPIO_NUM, RX_GPIO_NUM, nodeID); // this or below
-
-  // // CAN init
-  // twai_general_config_t g_config = TWAI_GENERAL_CONFIG_DEFAULT(GPIO_NUM_5, GPIO_NUM_4, TWAI_MODE_NORMAL);
-  // twai_timing_config_t t_config = TWAI_TIMING_CONFIG_500KBITS();
-  // twai_filter_config_t f_config = TWAI_FILTER_CONFIG_ACCEPT_ALL();
-
-  // if (twai_driver_install(&g_config, &t_config, &f_config) != ESP_OK ||
-  //     twai_start() != ESP_OK) {
-  //   Serial.println("CAN init failed");
-  //   while (1);
-  // }
+  initCANMREX(TX_GPIO_NUM, RX_GPIO_NUM, nodeID); // this or manual, not both
   
   Serial.println("CAN logging started");
   
@@ -257,20 +246,8 @@ void setup() {
     request->send(202, "application/json", response);
   });
 
-  ws.onEvent([](AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type,
-                void *arg, uint8_t *data, size_t len) {
-    if (type == WS_EVT_CONNECT) {
-      Serial.printf("Client connected: %u\n", client->id());
-    } else if (type == WS_EVT_DISCONNECT) {
-      Serial.printf("Client disconnected: %u\n", client->id());
-    } else if (type == WS_EVT_DATA) {
-      Serial.printf("Received data from client %u\n", client->id());
-      data[len] = 0;
-      Serial.println((char *) data);
-    }
-  });
-
-  server.addHandler(&ws);
+  server.addHandler(&events);
+  DefaultHeaders::Instance().addHeader("Access-Control-Allow-Origin", "*");
   server.begin();
   
   Serial.println("Webserver started.");
@@ -280,9 +257,9 @@ void setup() {
   Serial.println(PASSWORD);
   Serial.print("HTTP: http://");
   Serial.println(URL);
-  Serial.print("WebSocket: ws://");
+  Serial.print("SSE: http://");
   Serial.print(URL);
-  Serial.println("/ws");
+  Serial.println("/events");
   Serial.print("MUNT: http://");
   Serial.print(URL);
   Serial.println("/munt");
@@ -322,29 +299,6 @@ void loop() {
   if (millis() - lastFlush > 500 && bufferIndex > 0) {
     flushBuffer();
   }
-
-//   // Simulate a CAN frame every second
-//   static unsigned long lastSend = 0;
-//   if (millis() - lastSend > 1000) {
-//     lastSend = millis();
-
-//     // Create JSON message
-//     DynamicJsonDocument doc(128);
-//     doc["ts"] = millis();
-//     doc["id"] = "0x123";
-//     JsonArray data = doc.createNestedArray("data");
-//     data.add(0x01);
-//     data.add(0x02);
-//     data.add(0x03);
-//     data.add(0x04);
-
-//     String json;
-//     serializeJson(doc, json);
-
-//     // Send to all connected clients
-//     ws.textAll(json);
-//     Serial.println("Sent: " + json);
-//   }
 }
 
 void flushBuffer() {
@@ -368,7 +322,7 @@ void flushBuffer() {
       }
     }
     logFile.println(row);
-    ws.textAll(row);
+    events.send(row.c_str());
   }
   logFile.flush();
   bufferIndex = 0;
