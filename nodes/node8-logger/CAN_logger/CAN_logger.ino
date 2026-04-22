@@ -3,10 +3,10 @@
  *
  * File:            CAN_logger.ino
  * Organisation:    MREX
- * Author:          Chiara Gillam
+ * Author:          Chiara Gillam, Nhan Nguyen
  * Date Created:    12/10/2025
- * Last Modified:   12/10/2025
- * Version:         1.10.1
+ * Last Modified:   22/04/2026
+ * Version:         2.0.0
  *
  */
 
