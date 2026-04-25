@@ -11,17 +11,17 @@ Example code:
 #include <AsyncTCP.h> // Async TCP by ESP32Async
 #include "DualSerial.h"
 
-wifi_mode_t mode = WIFI_STA;
-const char *ssid = "MREx CAN Logger";
-const char *passphrase = "YesWeCAN";
-IPAddress localIP(10, 0, 0, NODE_ID);
-IPAddress gateway(10, 0, 0, 8); // logger assigned as gateway
-IPAddress subnet(255, 255, 255, 0);
+const wifi_mode_t WIFI_MODE = WIFI_STA;
+const char *SSID = "MREx CAN Logger";
+const char *PASSPHRASE = "YesWeCAN";
+const IPAddress LOCAL_IP(10, 0, 0, NODE_ID);
+const IPAddress GATEWAY(10, 0, 0, 8); // logger assigned as gateway
+const IPAddress SUBNET(255, 255, 255, 0);
 
 AsyncWebServer server(80);
 
 void setup() {
-	DualSerial.begin(115200, mode, ssid, passphrase, localIP, gateway, subnet, &server);
+	DualSerial.begin(115200, WIFI_MODE, SSID, PASSPHRASE, LOCAL_IP, GATEWAY, SUBNET, &server);
 	server.begin();
 }
 ```
