@@ -10,16 +10,24 @@ const String wshtml = R"wshtml(
                 log.replaceChildren(rawLog);
 
                 if (window.EventSource) {
-                    let conn = new EventSource("http://10.0.0.1/events");
+                    let conn;
 
-                    conn.onmessage = function (evt) {
-                        const messages = evt.data.split('\n');
-                        for (let i = 0; i < messages.length; i++) {
-                            const item = document.createElement("pre");
-                            item.innerText = messages[i];
-                            rawLog.appendChild(item);
+                    document.getElementById("connect").onclick = function (evt) {
+                        if (conn) {
+                            conn.close();
                         }
-                    };
+                        
+                        conn = new EventSource(document.getElementById("sseURL").value);
+
+                        conn.onmessage = function (evt) {
+                            const messages = evt.data.split('\n');
+                            for (let i = 0; i < messages.length; i++) {
+                                const item = document.createElement("pre");
+                                item.innerText = messages[i];
+                                rawLog.appendChild(item);
+                            }
+                        };
+                    }
                 } else {
                     const item = document.createElement("pre");
                     item.innerHTML = "<b>Your browser does not support Server-Sent Events.</b>";
@@ -28,7 +36,10 @@ const String wshtml = R"wshtml(
             };
         </script>
     </head>
-    <body id="log">
+    <body>
+        <input type="button" id="connect" value="Connect">
+        <input type="text" id="sseURL" value="http://10.0.0.8/serial">
+        <div id="log"></div>
     </body>
 </html>
 )wshtml";

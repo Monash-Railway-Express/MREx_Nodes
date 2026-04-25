@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Dual serial module.
 
+### Changed
+
+- Allow user to set SSE URL on feed page.
+
 ## [2.0.0] - 2026-04-22
 
 ### Changed
