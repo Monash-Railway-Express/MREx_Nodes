@@ -26,7 +26,7 @@ void setup() {
 }
 ```
 
-`mode` should be `WIFI_STA`, except for one designated node (the gateway node) which will use `WIFI_AP`. The `gateway` variable should be consistent across all nodes and match the `localIP` of the gateway node.
+`mode` should be `WIFI_STA`, except for gateway nodes (WiFi access points) which will use `WIFI_AP`. The `gateway` variable should match the `localIP` of a gateway node.
 
 Anywhere you want to send to remote serial in addition to wired serial, replace `Serial` with `DualSerial`. For example:
 ```c
