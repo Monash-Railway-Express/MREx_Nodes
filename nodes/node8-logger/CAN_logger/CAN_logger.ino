@@ -40,8 +40,8 @@ const uint8_t nodeID = 8;  // Change this to set your device's node ID
 const wifi_mode_t WIFI_MODE = WIFI_AP;
 const char *SSID = "MREx CAN Logger";
 const char *PASSPHRASE = "YesWeCAN";
-const IPAddress LOCAL_IP(10, 0, 0, 8);
-const IPAddress GATEWAY(10, 0, 0, 8); // logger assigned as gateway
+const IPAddress LOCAL_IP(10, 0, 0, nodeID);
+const IPAddress GATEWAY(10, 0, 0, nodeID); // logger assigned as gateway
 const IPAddress SUBNET(255, 255, 255, 0);
 
 const char* URL = "10.0.0.8";
