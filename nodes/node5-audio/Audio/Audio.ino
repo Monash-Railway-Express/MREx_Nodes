@@ -127,7 +127,7 @@ void setup() {
 
 
   // --- DFPlayer Setup ---
-  player_serial.begin(9600, SERIAL_8N1, /*rx =*/17, /*tx =*/16);
+  player_serial.begin(9600, SERIAL_8N1, /*rx =*/18, /*tx =*/17);
   Serial.println();
   Serial.println(F("Initializing DFPlayer ... (May take 3~5 seconds)"));
   
@@ -135,7 +135,7 @@ void setup() {
   * -Figure out why DFPlayer -> ESP reply doesn't come through (most likely PCB issue with 1k ohm resistor absent)
   * -Reset "isACK = true" when issue resolved (allows DFPlayer to return error and status messages like SD Card insert/remove/unable to play etc.)
   */
-  if (!myDFPlayer.begin(player_serial, /*isACK = */false, /*doReset = */true)) {  //Use serial to communicate with mp3.
+  if (!myDFPlayer.begin(player_serial, /*isACK = */true, /*doReset = */true)) {  //Use serial to communicate with mp3.
     Serial.println(F("Unable to begin:"));
     Serial.println(F("1.Please recheck the connection!"));
     Serial.println(F("2.Please insert the SD card!"));
@@ -146,7 +146,7 @@ void setup() {
   }
   delay(500);
   Serial.println(F("Audio system online."));
-  myDFPlayer.volume(30);  //Set volume value. From 0 to 30
+  myDFPlayer.volume(20);  //Set volume value. From 0 to 30
   delay(500);
   myDFPlayer.play(STARTUP_FB_SOUND);
   // --- Set pin modes ---
