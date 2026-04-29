@@ -17,36 +17,25 @@
 
 
 
+const uint8_t NODE_ID = 8;  // Change this to set your device's node ID
+
 #include <SPI.h>
 #include <SD.h>
 #include <Wire.h>
 #include "driver/twai.h"
 #include "DFRobot_DS3231M.h" // https://github.com/DFRobot/DFRobot_DS3231M
-#include <WiFi.h>
-#include <ESPAsyncWebServer.h> // ESP Async WebServer by ESP32Async
-#include <AsyncTCP.h> // Async TCP by ESP32Async
-#include "DualSerial.h"
 #include "FS.h"
 #include <ArduinoJson.h> // ArduinoJson by Benoit Blanchon
-#include "wshtml.h"
 #include <CAN_MREx.h>
-
-const uint8_t nodeID = 8;  // Change this to set your device's node ID
+#include "../../../shared/DualSerial/DualSerial.h"
+#include "wshtml.h"
 
 // --- Pin Definitions ---
 #define TX_GPIO_NUM GPIO_NUM_5 // Set GPIO pin for CAN Transmit
 #define RX_GPIO_NUM GPIO_NUM_4 // Set GPIO pins for CAN Receive
 
-const wifi_mode_t WIFI_MODE = WIFI_AP;
-const char *SSID = "MREx CAN Logger";
-const char *PASSPHRASE = "YesWeCAN";
-const IPAddress LOCAL_IP(10, 0, 0, nodeID);
-const IPAddress GATEWAY(10, 0, 0, nodeID); // logger assigned as gateway
-const IPAddress SUBNET(255, 255, 255, 0);
-
 const char* URL = "10.0.0.8";
 const char* FILEPATH = "/files";
-AsyncWebServer server(80);
 AsyncEventSource events("/events");
 
 // RTC
@@ -111,8 +100,7 @@ int getParameterIdx(String key) {
 }
 
 void setup() {
-  DualSerial.begin(115200, WIFI_MODE, SSID, PASSPHRASE, LOCAL_IP, GATEWAY, SUBNET, &server);
-  server.begin();
+  DualSerial.begin(115200);
   Wire.begin();
 
   // RTC init
@@ -163,7 +151,7 @@ void setup() {
   indexHtmlC = indexHtml.c_str();
   
   //Initialize CANMREX protocol
-  initCANMREX(TX_GPIO_NUM, RX_GPIO_NUM, nodeID); // this or manual, not both
+  initCANMREX(TX_GPIO_NUM, RX_GPIO_NUM, NODE_ID); // this or manual, not both
   
   DualSerial.println("CAN logging started");
 
@@ -202,10 +190,10 @@ void setup() {
     for (int i = 0; i < num_parameters; i++) {
       struct Parameter parameter = parameters[i];
       if (parameter.sign) {
-        int32_t value = executeSDORead(nodeID, parameter.targetNode, parameter.index, parameter.subindex);
+        int32_t value = executeSDORead(NODE_ID, parameter.targetNode, parameter.index, parameter.subindex);
         muntDoc[parameter.key] = value;
       } else {
-        uint32_t value = executeSDORead(nodeID, parameter.targetNode, parameter.index, parameter.subindex);
+        uint32_t value = executeSDORead(NODE_ID, parameter.targetNode, parameter.index, parameter.subindex);
         muntDoc[parameter.key] = value;
       }
     }
@@ -230,10 +218,10 @@ void setup() {
             responseArray.add(key);
             if (parameter.sign) {
               int32_t requestValue = pair.value(); // implicit cast
-              executeSDOWrite(nodeID, parameter.targetNode, parameter.index, parameter.subindex, parameter.size, &requestValue);
+              executeSDOWrite(NODE_ID, parameter.targetNode, parameter.index, parameter.subindex, parameter.size, &requestValue);
             } else {
               uint32_t requestValue = pair.value(); // implicit cast
-              executeSDOWrite(nodeID, parameter.targetNode, parameter.index, parameter.subindex, parameter.size, &requestValue);
+              executeSDOWrite(NODE_ID, parameter.targetNode, parameter.index, parameter.subindex, parameter.size, &requestValue);
             }
           }
         }

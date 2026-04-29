@@ -26,10 +26,7 @@
 #include <Preferences.h>
 #include "motor_PCB.h"
 #include "driver/pcnt.h"
-#include <WiFi.h>
-#include <ESPAsyncWebServer.h> // ESP Async WebServer by ESP32Async
-#include <AsyncTCP.h> // Async TCP by ESP32Async
-#include "DualSerial.h"
+#include "../../../shared/DualSerial/DualSerial.h"
 
 
 
@@ -98,15 +95,6 @@ struct FloatPair floatPairs[numFloatPairs];
 
 bool new_autostop_instance = true;
 
-const wifi_mode_t WIFI_MODE = WIFI_STA;
-const char *SSID = "MREx CAN Logger";
-const char *PASSPHRASE = "YesWeCAN";
-const IPAddress LOCAL_IP(10, 0, 0, NODE_ID);
-const IPAddress GATEWAY(10, 0, 0, LOGGER_ID); // logger assigned as gateway
-const IPAddress SUBNET(255, 255, 255, 0);
-
-AsyncWebServer server(80);
-
 
 
 // =============================================================================
@@ -116,8 +104,7 @@ AsyncWebServer server(80);
 
 
 void setup() {
-	DualSerial.begin(115200, WIFI_MODE, SSID, PASSPHRASE, LOCAL_IP, GATEWAY, SUBNET, &server);
-	server.begin();
+	DualSerial.begin(115200);
     delay(1000);
     DualSerial.println("DualSerial Coms started at 115200 baud");
 
