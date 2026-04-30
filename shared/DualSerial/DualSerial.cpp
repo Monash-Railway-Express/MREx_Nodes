@@ -1,4 +1,6 @@
-void DualSerialClass::begin(unsigned long baud, wifi_mode_t mode, const char *ssid, const char *passphrase, IPAddress localIP, IPAddress gateway, IPAddress subnet) {
+#include "DualSerial.h"
+
+void DualSerialClass::begin(unsigned long baud, wifi_mode_t mode, char *ssid, char *passphrase, IPAddress localIP, IPAddress gateway, IPAddress subnet) {
   WIFI_MODE = mode;
   SSID = ssid;
   PASSPHRASE = passphrase;
@@ -27,13 +29,18 @@ void DualSerialClass::begin(unsigned long baud, wifi_mode_t mode, const char *ss
 }
 
 void DualSerialClass::begin(unsigned long baud) {
+  wifi_mode_t mode;
   if (NODE_ID == loggerID) {
-    WIFI_MODE = WIFI_AP;
+    mode = WIFI_AP;
   } else {
-    WIFI_MODE = WIFI_STA;
+    mode = WIFI_STA;
   }
 
-  begin(115200, WIFI_MODE, SSID, PASSPHRASE, LOCAL_IP, GATEWAY, SUBNET);
+  IPAddress localIP(10, 0, 0, NODE_ID);
+  IPAddress gateway(10, 0, 0, loggerID); // logger assigned as gateway
+  IPAddress subnet(255, 255, 255, 0);
+
+  begin(115200, mode, "MREx CAN Logger", "YesWeCAN", localIP, gateway, subnet);
 }
 
 size_t DualSerialClass::write(uint8_t c) {

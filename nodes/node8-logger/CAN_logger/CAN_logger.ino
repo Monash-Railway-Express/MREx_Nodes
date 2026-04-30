@@ -27,7 +27,7 @@ const uint8_t NODE_ID = 8;  // Change this to set your device's node ID
 #include "FS.h"
 #include <ArduinoJson.h> // ArduinoJson by Benoit Blanchon
 #include <CAN_MREx.h>
-#include "../../../shared/DualSerial/DualSerial.h"
+#include "../../../shared/DualSerial/DualSerial.cpp"
 #include "wshtml.h"
 
 // --- Pin Definitions ---
@@ -237,9 +237,9 @@ void setup() {
   
   DualSerial.println("Webserver started.");
   DualSerial.print("SSID: ");
-  DualSerial.println(SSID);
+  DualSerial.println(DualSerial.SSID);
   DualSerial.print("Password: ");
-  DualSerial.println(PASSPHRASE);
+  DualSerial.println(DualSerial.PASSPHRASE);
   DualSerial.print("HTTP: http://");
   DualSerial.println(URL);
   DualSerial.print("SSE: http://");

@@ -10,7 +10,8 @@ const uint8_t NODE_ID = 99;
 Anywhere you want to send to remote serial in addition to wired serial, replace `Serial` with `DualSerial`. For example:
 ```c
 DualSerial.begin(115200);
-DualSerial.println("MREx");
+DualSerial.print(DualSerial.LOCAL_IP);
+DualSerial.print("/events");
 ```
 
 ## Connecting to remote serial

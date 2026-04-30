@@ -31,16 +31,16 @@ AsyncEventSource serial("/serial");
 
 class DualSerialClass : public Print {
   public:
-    void begin(unsigned long baud, wifi_mode_t mode, const char *ssid, const char *passphrase, IPAddress local_ip, IPAddress gateway, IPAddress subnet);
+    void begin(unsigned long baud, wifi_mode_t mode, char *ssid, char *passphrase, IPAddress local_ip, IPAddress gateway, IPAddress subnet);
     void begin(unsigned long baud);
     size_t write(uint8_t) override;
     size_t write(const uint8_t *buffer, size_t size) override;
-    wifi_mode_t WIFI_MODE = WIFI_STA;
-    const char *SSID = "MREx CAN Logger";
-    const char *PASSPHRASE = "YesWeCAN";
-    const IPAddress LOCAL_IP(10, 0, 0, NODE_ID);
-    const IPAddress GATEWAY(10, 0, 0, loggerID); // logger assigned as gateway
-    const IPAddress SUBNET(255, 255, 255, 0);
+    wifi_mode_t WIFI_MODE;
+    char *SSID;
+    char *PASSPHRASE;
+    IPAddress LOCAL_IP;
+    IPAddress GATEWAY;
+    IPAddress SUBNET;
 };
 
 #endif // DUALSERIAL_H

@@ -26,7 +26,7 @@
 #include <Preferences.h>
 #include "motor_PCB.h"
 #include "driver/pcnt.h"
-#include "../../../shared/DualSerial/DualSerial.h"
+#include "../../../shared/DualSerial/DualSerial.cpp"
 
 
 
