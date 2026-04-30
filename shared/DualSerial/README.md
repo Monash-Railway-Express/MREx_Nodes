@@ -9,7 +9,7 @@ const uint8_t NODE_ID = 99;
 
 `..` represents a parent directory, up one level in the directory tree.
 
-Anywhere you want to send to remote serial in addition to wired serial, replace `Serial` with `DualSerial`. For example:
+Anywhere you want to send to remote serial in addition to wired serial, replace `Serial` with `DualSerial`.
 ```c
 DualSerial.begin(115200);
 DualSerial.print(DualSerial.LOCAL_IP);
