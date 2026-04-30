@@ -1,4 +1,11 @@
 void DualSerialClass::begin(unsigned long baud, wifi_mode_t mode, const char *ssid, const char *passphrase, IPAddress localIP, IPAddress gateway, IPAddress subnet) {
+  WIFI_MODE = mode;
+  SSID = ssid;
+  PASSPHRASE = passphrase;
+  LOCAL_IP = localIP;
+  GATEWAY = gateway;
+  SUBNET = subnet;
+
   Serial.begin(baud);
   WiFi.mode(mode);
 
@@ -21,12 +28,12 @@ void DualSerialClass::begin(unsigned long baud, wifi_mode_t mode, const char *ss
 
 void DualSerialClass::begin(unsigned long baud) {
   if (NODE_ID == loggerID) {
-    DEFAULT_WIFI_MODE = WIFI_AP;
+    WIFI_MODE = WIFI_AP;
   } else {
-    DEFAULT_WIFI_MODE = WIFI_STA;
+    WIFI_MODE = WIFI_STA;
   }
 
-  begin(115200, DEFAULT_WIFI_MODE, DEFAULT_SSID, DEFAULT_PASSPHRASE, DEFAULT_LOCAL_IP, DEFAULT_GATEWAY, DEFAULT_SUBNET);
+  begin(115200, WIFI_MODE, SSID, PASSPHRASE, LOCAL_IP, GATEWAY, SUBNET);
 }
 
 size_t DualSerialClass::write(uint8_t c) {

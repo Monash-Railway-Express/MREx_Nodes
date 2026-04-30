@@ -3,6 +3,7 @@
 ## Usage
 
 ```c
+const uint8_t NODE_ID = 99;
 #include "../../../shared/DualSerial/DualSerial.h"
 ```
 

@@ -1,13 +1,13 @@
 /**
- * @file DualSerial.cpp
+ * @file DualSerial.h
  * @brief Print to both Serial and remote WiFi connection.
  *
  * @details
- * Provides DualSerial class inheriting from Arduino's Print. Messages printed using DualSerial are pushed to both Serial and as Server-Sent Events.
+ * Provides DualSerial class inheriting from Arduino's Print. Drop-in replacement for Serial. Messages printed using DualSerial are pushed to both Serial Monitor and as Server-Sent Events.
  *
  * @author Nhan Nguyen
  *
- * @date 24/04/2026
+ * @date 30/04/2026
  *
  * @version 1.0.0
  *
@@ -25,12 +25,6 @@
 #define DUALSERIAL_H
 
 const uint8_t loggerID = 8;
-wifi_mode_t DEFAULT_WIFI_MODE;
-const char *DEFAULT_SSID = "MREx CAN Logger";
-const char *DEFAULT_PASSPHRASE = "YesWeCAN";
-const IPAddress DEFAULT_LOCAL_IP(10, 0, 0, NODE_ID);
-const IPAddress DEFAULT_GATEWAY(10, 0, 0, loggerID); // logger assigned as gateway
-const IPAddress DEFAULT_SUBNET(255, 255, 255, 0);
 
 AsyncWebServer server(80);
 AsyncEventSource serial("/serial");
@@ -41,6 +35,12 @@ class DualSerialClass : public Print {
     void begin(unsigned long baud);
     size_t write(uint8_t) override;
     size_t write(const uint8_t *buffer, size_t size) override;
+    wifi_mode_t WIFI_MODE = WIFI_STA;
+    const char *SSID = "MREx CAN Logger";
+    const char *PASSPHRASE = "YesWeCAN";
+    const IPAddress LOCAL_IP(10, 0, 0, NODE_ID);
+    const IPAddress GATEWAY(10, 0, 0, loggerID); // logger assigned as gateway
+    const IPAddress SUBNET(255, 255, 255, 0);
 };
 
 #endif // DUALSERIAL_H
