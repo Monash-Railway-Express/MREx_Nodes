@@ -1,5 +1,32 @@
+/**
+ * @file DualSerial.cpp
+ * @brief Print to both Serial and remote WiFi connection.
+ *
+ * @details
+ * Implements DualSerial class. Drop-in replacement for Serial. Messages printed using DualSerial are pushed to both Serial Monitor and as Server-Sent Events.
+ *
+ * @author Nhan Nguyen
+ *
+ * @date 30/04/2026
+ *
+ * @version 1.0.0
+ *
+ * @organisation MREX
+ */
+
 #include "DualSerial.h"
 
+/**
+ * @brief Configure and set up serial connections. Includes Serial.begin() and web server setup.
+ *
+ * @param baud        Baud rate.
+ * @param mode        WiFi connection mode, either WIFI_AP (access point) or WIFI_STA (station).
+ * @param ssid        WiFi network SSID.
+ * @param passphrase  WiFi network passphrase.
+ * @param localIP     IP address of the node.
+ * @param gateway     IP address of the gateway, normally the WiFi access point.
+ * @param subnet      IP subnet mask.
+ */
 void DualSerialClass::begin(unsigned long baud, wifi_mode_t mode, char *ssid, char *passphrase, IPAddress localIP, IPAddress gateway, IPAddress subnet) {
   WIFI_MODE = mode;
   SSID = ssid;
@@ -40,7 +67,7 @@ void DualSerialClass::begin(unsigned long baud) {
   IPAddress gateway(10, 0, 0, loggerID); // logger assigned as gateway
   IPAddress subnet(255, 255, 255, 0);
 
-  begin(115200, mode, "MREx CAN Logger", "YesWeCAN", localIP, gateway, subnet);
+  begin(baud, mode, "MREx CAN Logger", "YesWeCAN", localIP, gateway, subnet);
 }
 
 size_t DualSerialClass::write(uint8_t c) {

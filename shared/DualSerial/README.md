@@ -4,14 +4,16 @@
 
 ```c
 const uint8_t NODE_ID = 99;
-#include "../../../shared/DualSerial/DualSerial.h"
+#include "../../../shared/DualSerial/DualSerial.cpp"
 ```
+
+`..` represents a parent directory, up one level in the directory tree.
 
 Anywhere you want to send to remote serial in addition to wired serial, replace `Serial` with `DualSerial`. For example:
 ```c
 DualSerial.begin(115200);
 DualSerial.print(DualSerial.LOCAL_IP);
-DualSerial.print("/events");
+DualSerial.println("/serial");
 ```
 
 ## Connecting to remote serial
