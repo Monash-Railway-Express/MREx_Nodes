@@ -95,16 +95,13 @@ void setup() {
       CAN_Task,
       "CAN Task",
       6144,
-      &nodeID,
+      &NODE_ID,
       3,
       NULL,
       0
   );
 
-  // User code Setup Begin: -------------------------------------------------
-
   // --- Register OD entries ---
- 
   registerODEntry(0x2000, 0x00, 2, sizeof(current_can), &current_can); 
   registerODEntry(0x2000, 0x01, 2, sizeof(voltage), &voltage); 
   registerODEntry(0x2000, 0x02, 2, sizeof(state_of_charge), &state_of_charge); 
@@ -115,33 +112,33 @@ void setup() {
 
   // --- Configure TPDOs and RPDOs ---
 
-  configureTPDO(0, 0x180 + nodeID, 255, 100, 1000);  // TPDO 1, COB-ID, transType, inhibit, event
-  configureTPDO(1, 0x280 + nodeID, 255, 100, 1000);  // TPDO 2, COB-ID, transType, inhibit, event
-  configureRPDO(0, 0x180 + 3, 255, 0); // RPDO 1, COB-ID, transType, inhibit. This node receives from node 3 which is driver controls.
+  configureTPDO(0, 0x180 + NODE_ID, 255, 100, 1000);  // TPDO 1, COB-ID, transType, inhibit, timer
+  configureTPDO(1, 0x280 + NODE_ID, 255, 100, 1000);  // TPDO 2, COB-ID, transType, inhibit, timer
+  // configureRPDO(0, 0x180 + DRIVER_ID, 255, 0); // RPDO 1, COB-ID, transType, inhibit. This node receives from node 3 which is driver controls.
 
   // --- TPDO and RPDO entries ---
   
   PdoMapEntry tpdoEntries1[] = {
-      {0x2000, 0x00, 32},    
-      {0x2000, 0x01, 16},   
-      {0x2000, 0x02, 16},      
+      {0x2000, 0x00, 32},    // current
+      {0x2000, 0x01, 16},   // voltage
+      {0x2000, 0x02, 16},   // state of charge   
     };
 
   PdoMapEntry tpdoEntries2[] = {   
-      {0x2000, 0x03, 32}, 
-      {0x2000, 0x04, 32},     
+      {0x2000, 0x03, 32},   // power
+      {0x2000, 0x04, 32},   // recovered energy
     };
     
-  PdoMapEntry rpdoEntries[] = {
-    {0x606A, 0x00, 16}, 
-    {0x3012, 0x00, 16}   
-  };
+  // PdoMapEntry rpdoEntries[] = {
+  //   {0x606A, 0x00, 16},     // motor command
+  //   {0x3012, 0x00, 16}      // regen
+  // };
 
   // --- Map TPDOs and RPDOs ---
 
   mapTPDO(0, tpdoEntries1, 3); //TPDO 1, entries, num entries
   mapTPDO(1, tpdoEntries2, 2); //TPDO 2, entries, num entries
-  mapRPDO(0, rpdoEntries, 2); // RPDO 1, entries, num entries
+  // mapRPDO(0, rpdoEntries, 2); // RPDO 1, entries, num entries
 
   // User code Setup end ------------------------------------------------------
 }
