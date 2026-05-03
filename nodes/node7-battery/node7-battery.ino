@@ -120,7 +120,7 @@ void setup() {
 
   configureTPDO(0, 0x180 + NODE_ID, 255, 100, 1000);  // TPDO 1, COB-ID, transType, inhibit, timer
   configureTPDO(1, 0x280 + NODE_ID, 255, 100, 1000);  // TPDO 2, COB-ID, transType, inhibit, timer
-  // configureRPDO(0, 0x180 + DRIVER_ID, 255, 0); // RPDO 1, COB-ID, transType, inhibit. This node receives from node 3 which is driver controls.
+  configureRPDO(0, 0x180 + DRIVER_ID, 255, 0); // RPDO 1, COB-ID, transType, inhibit. This node receives from node 3 which is driver controls.
 
   // --- TPDO and RPDO entries ---
   
@@ -135,16 +135,16 @@ void setup() {
       {0x2000, 0x04, 32},   // recovered energy
     };
     
-  // PdoMapEntry rpdoEntries[] = {
-  //   {0x606A, 0x00, 16},     // motor command
-  //   {0x3012, 0x00, 16}      // regen
-  // };
+  PdoMapEntry rpdoEntries[] = {
+    {0x606A, 0x00, 16},     // motor command
+    {0x3012, 0x00, 16}      // regen
+  };
 
   // --- Map TPDOs and RPDOs ---
 
   mapTPDO(0, tpdoEntries1, 3); //TPDO 1, entries, num entries
   mapTPDO(1, tpdoEntries2, 2); //TPDO 2, entries, num entries
-  // mapRPDO(0, rpdoEntries, 2); // RPDO 1, entries, num entries
+  mapRPDO(0, rpdoEntries, 2); // RPDO 1, entries, num entries
 
 }
 
@@ -273,7 +273,7 @@ void updateODentries(){
 
 
 void loop(){
-  
+
   ReadVEData();  // read data from shunt and put into buffer
   EverySecond(); // Debug: print the data contained in the buffer every second.
 
