@@ -19,9 +19,8 @@
 #include "VeDirectFrameHandler.h" // ve direct parser
 
 // =============================================================================
-// Constants
+// Constants and other
 // =============================================================================
-
 
 //Defining Node ID's
 #define MOTOR_ID 0x01
@@ -40,6 +39,13 @@ uint8_t NODE_ID = 0x07;
 // --- Pin Definitions ---
 #define TX_GPIO_NUM GPIO_NUM_5 // GPIO pin for CAN Transmit
 #define RX_GPIO_NUM GPIO_NUM_4 // GPIO pins for CAN Receive
+
+// --- Operating Modes ---
+enum OperatingMode : uint8_t {
+    MODE_STOPPED        = 0x02,
+    MODE_PREOP          = 0x80,
+    MODE_OPERATIONAL    = 0x01
+};
 
 // =============================================================================
 // OD Variable Definitions
@@ -72,7 +78,7 @@ unsigned long currentMillis = 0;
 unsigned long last_data_received_time = 0;
 const unsigned long shunt_data_interval = 1500; // If 1.5s pass without receiving data from the shunt, then send error message
 
-VeDirectFrameHandler myparser;
+VeDirectFrameHandler veParser;
 
 HardwareSerial veSerial(2); // Use UART2 for shunt data
 
@@ -140,7 +146,6 @@ void setup() {
   mapTPDO(1, tpdoEntries2, 2); //TPDO 2, entries, num entries
   // mapRPDO(0, rpdoEntries, 2); // RPDO 1, entries, num entries
 
-  // User code Setup end ------------------------------------------------------
 }
 
 /**
@@ -150,7 +155,7 @@ void setup() {
 
 void ReadVEData() {
     while (veSerial.available()){
-        myparser.rxData(veSerial.read()); 
+        veParser.rxData(veSerial.read()); 
     }
     yield(); 
 }
@@ -176,10 +181,10 @@ void EverySecond() {
  * @return nothing
  */
 void PrintData() {
-    for ( int i = 0; i < myparser.veEnd; i++ ) {
-    Serial.print(myparser.veData[i].veName);
+    for ( int i = 0; i < veParser.veEnd; i++ ) {
+    Serial.print(veParser.veData[i].veName);
     Serial.print(" = ");
-    Serial.println(myparser.veData[i].veValue);    
+    Serial.println(veParser.veData[i].veValue);    
     }
 }
 
@@ -246,57 +251,95 @@ void findRecoveredEnergy() {
 
 void updateODentries(){
     // Iterate through all name-value pairs in the buffer. Find voltage, current, SOC, power in the buffer and assign the values to the variables in the object dictionary of the node.
-    for (int i = 0; i < myparser.veEnd; ++i) {
-       if (strcmp(myparser.veData[i].veName, "V") == 0){
-        voltage = atoi(myparser.veData[i].veValue);
+    for (int i = 0; i < veParser.veEnd; ++i) {
+       if (strcmp(veParser.veData[i].veName, "V") == 0){
+        voltage = atoi(veParser.veData[i].veValue);
        }
-       else if (strcmp(myparser.veData[i].veName, "I") == 0){
-        current = atoi(myparser.veData[i].veValue);
+       else if (strcmp(veParser.veData[i].veName, "I") == 0){
+        current = atoi(veParser.veData[i].veValue);
         current_can = current; 
        }
-       else if (strcmp(myparser.veData[i].veName, "SOC") == 0){
-        state_of_charge = atoi(myparser.veData[i].veValue); // needs to be divided by 10 to get it in percentage. 995/10 = 99.5%.
+       else if (strcmp(veParser.veData[i].veName, "SOC") == 0){
+        state_of_charge = atoi(veParser.veData[i].veValue); // needs to be divided by 10 to get it in percentage. 995/10 = 99.5%.
        }
-       else if (strcmp(myparser.veData[i].veName, "P") == 0){
-        power = atoi(myparser.veData[i].veValue);
+       else if (strcmp(veParser.veData[i].veName, "P") == 0){
+        power = atoi(veParser.veData[i].veValue);
         power_can = power; 
         findRecoveredEnergy(); 
        }
   }
-  myparser.clearData();
+  veParser.clearData();
 }
 
 
 void loop(){
-  //User Code begin loop() ----------------------------------------------------  
-  // --- Pre operational state (This is where you can do checks and make sure that everything is okay) ---
-  // In pre-op state, we check if the data is received from the shunt, parsed and stored in the buffer
-  if (nodeOperatingMode == 0x80){ 
-    ReadVEData(); // this function passes each incoming byte into rxData. rxData stores the name-value pairs in the buffer (array of structs - 1 struct is 1 name-value pair).
-    // EverySecond(); // Debug: print the data in the buffer every second.
-    if (myparser.isDataAvailable()) {
-      updateODentries();  
-      last_data_received_time = millis(); // if new data is received update the OD entries and record the time
-    } else {
-      // if new data is not received
-    currentMillis = millis();
-    if (currentMillis - last_data_received_time >= shunt_data_interval) { // if more than 1.5s pass and still no data in buffer then raise error because a new block should be received every sec.
-      sendEMCY(1,nodeID, 0x00000701); // Minor Emergency
-      Serial.println("No Data in the buffer!");
-      last_data_received_time = currentMillis;
+  
+  ReadVEData();  // read data from shunt and put into buffer
+  EverySecond(); // Debug: print the data contained in the buffer every second.
+
+  switch (nodeOperatingMode) {
+
+    // In stopped mode, do nothing
+    case MODE_STOPPED: break;
+
+    // In pre-op mode, we check if the data is received from the shunt, parsed and stored in the buffer 
+    case MODE_PREOP:
+      if (veParser.isDataAvailable()) {
+        updateODentries();  
+        last_data_received_time = millis(); // if new data is received update the OD entries and record the time
+      } else {
+        // if new data is not received
+        currentMillis = millis();
+        if (currentMillis - last_data_received_time >= shunt_data_interval) { // if more than 1.5s pass and still no data in buffer then raise error because a new block should be received every sec.
+          // sendEMCY(1,nodeID, 0x00000701); // Minor Emergency
+          Serial.println("No Data in the buffer!");
+          last_data_received_time = currentMillis;
+        }
       }
-    }
+      break;
+
+    // in operational mode, 
+    case MODE_OPERATIONAL:
+      if (nodeOperatingMode == 0x01){ 
+        if (veParser.isDataAvailable()) { // Update OD entries every s. A new block is received every second.
+          updateODentries();   
+        }
+      }
+      break;
+
+    default: break;
   }
 
-  // --- Operational state (Normal operating mode) ---
-  if (nodeOperatingMode == 0x01){ 
-    ReadVEData(); // this function passes each incoming byte into rxData. rxData stores the name-value pairs in the buffer (array of structs - 1 struct is 1 name-value pair).
-    // EverySecond();
-    if (myparser.isDataAvailable()) { // Update OD entries every s. A new block is received every second.
-        updateODentries();   
-      }
-    }
-  //User code end loop() --------------------------------------------------------
+  /**
+  Deprecated
+  */
+  // // --- Pre operational state (This is where you can do checks and make sure that everything is okay) ---
+  
+  // if (nodeOperatingMode == 0x80){ 
+  //   ReadVEData(); // this function passes each incoming byte into rxData. rxData stores the name-value pairs in the buffer (array of structs - 1 struct is 1 name-value pair).
+  //   // EverySecond(); // Debug: print the data in the buffer every second.
+  //   if (veParser.isDataAvailable()) {
+  //     updateODentries();  
+  //     last_data_received_time = millis(); // if new data is received update the OD entries and record the time
+  //   } else {
+  //     // if new data is not received
+  //   currentMillis = millis();
+  //   if (currentMillis - last_data_received_time >= shunt_data_interval) { // if more than 1.5s pass and still no data in buffer then raise error because a new block should be received every sec.
+  //     sendEMCY(1,nodeID, 0x00000701); // Minor Emergency
+  //     Serial.println("No Data in the buffer!");
+  //     last_data_received_time = currentMillis;
+  //     }
+  //   }
+  // }
+
+  // // --- Operational state (Normal operating mode) ---
+  // if (nodeOperatingMode == 0x01){ 
+  //   ReadVEData(); // this function passes each incoming byte into rxData. rxData stores the name-value pairs in the buffer (array of structs - 1 struct is 1 name-value pair).
+  //   // EverySecond();
+  //   if (veParser.isDataAvailable()) { // Update OD entries every s. A new block is received every second.
+  //       updateODentries();   
+  //     }
+  //   }
 }
 
 
