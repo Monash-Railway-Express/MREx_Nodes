@@ -4,31 +4,47 @@
  * @details The code computes recovered energy using the power values received from the smart shunt. It also transmits current, voltage, SOC, power , and recovered energy onto the can bus.
  * It uses VedirectFrameHandler.cpp and VeDirectFrameHandler.h files which parse data received from the shunt and stores in a buffer that can be read.
  * @author Hoor E Jannat Urboshi
+ * @author Arjuna Edirisinghe
  * @date 		17/04/2026
- * @version 1.0.1
+ * @version 2.0.0
  * @organisation MREX
  * @see VeDirectFrameHandler.c and VeDirectFrameHandler.h
  */
 
-#include "CAN_MREx.h" // inlcudes all CAN MREX files
-#include "VeDirectFrameHandler.h" // parser
-#include "Arduino.h"
+#include <Arduino.h>
+#include <stdint.h>
+#include <CAN_MREx.h>
 #include <HardwareSerial.h>
 
-// User code begin: ------------------------------------------------------
-VeDirectFrameHandler myparser;
+#include "VeDirectFrameHandler.h" // ve direct parser
 
-// --- CAN MREx initialisation ---
-uint8_t nodeID = 7;  // battery is node 7
-const bool nmtMaster = false;
-const bool heartbeatConsumer = false;
+// =============================================================================
+// Constants
+// =============================================================================
+
+
+//Defining Node ID's
+#define MOTOR_ID 0x01
+#define BRAKES_ID 0x02
+#define DRIVER_ID 0x03
+#define LIGHTS_ID 0x04
+#define AUDIO_ID 0x05
+#define AUTOSTOP_ID 0x06
+#define BATTERY_ID 0x07
+#define LOGGER_ID 0x08
+#define LCD_ID 0x09
+
+// --- Node ID ---
+uint8_t NODE_ID = 0x07;
 
 // --- Pin Definitions ---
 #define TX_GPIO_NUM GPIO_NUM_5 // GPIO pin for CAN Transmit
 #define RX_GPIO_NUM GPIO_NUM_4 // GPIO pins for CAN Receive
-HardwareSerial veSerial(2); // Use UART2 for shunt data
 
-// --- OD definitions ---
+// =============================================================================
+// OD Variable Definitions
+// =============================================================================
+
 uint32_t current_can = 0;
 uint16_t voltage = 0; // voltage always positive 
 uint32_t power_can = 0; // Instantenous Power
@@ -37,7 +53,10 @@ uint32_t recovered_energy_can = 0;
 uint16_t regen_brake = 0;
 uint16_t motor_command = 0;
 
-// variables not for OD
+
+// =============================================================================
+// Global Variables
+// =============================================================================
 int32_t current = 0; 
 int32_t power = 0;
 int32_t recovered_energy = 0;
@@ -53,12 +72,13 @@ unsigned long currentMillis = 0;
 unsigned long last_data_received_time = 0;
 const unsigned long shunt_data_interval = 1500; // If 1.5s pass without receiving data from the shunt, then send error message
 
+VeDirectFrameHandler myparser;
+
+HardwareSerial veSerial(2); // Use UART2 for shunt data
+
 // User code end ---------------------------------------------------------
 
 void setup() {
-
-  pinMode(23, OUTPUT);
-  digitalWrite(23, HIGH);
 
   Serial.begin(115200); 
   delay(1000);
@@ -69,7 +89,7 @@ void setup() {
   Serial.println("Reading values from shunt started at 19200 baud");
   
   //Initialize CANMREX protocol
-  initCANMREX(TX_GPIO_NUM, RX_GPIO_NUM, nodeID);
+  initCANMREX(TX_GPIO_NUM, RX_GPIO_NUM, NODE_ID);
 
   xTaskCreatePinnedToCore(
       CAN_Task,
