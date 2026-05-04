@@ -8,10 +8,11 @@
  *
  * @author Chiara Gillam
  * @author Sean Larkin
+ * @author Nhan Nguyen
  *
- * @date 13/03/2026
+ * @date 28/04/2026
  *
- * @version 2.0.1
+ * @version 2.1.0
  *
  * @organisation MREX
  *
@@ -25,6 +26,7 @@
 #include <Preferences.h>
 #include "motor_PCB.h"
 #include "driver/pcnt.h"
+#include "../../../shared/DualSerial/DualSerial.cpp"
 
 
 
@@ -102,9 +104,9 @@ bool new_autostop_instance = true;
 
 
 void setup() {
-    Serial.begin(115200);
+	DualSerial.begin(115200);
     delay(1000);
-    Serial.println("Serial Coms started at 115200 baud");
+    DualSerial.println("DualSerial Coms started at 115200 baud");
 
     preferences.begin("od_params", false);
     GetPreferences();                           // obtains existing PID parameters
@@ -238,20 +240,20 @@ void PreOpMode() {
     switch (od_direction_mode) {
         case REVERSE_MODE:  // Reverse
             digitalWrite(REVERSING_CONTACTOR, HIGH);
-            Serial.println("[PreOp] Direction: Reverse");
+            DualSerial.println("[PreOp] Direction: Reverse");
             break;
         case NEUTRAL_MODE:  // Neutral — open contactor
             digitalWrite(REVERSING_CONTACTOR, LOW);
-            Serial.println("[PreOp] Direction: Neutral");
+            DualSerial.println("[PreOp] Direction: Neutral");
             break;
         case FORWARD_MODE:  // Forward
             digitalWrite(REVERSING_CONTACTOR, LOW);
-            Serial.println("[PreOp] Direction: Forward");
+            DualSerial.println("[PreOp] Direction: Forward");
             break;
         default:  // Unknown — fail safe to neutral
             digitalWrite(REVERSING_CONTACTOR, LOW);
-            Serial.print("[PreOp] Unknown direction mode: ");
-            Serial.println(od_direction_mode);
+            DualSerial.print("[PreOp] Unknown direction mode: ");
+            DualSerial.println(od_direction_mode);
             break;
     }
 }
@@ -317,7 +319,7 @@ void OperationalMode() {
         WriteDAC(THROTTLE_CHANNEL, 0);
         integrator = 0.0f;
         // sendEMCY(1, MOTOR_ID, 0x00510);     // send minor emergency - TODO: DECIDE ON PROPER ERROR CODE
-        Serial.println("[OperationalMode] Speed cap exceeded — throttle cut.");
+        DualSerial.println("[OperationalMode] Speed cap exceeded — throttle cut.");
         return;
     }
 
@@ -387,14 +389,14 @@ void ThrottleControl(float speed_kmh) {
     WriteDAC(THROTTLE_CHANNEL, motor_dac);
     WriteDAC(REGEN_CHANNEL, brake_dac);
 
-    Serial.print("[SpeedControl] CMD: ");
-    Serial.print(od_motor_command);
-    Serial.print(" | Speed: ");
-    Serial.print(speed_kmh);
-    Serial.print(" | Motor DAC: ");
-    Serial.print(motor_dac);
-    Serial.print(" | Brake DAC: ");
-    Serial.print(brake_dac);
+    DualSerial.print("[SpeedControl] CMD: ");
+    DualSerial.print(od_motor_command);
+    DualSerial.print(" | Speed: ");
+    DualSerial.print(speed_kmh);
+    DualSerial.print(" | Motor DAC: ");
+    DualSerial.print(motor_dac);
+    DualSerial.print(" | Brake DAC: ");
+    DualSerial.print(brake_dac);
 }
 
 /**
@@ -447,10 +449,10 @@ void SpeedControl(float speed_kmh) {
     WriteDAC(THROTTLE_CHANNEL, motor_dac);
     WriteDAC(REGEN_CHANNEL, brake_dac);
 
-    Serial.print("[SpeedControl] Setpoint: "); Serial.print(((float)od_motor_command / 1023.0f) * MAX_SPEED_KMH);
-    Serial.print(" | Speed: ");                Serial.print(speed_kmh);
-    Serial.print(" | Motor DAC: ");            Serial.print(motor_dac);
-    Serial.print(" | Brake DAC: ");            Serial.println(brake_dac);
+    DualSerial.print("[SpeedControl] Setpoint: "); DualSerial.print(((float)od_motor_command / 1023.0f) * MAX_SPEED_KMH);
+    DualSerial.print(" | Speed: ");                DualSerial.print(speed_kmh);
+    DualSerial.print(" | Motor DAC: ");            DualSerial.print(motor_dac);
+    DualSerial.print(" | Brake DAC: ");            DualSerial.println(brake_dac);
 }
 
 
@@ -486,7 +488,7 @@ void AutoStopChallenge(float speed_kmh, int32_t pulse_accum) {
 
         pulse_start                = pulse_accum;
         entered_auto_stop          = true;
-        Serial.println("[AutoStop] Challenge started");
+        DualSerial.println("[AutoStop] Challenge started");
     }
 
     if (entered_auto_stop) {
@@ -503,7 +505,7 @@ void AutoStopChallenge(float speed_kmh, int32_t pulse_accum) {
         od_autostop_detection = 0;
         entered_auto_stop     = false;
         new_autostop_instance = false;
-        Serial.println("[AutoStop] Stopped — service brake applied.");
+        DualSerial.println("[AutoStop] Stopped — service brake applied.");
         return;
     }
 
@@ -512,9 +514,9 @@ void AutoStopChallenge(float speed_kmh, int32_t pulse_accum) {
         integrator = 0.0f;
         WriteDAC(THROTTLE_CHANNEL, 0);
         WriteDAC(REGEN_CHANNEL, DAC_MAX);
-        Serial.print("[AutoStop] Coasting to stop — Distance: "); Serial.print(distance_m);
-        Serial.print("m | Speed: "); Serial.print(speed_kmh);
-        Serial.print(" | Brake DAC: "); Serial.println(DAC_MAX);
+        DualSerial.print("[AutoStop] Coasting to stop — Distance: "); DualSerial.print(distance_m);
+        DualSerial.print("m | Speed: "); DualSerial.print(speed_kmh);
+        DualSerial.print(" | Brake DAC: "); DualSerial.println(DAC_MAX);
         return;
     }
 
@@ -524,10 +526,10 @@ void AutoStopChallenge(float speed_kmh, int32_t pulse_accum) {
     motor_dac = (uint16_t)(od_motor_command * distance_fraction);
     WriteDAC(THROTTLE_CHANNEL, motor_dac);
     WriteDAC(REGEN_CHANNEL, 0);
-    Serial.print("[AutoStop] Tapering — Distance: "); Serial.print(distance_m);
-    Serial.print(" | Fraction: ");                    Serial.print(distance_fraction);
-    Serial.print(" | Motor DAC: ");                   Serial.print(motor_dac);
-    Serial.print(" | Speed: ");                       Serial.println(speed_kmh);
+    DualSerial.print("[AutoStop] Tapering — Distance: "); DualSerial.print(distance_m);
+    DualSerial.print(" | Fraction: ");                    DualSerial.print(distance_fraction);
+    DualSerial.print(" | Motor DAC: ");                   DualSerial.print(motor_dac);
+    DualSerial.print(" | Speed: ");                       DualSerial.println(speed_kmh);
     }
 }
 /**
@@ -552,7 +554,7 @@ void TractionChallenge(float speed_kmh) {
     //    //od_service_brake_mc = 0;
     //     integrator = 0.0f;
 
-    //     Serial.print("[Traction] Slip detected. Speed: "); Serial.println(speed_kmh);
+    //     DualSerial.print("[Traction] Slip detected. Speed: "); DualSerial.println(speed_kmh);
     //     return;
     // }
 
@@ -610,8 +612,8 @@ void EnergyRecoveryChallenge(float speed_kmh) {
             if (od_regen_brake > REGEN_BRAKE_THRESHOLD) {
                 energy_brake_start = od_recovered_energy;
                 phase              = PHASE_BRAKING;
-                Serial.print("[EnergyRecovery] Braking started — energy snapshot: ");
-                Serial.println(energy_brake_start);
+                DualSerial.print("[EnergyRecovery] Braking started — energy snapshot: ");
+                DualSerial.println(energy_brake_start);
             }
             break;
 
@@ -636,12 +638,12 @@ void EnergyRecoveryChallenge(float speed_kmh) {
                 WriteDAC(REGEN_CHANNEL, 0);
                 phase = PHASE_STOPPED_IDLE;
 
-                Serial.print("[EnergyRecovery] Stopped — energy recovered: ");
-                Serial.print(energy_recovered);
-                Serial.println(" (waiting for throttle)");
+                DualSerial.print("[EnergyRecovery] Stopped — energy recovered: ");
+                DualSerial.print(energy_recovered);
+                DualSerial.println(" (waiting for throttle)");
             }
 
-            Serial.print("[EnergyRecovery] Braking — Brake DAC: "); Serial.println(brake_dac);
+            DualSerial.print("[EnergyRecovery] Braking — Brake DAC: "); DualSerial.println(brake_dac);
             break;
 
         // ----------------------------------------------------------------
@@ -657,8 +659,8 @@ void EnergyRecoveryChallenge(float speed_kmh) {
                 energy_motor_start = od_recovered_energy;
                //od_service_brake_mc  = 0;
                 phase              = PHASE_MOTORING;
-                Serial.print("[EnergyRecovery] Throttle received — motor energy start: ");
-                Serial.println(energy_motor_start);
+                DualSerial.print("[EnergyRecovery] Throttle received — motor energy start: ");
+                DualSerial.println(energy_motor_start);
             }
             break;
 
@@ -676,7 +678,7 @@ void EnergyRecoveryChallenge(float speed_kmh) {
                 WriteDAC(REGEN_CHANNEL, 0);
                //od_service_brake_mc = 0;
                 phase            = PHASE_BUDGET_EXHAUSTED;
-                Serial.println("[EnergyRecovery] Energy budget exhausted — throttle cut.");
+                DualSerial.println("[EnergyRecovery] Energy budget exhausted — throttle cut.");
                 break;
             }
 
@@ -684,10 +686,10 @@ void EnergyRecoveryChallenge(float speed_kmh) {
            //od_service_brake_mc = 0;
             ThrottleControl(speed_kmh);
 
-            Serial.print("[EnergyRecovery] Used: "); Serial.print(energy_used);
-            Serial.print(" / ");                     Serial.print(energy_recovered);
-            Serial.print(" | Motor DAC: ");          Serial.print(motor_dac);
-            Serial.print(" | Brake DAC: ");          Serial.println(brake_dac);
+            DualSerial.print("[EnergyRecovery] Used: "); DualSerial.print(energy_used);
+            DualSerial.print(" / ");                     DualSerial.print(energy_recovered);
+            DualSerial.print(" | Motor DAC: ");          DualSerial.print(motor_dac);
+            DualSerial.print(" | Brake DAC: ");          DualSerial.println(brake_dac);
             break;
         }
 
@@ -703,7 +705,7 @@ void EnergyRecoveryChallenge(float speed_kmh) {
 
             // Reset if challenge mode is switched away and back
             // — handled by entered flag resetting on mode change if needed
-            Serial.println("[EnergyRecovery] Challenge complete — budget exhausted.");
+            DualSerial.println("[EnergyRecovery] Challenge complete — budget exhausted.");
             break;
 
         default:

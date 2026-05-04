@@ -5,8 +5,8 @@
  * Organisation:    MREX
  * Author:          Chiara Gillam, Nhan Nguyen
  * Date Created:    12/10/2025
- * Last Modified:   22/04/2026
- * Version:         2.0.0
+ * Last Modified:   25/04/2026
+ * Version:         2.1.0
  *
  */
 
@@ -17,33 +17,25 @@
 
 
 
+const uint8_t NODE_ID = 8;  // Change this to set your device's node ID
+
 #include <SPI.h>
 #include <SD.h>
 #include <Wire.h>
 #include "driver/twai.h"
 #include "DFRobot_DS3231M.h" // https://github.com/DFRobot/DFRobot_DS3231M
-#include <WiFi.h>
-#include <ESPAsyncWebServer.h> // ESP Async WebServer by ESP32Async
-#include <AsyncTCP.h> // Async TCP by ESP32Async
 #include "FS.h"
 #include <ArduinoJson.h> // ArduinoJson by Benoit Blanchon
-#include "wshtml.h"
 #include <CAN_MREx.h>
-
-const uint8_t nodeID = 8;  // Change this to set your device's node ID
+#include "../../../shared/DualSerial/DualSerial.cpp"
+#include "wshtml.h"
 
 // --- Pin Definitions ---
 #define TX_GPIO_NUM GPIO_NUM_5 // Set GPIO pin for CAN Transmit
 #define RX_GPIO_NUM GPIO_NUM_4 // Set GPIO pins for CAN Receive
 
-const char* SSID = "MREx CAN Logger";
-const char* PASSWORD = "YesWeCAN";
-const char* URL = "10.0.0.1";
-IPAddress LOCAL(10, 0, 0, 1);
-IPAddress GATEWAY(10, 0, 0, 1);
-IPAddress SUBNET(255, 255, 255, 0);
+const char* URL = "10.0.0.8";
 const char* FILEPATH = "/files";
-AsyncWebServer server(80);
 AsyncEventSource events("/events");
 
 // RTC
@@ -108,23 +100,23 @@ int getParameterIdx(String key) {
 }
 
 void setup() {
-  Serial.begin(115200);
+  DualSerial.begin(115200);
   Wire.begin();
 
   // RTC init
   while(rtc.begin() != true){
-    Serial.println("Failed to init chip, please check if the chip connection is fine. ");
+    DualSerial.println("Failed to init chip, please check if the chip connection is fine. ");
     delay(1000);
   }
 
     // SD init
   while (!SD.begin(SD_CS)) {
-    Serial.println("SD init failed");
+    DualSerial.println("SD init failed");
   }
-  Serial.print(SD.usedBytes());
-  Serial.print(" bytes out of ");
-  Serial.println(SD.totalBytes());
-  Serial.println(" used on SD card.");
+  DualSerial.print(SD.usedBytes());
+  DualSerial.print(" bytes out of ");
+  DualSerial.println(SD.totalBytes());
+  DualSerial.println(" used on SD card.");
 
   // File name init
   int testNumber = 0;
@@ -145,7 +137,7 @@ void setup() {
   if (logFile) {
     logFile.println("Timestamp,ID,DLC,Data0,Data1,Data2,Data3,Data4,Data5,Data6,Data7");
   } else {
-    Serial.println("Failed to open log file");
+    DualSerial.println("Failed to open log file");
     while (1);
   }
 
@@ -159,14 +151,9 @@ void setup() {
   indexHtmlC = indexHtml.c_str();
   
   //Initialize CANMREX protocol
-  initCANMREX(TX_GPIO_NUM, RX_GPIO_NUM, nodeID); // this or manual, not both
+  initCANMREX(TX_GPIO_NUM, RX_GPIO_NUM, NODE_ID); // this or manual, not both
   
-  Serial.println("CAN logging started");
-  
-  WiFi.mode(WIFI_AP);
-  WiFi.softAP(SSID, PASSWORD);
-  WiFi.softAPConfig(LOCAL, GATEWAY, SUBNET);
-  delay(100);
+  DualSerial.println("CAN logging started");
 
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
     request->sendChunked("text/html", [](uint8_t *buffer, size_t maxLen, size_t index) -> size_t {
@@ -203,10 +190,10 @@ void setup() {
     for (int i = 0; i < num_parameters; i++) {
       struct Parameter parameter = parameters[i];
       if (parameter.sign) {
-        int32_t value = executeSDORead(nodeID, parameter.targetNode, parameter.index, parameter.subindex);
+        int32_t value = executeSDORead(NODE_ID, parameter.targetNode, parameter.index, parameter.subindex);
         muntDoc[parameter.key] = value;
       } else {
-        uint32_t value = executeSDORead(nodeID, parameter.targetNode, parameter.index, parameter.subindex);
+        uint32_t value = executeSDORead(NODE_ID, parameter.targetNode, parameter.index, parameter.subindex);
         muntDoc[parameter.key] = value;
       }
     }
@@ -231,10 +218,10 @@ void setup() {
             responseArray.add(key);
             if (parameter.sign) {
               int32_t requestValue = pair.value(); // implicit cast
-              executeSDOWrite(nodeID, parameter.targetNode, parameter.index, parameter.subindex, parameter.size, &requestValue);
+              executeSDOWrite(NODE_ID, parameter.targetNode, parameter.index, parameter.subindex, parameter.size, &requestValue);
             } else {
               uint32_t requestValue = pair.value(); // implicit cast
-              executeSDOWrite(nodeID, parameter.targetNode, parameter.index, parameter.subindex, parameter.size, &requestValue);
+              executeSDOWrite(NODE_ID, parameter.targetNode, parameter.index, parameter.subindex, parameter.size, &requestValue);
             }
           }
         }
@@ -247,22 +234,20 @@ void setup() {
   });
 
   server.addHandler(&events);
-  DefaultHeaders::Instance().addHeader("Access-Control-Allow-Origin", "*");
-  server.begin();
   
-  Serial.println("Webserver started.");
-  Serial.print("SSID: ");
-  Serial.println(SSID);
-  Serial.print("Password: ");
-  Serial.println(PASSWORD);
-  Serial.print("HTTP: http://");
-  Serial.println(URL);
-  Serial.print("SSE: http://");
-  Serial.print(URL);
-  Serial.println("/events");
-  Serial.print("MUNT: http://");
-  Serial.print(URL);
-  Serial.println("/munt");
+  DualSerial.println("Webserver started.");
+  DualSerial.print("SSID: ");
+  DualSerial.println(DualSerial.SSID);
+  DualSerial.print("Password: ");
+  DualSerial.println(DualSerial.PASSPHRASE);
+  DualSerial.print("HTTP: http://");
+  DualSerial.println(URL);
+  DualSerial.print("SSE: http://");
+  DualSerial.print(URL);
+  DualSerial.println("/events");
+  DualSerial.print("MUNT: http://");
+  DualSerial.print(URL);
+  DualSerial.println("/munt");
 }
 
 void loop() {
