@@ -5,9 +5,9 @@
  * @details
  * Includes MREx CAN registry object dictionary identifiers, indices, subindices, sizes, interpretations and PDO maps.
  *
- * @date 30/04/2026
+ * @date 05/05/2026
  *
- * @version 1.0.0
+ * @version 0.0.0
  *
  * @organisation MREX
  *
@@ -36,21 +36,20 @@ uint16_t od_regen_brake;
 #define OD_REGEN_BRAKE_INDEX 0x3012
 #define OD_REGEN_BRAKE_SUBINDEX 0x00
 
-uint8_t od_service_brake_mc;
-#define OD_SERVICE_BRAKE_MC_INDEX 0x3012
-#define OD_SERVICE_BRAKE_MC_SUBINDEX 0x01
-enum ODServiceBrakeMC : uint8_t {
+enum ODServiceBrake : uint8_t {
     NOT_BRAKING         = 1,
     BRAKING             = 0
 };
 
+uint8_t od_service_brake_mc;
+#define OD_SERVICE_BRAKE_MC_INDEX 0x3012
+#define OD_SERVICE_BRAKE_MC_SUBINDEX 0x01
+#define ODServiceBrakeMC ODServiceBrake
+
 uint8_t od_service_brake_dc;
 #define OD_SERVICE_BRAKE_DC_INDEX 0x3012
 #define OD_SERVICE_BRAKE_DC_SUBINDEX 0x02
-enum ODServiceBrakeDC : uint8_t {
-    NOT_BRAKING         = 1,
-    BRAKING             = 0
-};
+#define ODServiceBrakeDC ODServiceBrake
 
 // missing size and signed interpretation in registry
 #define OD_BRAKE_THRESHOLD_INDEX 0x3012
