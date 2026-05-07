@@ -1,5 +1,6 @@
 #include <CAN_MREx.h>
 #include <controller.h>
+#include <stdlib.h>
 
 /**
  * @file Controller.ino
@@ -15,7 +16,7 @@
  *
  * @date Created: 05/08/2025
  *
- * @version 1.2.1
+ * @version 1.2.2
  *
  * @organisation MREX
  *
@@ -63,6 +64,13 @@ uint8_t od_switch_2 = 0;
 unsigned long previousMillis = 0;
 const long interval = 100; // 100 milliseconds
 
+ADCBuffer throttleBuf = {0}; 
+ADCBuffer brakeBuf = {0}; 
+ADCBuffer dirBuf = {0}; 
+ADCBuffer challengeBuf = {0}; 
+ADCBuffer conditionBuf = {0};
+ADCBuffer opModeBuf = {0};
+
 
 ///////////////////SET UP/////////////////////////
 
@@ -93,6 +101,12 @@ void setup() {
   analogSetPinAttenuation(OP_MODE_PIN, ADC_11db);
   analogSetPinAttenuation(CHALLENGE_MODE_PIN, ADC_11db);
 
+  InitBuffer(&throttleBuf, THROTTLE_PIN);
+  InitBuffer(&brakeBuf, BRAKE_PIN);
+  InitBuffer(&dirBuf, DIRECTION_MODE_PIN);
+  InitBuffer(&challengeBuf, CHALLENGE_MODE_PIN);
+  InitBuffer(&conditionBuf, CONDITION_MODE_PIN);
+  InitBuffer(&opModeBuf, OP_MODE_PIN);
   
   // Initialize CANMREX protocol
   initCANMREX(TX_GPIO_NUM, RX_GPIO_NUM, NODE_ID);
@@ -105,6 +119,16 @@ void setup() {
     3,
     NULL,
     0
+  );
+
+  xTaskCreatePinnedToCore(  
+    InputTask,  
+    "Input Task",  
+    4096,  
+    NULL, 
+    2,          // priority (lower than CAN if needed)  
+    NULL,  
+    1           // <-- Core 1 
   );
 
   // User code Setup Begin: -------------------------------------------------
@@ -169,6 +193,7 @@ void StoppedMode(){
   TODO: Check speed/throttle, regen brakes and service brake status and send minor emergencies accordingly.
   */
 }
+
 /**
 * @brief Pre Operational Function, calls HandleDirection and HandleChallenge
 */
@@ -197,7 +222,7 @@ void OperationalMode(){
  */
 void UpdateOpMode(){
 
-  int newOpModeRaw = readStable3Pos(OP_MODE_PIN);
+  int newOpModeRaw = ReadStable3PosBuffered(&opModeBuf);
   
   //Converting states 1-3 to enum OperatingMode
 
@@ -210,7 +235,7 @@ void UpdateOpMode(){
     nodeOperatingMode = enumOpMode;  
     Serial.print(nodeOperatingMode);
     // Update local state
-    SendAllNMT(enumOpMode);
+    //SendAllNMT(enumOpMode);
   }
 }
 
@@ -240,8 +265,8 @@ void SendAllNMT(uint8_t operatingMode) {
  */
 void HandleInputs() {
   // ===== Potentiometer Inputs =====
-  uint16_t motorCommand = 1023 - readADC_HighZ(THROTTLE_PIN);
-  od_regen_brake = 1023 - readADC_HighZ(BRAKE_PIN);
+  uint16_t motorCommand = 1023 - GetAverage(&throttleBuf);  
+  od_regen_brake = 1023 - GetAverage(&brakeBuf);
 
   if (od_service_brake_dc) { // 1, not braking
     od_motor_command = motorCommand;
@@ -305,7 +330,7 @@ void HandleParking() {
 */
 void HandleDirection() {
   Serial.print("   ||   Direction Handle: ");
-  int newDirectionMode = readStable3Pos(DIRECTION_MODE_PIN);
+  int newDirectionMode = ReadStable3PosBuffered(&dirBuf);
   Serial.print(newDirectionMode);
   if ((od_direction_mode != newDirectionMode) && (newDirectionMode > 0)) {
     // 1 is forawrd, 2 is neutral, 3 is back 
@@ -326,7 +351,7 @@ void HandleDirection() {
 */
 void HandleChallenge() {
   Serial.print("   ||   Challenge Handle: ");
-  int newChallengeMode = readStable5Pos(CHALLENGE_MODE_PIN);
+  int newChallengeMode = ReadStable5PosBuffered(&challengeBuf);
   Serial.print(newChallengeMode);
   if ((od_challenge_mode != newChallengeMode) && (newChallengeMode > 0)) {
     // 1 is forawrd, 2 is neutral, 3 is back 
@@ -347,51 +372,67 @@ void HandleChallenge() {
 */
 void HandleCondition(){
   Serial.print("   ||   Condition Handle");
-  int newConditionMode = readStable5Pos(CONDITION_MODE_PIN);
+  int newConditionMode = ReadStable5PosBuffered(&conditionBuf);
   Serial.print(newConditionMode);
   //Only sends the new condition object as an SDO if there has been a change in the condition. 
   if(od_condition_mode != newConditionMode){
     od_condition_mode = newConditionMode;
     executeSDOWrite(NODE_ID,MOTOR_ID,0x6061,0x00,sizeof(od_condition_mode),&od_condition_mode);
     Serial.print("Sending Condition");
-    Serial.println("od_condition_mode");
+    Serial.println(od_condition_mode);
     
   }
 }
 
-
-
-
 /**
-*@brief Helper: Better ADC read for 100l sources
-*
-*@param pin The pin to read analog value from
-*@param samples the number of samples to be taken
-*
-*@return returns the aveage of the samples as an integer. 
-*/
-int readADC_HighZ(int pin, int samples) {
-  // Let ADC mux settle on this pin
-  analogRead(pin);
-  delayMicroseconds(1100);
-
-  // Throw away a few reads
-  // analogRead(pin);
-  // delayMicroseconds(300);
-  // analogRead(pin);
-  // delayMicroseconds(300);
-
-  long sum = 0;
-  for (int i = 0; i < samples; i++) {
-    sum += analogRead(pin);
-    delayMicroseconds(250);
-  }
-
-  return (int)(sum / samples);
+ * @brief Updates the circular ADC sample buffer with a new reading from the specified pin
+ *
+ * @param buf Pointer to the ADCBuffer to update
+ * @param pin The analog pin to read from
+ */
+void UpdateADCBuffer(ADCBuffer* buf, int pin) {  
+  buf->samples[buf->index] = analogRead(pin);  
+  buf->index = (buf->index + 1) % BUF_SIZE; 
 }
 
+/**
+ * @brief Computes the average of all samples currently stored in the ADC buffer
+ *
+ * @param buf Pointer to the ADCBuffer to average
+ *
+ * @return Integer average of all samples in the buffer
+ */
+int GetAverage(ADCBuffer* buf) { 
+  int sum = 0;  
+  for (int i = 0; i < BUF_SIZE; i++) {    
+    sum += buf->samples[i];  
+  }  
+  return sum / BUF_SIZE; 
+}
 
+/**
+ * @brief Returns a stable 3-position switch reading by averaging the ADC buffer and decoding to nearest position
+ *
+ * @param buf Pointer to the ADCBuffer associated with the switch pin
+ *
+ * @return Decoded switch position (1–3)
+ */
+int ReadStable3PosBuffered(ADCBuffer* buf) {  
+  int avg = GetAverage(buf);  
+  return DecodeNearest3(avg); 
+}
 
+/**
+ * @brief Returns a stable 5-position switch reading by averaging the ADC buffer and decoding to nearest position
+ *
+ * @param buf Pointer to the ADCBuffer associated with the switch pin
+ *
+ * @return Decoded switch position (1–5)
+ */
+int ReadStable5PosBuffered(ADCBuffer* buf) {  
+  int avg = GetAverage(buf);  
+  return DecodeNearest5(avg); 
+}
 
 /**
 *@brief Recieves raw analog value and finds the nearest setting (1-3)
@@ -400,7 +441,7 @@ int readADC_HighZ(int pin, int samples) {
 *
 *@return returns the closest index (1-3)
 */
-int decodeNearest3(int raw) {
+int DecodeNearest3(int raw) {
   int bestIndex = 0;
   int bestErr = abs(raw - THREE_LEVELS[0]);
 
@@ -417,8 +458,6 @@ int decodeNearest3(int raw) {
 
 
 
-
-
 /**
 *@brief Recives raw analaog read value and outputs the nearest position, returning 1-5
 *
@@ -426,7 +465,7 @@ int decodeNearest3(int raw) {
 *
 *@return Returns the nearest position 1-5. 
 */
-int decodeNearest5(int raw) {
+int DecodeNearest5(int raw) {
   int bestIndex = 0;
   int bestErr = abs(raw - FIVE_LEVELS[0]);
   for (int i = 1; i < 5; i++) {
@@ -440,48 +479,31 @@ int decodeNearest5(int raw) {
   return bestIndex + 1;  // states 1..5
 }
 
-
-
-
 /**
-*@brief Stable selector read for 3 position rotary switch
-*
-*@param pin this is the pin on the ESP32 to be read from 
-*
-*@return returns the apropriate position, if three reads do not align, -1 is returned. 
-*/
-int readStable3Pos(int pin) {
-  int r1 = readADC_HighZ(pin);
-  int r2 = readADC_HighZ(pin);
-  int r3 = readADC_HighZ(pin);
+ * @brief FreeRTOS task that continuously samples all analog input pins into their respective ADC buffers at 200 Hz
+ *
+ * @param pvParameters Unused task parameter (pass NULL)
+ */
+void InputTask(void* pvParameters) {
+  const TickType_t delayTicks = pdMS_TO_TICKS(5); // 200 Hz sampling
 
-  int s1 = decodeNearest3(r1);
-  int s2 = decodeNearest3(r2);
-  int s3 = decodeNearest3(r3);
+  while (true) { 
+    UpdateADCBuffer(&throttleBuf, THROTTLE_PIN); 
+    UpdateADCBuffer(&brakeBuf, BRAKE_PIN); 
+    UpdateADCBuffer(&dirBuf, DIRECTION_MODE_PIN); 
+    UpdateADCBuffer(&opModeBuf, OP_MODE_PIN); 
+    UpdateADCBuffer(&challengeBuf, CHALLENGE_MODE_PIN); 
+    UpdateADCBuffer(&conditionBuf, CONDITION_MODE_PIN); 
 
-  if (s1 == s2 && s2 == s3) return s1;
-  return -1;
+  vTaskDelay(delayTicks);
+  } 
+}
+
+void InitBuffer(ADCBuffer* buf, int pin) {
+  for (int i = 0; i < BUF_SIZE; i++) {
+    buf->samples[i] = analogRead(pin);
+  }
+  buf->index = 0;
 }
 
 
-
-
-/**
-*@brief Function reads the position of the 5 position switch 
-*
-*@param pin pin to be read from on the ESP32
-*
-*@return returns the position 1-5 only if three values line up, if not -1 is returned. 
-*/
-int readStable5Pos(int pin) {
-  int r1 = readADC_HighZ(pin);
-  int r2 = readADC_HighZ(pin);
-  int r3 = readADC_HighZ(pin);
-
-  int s1 = decodeNearest5(r1);
-  int s2 = decodeNearest5(r2);
-  int s3 = decodeNearest5(r3);
-
-  if (s1 == s2 && s2 == s3) return s1;
-  return -1;
-}
