@@ -16,7 +16,7 @@
  *
  * @date Created: 05/08/2025
  *
- * @version 1.2.1
+ * @version 1.2.2
  *
  * @organisation MREX
  *
@@ -101,12 +101,12 @@ void setup() {
   analogSetPinAttenuation(OP_MODE_PIN, ADC_11db);
   analogSetPinAttenuation(CHALLENGE_MODE_PIN, ADC_11db);
 
-  initBuffer(&throttleBuf, THROTTLE_PIN);
-  initBuffer(&brakeBuf, BRAKE_PIN);
-  initBuffer(&dirBuf, DIRECTION_MODE_PIN);
-  initBuffer(&challengeBuf, CHALLENGE_MODE_PIN);
-  initBuffer(&conditionBuf, CONDITION_MODE_PIN);
-  initBuffer(&opModeBuf, OP_MODE_PIN);
+  InitBuffer(&throttleBuf, THROTTLE_PIN);
+  InitBuffer(&brakeBuf, BRAKE_PIN);
+  InitBuffer(&dirBuf, DIRECTION_MODE_PIN);
+  InitBuffer(&challengeBuf, CHALLENGE_MODE_PIN);
+  InitBuffer(&conditionBuf, CONDITION_MODE_PIN);
+  InitBuffer(&opModeBuf, OP_MODE_PIN);
   
   // Initialize CANMREX protocol
   initCANMREX(TX_GPIO_NUM, RX_GPIO_NUM, NODE_ID);
@@ -193,6 +193,7 @@ void StoppedMode(){
   TODO: Check speed/throttle, regen brakes and service brake status and send minor emergencies accordingly.
   */
 }
+
 /**
 * @brief Pre Operational Function, calls HandleDirection and HandleChallenge
 */
@@ -221,7 +222,7 @@ void OperationalMode(){
  */
 void UpdateOpMode(){
 
-  int newOpModeRaw = readStable3PosBuffered(&opModeBuf);
+  int newOpModeRaw = ReadStable3PosBuffered(&opModeBuf);
   
   //Converting states 1-3 to enum OperatingMode
 
@@ -264,8 +265,8 @@ void SendAllNMT(uint8_t operatingMode) {
  */
 void HandleInputs() {
   // ===== Potentiometer Inputs =====
-  uint16_t motorCommand = 1023 - getAverage(&throttleBuf);  
-  od_regen_brake = 1023 - getAverage(&brakeBuf);
+  uint16_t motorCommand = 1023 - GetAverage(&throttleBuf);  
+  od_regen_brake = 1023 - GetAverage(&brakeBuf);
 
   if (od_service_brake_dc) { // 1, not braking
     od_motor_command = motorCommand;
@@ -329,7 +330,7 @@ void HandleParking() {
 */
 void HandleDirection() {
   Serial.print("   ||   Direction Handle: ");
-  int newDirectionMode = readStable3PosBuffered(&dirBuf);
+  int newDirectionMode = ReadStable3PosBuffered(&dirBuf);
   Serial.print(newDirectionMode);
   if ((od_direction_mode != newDirectionMode) && (newDirectionMode > 0)) {
     // 1 is forawrd, 2 is neutral, 3 is back 
@@ -350,7 +351,7 @@ void HandleDirection() {
 */
 void HandleChallenge() {
   Serial.print("   ||   Challenge Handle: ");
-  int newChallengeMode = readStable5PosBuffered(&challengeBuf);
+  int newChallengeMode = ReadStable5PosBuffered(&challengeBuf);
   Serial.print(newChallengeMode);
   if ((od_challenge_mode != newChallengeMode) && (newChallengeMode > 0)) {
     // 1 is forawrd, 2 is neutral, 3 is back 
@@ -371,25 +372,37 @@ void HandleChallenge() {
 */
 void HandleCondition(){
   Serial.print("   ||   Condition Handle");
-  int newConditionMode = readStable5PosBuffered(&conditionBuf);
+  int newConditionMode = ReadStable5PosBuffered(&conditionBuf);
   Serial.print(newConditionMode);
   //Only sends the new condition object as an SDO if there has been a change in the condition. 
   if(od_condition_mode != newConditionMode){
     od_condition_mode = newConditionMode;
     executeSDOWrite(NODE_ID,MOTOR_ID,0x6061,0x00,sizeof(od_condition_mode),&od_condition_mode);
     Serial.print("Sending Condition");
-    Serial.println("od_condition_mode");
+    Serial.println(od_condition_mode);
     
   }
 }
 
-
-void updateADCBuffer(ADCBuffer* buf, int pin) {  
+/**
+ * @brief Updates the circular ADC sample buffer with a new reading from the specified pin
+ *
+ * @param buf Pointer to the ADCBuffer to update
+ * @param pin The analog pin to read from
+ */
+void UpdateADCBuffer(ADCBuffer* buf, int pin) {  
   buf->samples[buf->index] = analogRead(pin);  
   buf->index = (buf->index + 1) % BUF_SIZE; 
 }
 
-int getAverage(ADCBuffer* buf) { 
+/**
+ * @brief Computes the average of all samples currently stored in the ADC buffer
+ *
+ * @param buf Pointer to the ADCBuffer to average
+ *
+ * @return Integer average of all samples in the buffer
+ */
+int GetAverage(ADCBuffer* buf) { 
   int sum = 0;  
   for (int i = 0; i < BUF_SIZE; i++) {    
     sum += buf->samples[i];  
@@ -397,14 +410,28 @@ int getAverage(ADCBuffer* buf) {
   return sum / BUF_SIZE; 
 }
 
-int readStable3PosBuffered(ADCBuffer* buf) {  
-  int avg = getAverage(buf);  
-  return decodeNearest3(avg); 
+/**
+ * @brief Returns a stable 3-position switch reading by averaging the ADC buffer and decoding to nearest position
+ *
+ * @param buf Pointer to the ADCBuffer associated with the switch pin
+ *
+ * @return Decoded switch position (1–3)
+ */
+int ReadStable3PosBuffered(ADCBuffer* buf) {  
+  int avg = GetAverage(buf);  
+  return DecodeNearest3(avg); 
 }
 
-int readStable5PosBuffered(ADCBuffer* buf) {  
-  int avg = getAverage(buf);  
-  return decodeNearest5(avg); 
+/**
+ * @brief Returns a stable 5-position switch reading by averaging the ADC buffer and decoding to nearest position
+ *
+ * @param buf Pointer to the ADCBuffer associated with the switch pin
+ *
+ * @return Decoded switch position (1–5)
+ */
+int ReadStable5PosBuffered(ADCBuffer* buf) {  
+  int avg = GetAverage(buf);  
+  return DecodeNearest5(avg); 
 }
 
 /**
@@ -414,7 +441,7 @@ int readStable5PosBuffered(ADCBuffer* buf) {
 *
 *@return returns the closest index (1-3)
 */
-int decodeNearest3(int raw) {
+int DecodeNearest3(int raw) {
   int bestIndex = 0;
   int bestErr = abs(raw - THREE_LEVELS[0]);
 
@@ -438,7 +465,7 @@ int decodeNearest3(int raw) {
 *
 *@return Returns the nearest position 1-5. 
 */
-int decodeNearest5(int raw) {
+int DecodeNearest5(int raw) {
   int bestIndex = 0;
   int bestErr = abs(raw - FIVE_LEVELS[0]);
   for (int i = 1; i < 5; i++) {
@@ -452,23 +479,27 @@ int decodeNearest5(int raw) {
   return bestIndex + 1;  // states 1..5
 }
 
-
+/**
+ * @brief FreeRTOS task that continuously samples all analog input pins into their respective ADC buffers at 200 Hz
+ *
+ * @param pvParameters Unused task parameter (pass NULL)
+ */
 void InputTask(void* pvParameters) {
   const TickType_t delayTicks = pdMS_TO_TICKS(5); // 200 Hz sampling
 
   while (true) { 
-    updateADCBuffer(&throttleBuf, THROTTLE_PIN); 
-    updateADCBuffer(&brakeBuf, BRAKE_PIN); 
-    updateADCBuffer(&dirBuf, DIRECTION_MODE_PIN); 
-    updateADCBuffer(&opModeBuf, OP_MODE_PIN); 
-    updateADCBuffer(&challengeBuf, CHALLENGE_MODE_PIN); 
-    updateADCBuffer(&conditionBuf, CONDITION_MODE_PIN); 
+    UpdateADCBuffer(&throttleBuf, THROTTLE_PIN); 
+    UpdateADCBuffer(&brakeBuf, BRAKE_PIN); 
+    UpdateADCBuffer(&dirBuf, DIRECTION_MODE_PIN); 
+    UpdateADCBuffer(&opModeBuf, OP_MODE_PIN); 
+    UpdateADCBuffer(&challengeBuf, CHALLENGE_MODE_PIN); 
+    UpdateADCBuffer(&conditionBuf, CONDITION_MODE_PIN); 
 
   vTaskDelay(delayTicks);
   } 
 }
 
-void initBuffer(ADCBuffer* buf, int pin) {
+void InitBuffer(ADCBuffer* buf, int pin) {
   for (int i = 0; i < BUF_SIZE; i++) {
     buf->samples[i] = analogRead(pin);
   }

@@ -20,8 +20,8 @@ void HandleChallenge();
 void HandleCondition();
 
 
-int decodeNearest3(int raw);
-int decodeNearest5(int raw);
+int DecodeNearest3(int raw);
+int DecodeNearest5(int raw);
 
 #define BUF_SIZE 15 
 
@@ -31,11 +31,11 @@ typedef struct {
 } ADCBuffer;
 
 void InputTask(void* pvParameters);
-int readStable5PosBuffered(ADCBuffer* buf);
-int readStable3PosBuffered(ADCBuffer* buf);
-int getAverage(ADCBuffer* buf);
-void updateADCBuffer(ADCBuffer* buf, int pin);
-void initBuffer(ADCBuffer* buf, int pin);
+int ReadStable5PosBuffered(ADCBuffer* buf);
+int ReadStable3PosBuffered(ADCBuffer* buf);
+int GetAverage(ADCBuffer* buf);
+void UpdateADCBuffer(ADCBuffer* buf, int pin);
+void InitBuffer(ADCBuffer* buf, int pin);
 
 
 //defining Pins
