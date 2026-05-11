@@ -33,7 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - None
 
 
-## [1.2.1]  - 2026-03-30
+## [1.2.1]  - 2026-05-11
 
 ### Added
 - lights_and_sensors.ino restored from previous dev commits
@@ -45,3 +45,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 - Lights.ino, now replaced by lights_and_sensors.ino
+
+
+## [1.2.1]  - 2026-05-11
+
+### Added
+- lights_n_sensors.h as a header file for the node
+
+### Changed
+- Pin definitions, constants, enums all moved to the header file

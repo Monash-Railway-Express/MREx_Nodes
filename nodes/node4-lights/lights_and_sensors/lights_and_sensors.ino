@@ -12,9 +12,9 @@
  * @author Chiara Gillam
  * @author Oscar Boulter
  *
- * @date 		30/03/2026
+ * @date 		11/05/2026
  *
- * @version 1.1.1
+ * @version 1.3
  *
  * @organisation MREX
  *
@@ -23,22 +23,7 @@
  */
 
 #include <CAN_MREx.h> // inlcudes all CAN MREX files
-
-// User code begin: ------------------------------------------------------
-// --- CAN MREx initialisation ---
-uint8_t NODE_ID = 4;  // Change this to set your device's node ID
-
-// --- Pin Definitions ---
-#define TX_GPIO_NUM GPIO_NUM_5 // Set GPIO pin for CAN Transmit
-#define RX_GPIO_NUM GPIO_NUM_4 // Set GPIO pins for CAN Receive
-#define LIGHT_PREOP 17
-#define LIGHT_FWD 15
-#define LIGHT_REV 16
-#define SMOKE_PIN 4 // arbitrary, change values when required
-#define TEMPERATURE_FRONT_PIN 5
-#define TEMPERATURE_REAR_PIN 6
-
-enum {OFF, PREOP, NEUTRAL, FORWARD, REVERSE} drive_state = OFF;
+#include <lights_n_sensors.h>
 
 
 // --- OD definitions ---
@@ -49,7 +34,7 @@ uint16_t od_temperature_rear;
 unsigned long next_poll_time; //used for non blocking delay to request the current motor direction from motor controller
 uint32_t dir_mode32; // Will these eventually be ODs?
 uint8_t dir_mode;
-
+uint8_t drive_state = OFF;
 
 // User code end ---------------------------------------------------------
 
@@ -73,6 +58,8 @@ void setup() {
       0
     );
   enableHeartbeatMonitoring(true);
+
+
   // User code Setup Begin: -------------------------------------------------
   // --- Register OD entries ---
   registerODEntry(0x1004, 0x00, 2, sizeof(od_temperature_front), &od_temperature_front);
