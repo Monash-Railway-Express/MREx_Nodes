@@ -77,6 +77,7 @@ void setup() {
   // --- Register OD entries ---
   registerODEntry(0x1004, 0x00, 2, sizeof(od_temperature_front), &od_temperature_front);
   registerODEntry(0x1004, 0x01, 2, sizeof(od_temperature_rear), &od_temperature_rear);
+  registerODEntry(0x6060, 0x00, 2, sizeof(dir_mode), &dir_mode); 
 
   // --- Register TPDOs ---
   configureTPDO(0, 0x184 + NODE_ID, 255, 100, 100);
@@ -101,6 +102,10 @@ void setup() {
 
   //run lights self test. Flash all lights
   LightsSelfTest();
+
+  //permanently turn yellow lights on
+  digitalWrite(LIGHT_PREOP, HIGH); 
+  
   // User code Setup end ------------------------------------------------------
 
 

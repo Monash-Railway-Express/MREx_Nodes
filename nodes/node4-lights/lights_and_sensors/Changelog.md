@@ -31,3 +31,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 - None
+
+
+## [1.2.1]  - 2026-03-30
+
+### Added
+- lights_and_sensors.ino restored from previous dev commits
+
+### Changed
+- Lights.ino was changed to lights_and_sensors.ino to meet Software Standards
+- Header file and Function documentation was updated to meet Software Standards
+- Variables & Functions unrelated to CAN_MREx were updated to meet Software Standards
+
+### Removed
+- Lights.ino, now replaced by lights_and_sensors.ino
