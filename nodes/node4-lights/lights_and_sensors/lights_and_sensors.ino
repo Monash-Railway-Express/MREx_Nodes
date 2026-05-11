@@ -105,7 +105,7 @@ void setup() {
 
   //permanently turn yellow lights on
   digitalWrite(LIGHT_PREOP, HIGH); 
-  
+
   // User code Setup end ------------------------------------------------------
 
 
@@ -285,13 +285,14 @@ void CheckSensors(){
   //Debugging
   Serial.println("Temperature:");
   Serial.print("  Rear: ");
-  Serial.print(temperatureRear);
+  Serial.println(temperatureRear);
   Serial.print("  Front: ");
-  Serial.print(temperatureFront);
+  Serial.println(temperatureFront);
 
   heatFrontEMCY = temperatureFront > allowableTemperature;
   heatRearEMCY = temperatureRear > allowableTemperature;
-
+  Serial.println();
+  
   if (smokeEMCY){
     Serial.println("Smoke Detected in the Locomotive!");
     sendEMCY(0, NODE_ID, 0x00505);
