@@ -1,6 +1,7 @@
 #include <CAN_MREx.h>
 #include <controller.h>
 #include <stdlib.h>
+#include <HardwareSerial.h>  // Nextion UART
 
 /**
  * @file Controller.ino
@@ -58,8 +59,6 @@ uint8_t od_service_brake_dc = 0; //parking (1)=on and (0)=off
 //Free
 uint8_t od_switch_2 = 0;  
 
-
-
 //Timing for a non blocking function occuring every two seconds
 unsigned long previousMillis = 0;
 const long interval = 100; // 100 milliseconds
@@ -71,6 +70,187 @@ ADCBuffer challengeBuf = {0};
 ADCBuffer conditionBuf = {0};
 ADCBuffer opModeBuf = {0};
 
+// ═══════════════════════════════════════════════════════════════
+// NEXTION HMI
+// ═══════════════════════════════════════════════════════════════
+
+HardwareSerial nextionSerial(1); // UART1
+
+// Previous value cache
+int     prevSpeed       = -1;
+int     prevThrottle    = -1;
+int     prevBrake       = -1;
+int     prevDirection   = -1;
+int     prevChallenge   = -1;
+int     prevCondition   = -1;
+int     prevBrakeStatus = -1;
+uint8_t prevOpMode      = 255;
+
+void sendText(String component, String value) {
+  nextionSerial.print(component + ".txt=\"" + value + "\"");
+  nextionSerial.write(0xFF);
+  nextionSerial.write(0xFF);
+  nextionSerial.write(0xFF);
+}
+
+void sendProgressBar(String component, int value) {
+  nextionSerial.print(component + ".val=" + String(value));
+  nextionSerial.write(0xFF);
+  nextionSerial.write(0xFF);
+  nextionSerial.write(0xFF);
+}
+
+void sendColour(String component, String attr, int colour) {
+  nextionSerial.print(component + "." + attr + "=" + String(colour));
+  nextionSerial.write(0xFF);
+  nextionSerial.write(0xFF);
+  nextionSerial.write(0xFF);
+}
+
+void refreshComponent(String component) {
+  nextionSerial.print("ref " + component);
+  nextionSerial.write(0xFF);
+  nextionSerial.write(0xFF);
+  nextionSerial.write(0xFF);
+}
+
+#define NEX_GREEN  1339
+#define NEX_YELLOW 65504
+#define NEX_RED    63488
+#define NEX_WHITE  65535
+#define NEX_GREY   33808
+#define NEX_CYAN   1055
+#define NEX_DARK   10
+
+String getDirectionText(int dir) {
+  switch (dir) {
+    case 1: return "REVERSE";
+    case 2: return "NEUTRAL";
+    case 3: return "FORWARD";
+    default: return "--";
+  }
+}
+
+int getDirectionColour(int dir) {
+  switch (dir) {
+    case 1: return NEX_RED;
+    case 2: return NEX_YELLOW;
+    case 3: return NEX_GREEN;
+    default: return NEX_GREY;
+  }
+}
+
+String getChallengeText(int mode) {
+  switch (mode) {
+    case 1: return "Throttle Ctrl";
+    case 2: return "Speed Ctrl";
+    case 3: return "Autostop";
+    case 4: return "Regen";
+    case 5: return "Traction";
+    default: return "--";
+  }
+}
+
+String getConditionText(int mode) {
+  switch (mode) {
+    case 1: return "Dry";
+    case 2: return "Light Wet";
+    case 3: return "Wet";
+    case 4: return "Very Wet";
+    case 5: return "Extreme";
+    default: return "--";
+  }
+}
+
+String getOpModeText(uint8_t mode) {
+  switch (mode) {
+    case MODE_STOPPED:     return "Stopped";
+    case MODE_PREOP:       return "Pre-Op";
+    case MODE_OPERATIONAL: return "Operational";
+    default: return "--";
+  }
+}
+
+int getOpModeColour(uint8_t mode) {
+  switch (mode) {
+    case MODE_STOPPED:     return NEX_RED;
+    case MODE_PREOP:       return NEX_YELLOW;
+    case MODE_OPERATIONAL: return NEX_CYAN;
+    default: return NEX_GREY;
+  }
+}
+
+void updateAutostopPill(int challengeMode) {
+  if (challengeMode == 3) {
+    sendColour("t_autostop", "bco", NEX_GREEN);
+    sendColour("t_autostop", "pco", 0);
+  } else {
+    sendColour("t_autostop", "bco", NEX_DARK);
+    sendColour("t_autostop", "pco", NEX_GREY);
+  }
+  refreshComponent("t_autostop");
+}
+
+void updateNextion() {
+  // THROTTLE
+  int throttlePct = map(od_motor_command, 0, 1023, 0, 100);
+  if (throttlePct != prevThrottle) {
+    sendText("t_throttle", String(throttlePct) + " %");
+    sendProgressBar("j_throttle", throttlePct);
+    prevThrottle = throttlePct;
+  }
+
+  // BRAKE
+  int brakePct = map(od_regen_brake, 0, 1023, 0, 100);
+  if (brakePct != prevBrake) {
+    sendText("t_brakepct", String(brakePct) + " %");
+    sendProgressBar("j_brake", brakePct);
+    prevBrake = brakePct;
+  }
+
+  // BRAKE STATUS
+  if (od_service_brake_dc != prevBrakeStatus) {
+    bool applied = (od_service_brake_dc == 0);
+    sendText("t_brakestatus", applied ? "Applied" : "Released");
+    sendColour("t_brakestatus", "pco", applied ? NEX_RED : NEX_GREEN);
+    refreshComponent("t_brakestatus");
+    prevBrakeStatus = od_service_brake_dc;
+  }
+
+  // DIRECTION MODE
+  if (od_direction_mode != prevDirection) {
+    sendText("t_direction", getDirectionText(od_direction_mode));
+    sendColour("t_direction", "pco", getDirectionColour(od_direction_mode));
+    refreshComponent("t_direction");
+    prevDirection = od_direction_mode;
+  }
+
+  // CHALLENGE MODE
+  if (od_challenge_mode != prevChallenge) {
+    sendText("t_challenge", getChallengeText(od_challenge_mode));
+    updateAutostopPill(od_challenge_mode);
+    prevChallenge = od_challenge_mode;
+  }
+
+  // CONDITION MODE
+  if (od_condition_mode != prevCondition) {
+    sendText("t_condition", getConditionText(od_condition_mode));
+    prevCondition = od_condition_mode;
+  }
+
+  // OPERATION MODE
+  if (nodeOperatingMode != prevOpMode) {
+    sendText("t_opmode", getOpModeText(nodeOperatingMode));
+    sendColour("t_opmode", "pco", getOpModeColour(nodeOperatingMode));
+    refreshComponent("t_opmode");
+    prevOpMode = nodeOperatingMode;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// END NEXTION HMI
+// ═══════════════════════════════════════════════════════════════
+
 
 ///////////////////SET UP/////////////////////////
 
@@ -79,6 +259,8 @@ void setup() {
   delay(1000);
   Serial.println("Serial Coms started at 115200 baud");
   analogReadResolution(ADC_RES_BITS);
+
+  nextionSerial.begin(115200, SERIAL_8N1, 18, 17); // Nextion UART1
 
   //Inputs from componments  
   pinMode(BRAKE_PIN, INPUT);
@@ -115,7 +297,7 @@ void setup() {
     CAN_Task,
     "CAN Task",
     4096,
-    &NODE_ID,   // <--- passed into pvParameters
+    &NODE_ID,
     3,
     NULL,
     0
@@ -126,9 +308,9 @@ void setup() {
     "Input Task",  
     4096,  
     NULL, 
-    2,          // priority (lower than CAN if needed)  
+    2,
     NULL,  
-    1           // <-- Core 1 
+    1
   );
 
   // User code Setup Begin: -------------------------------------------------
@@ -141,13 +323,12 @@ void setup() {
   registerODEntry(0x6065, 0x00, 2, sizeof(od_horn_toggle), &od_horn_toggle);
   registerODEntry(0x3012, 0x02, 2, sizeof(od_service_brake_dc), &od_service_brake_dc);
 
-
   // --- Register TPDOs ---
-  configureTPDO(0, 0x180 + NODE_ID, 255, 100, 100);  // COB-ID, transType, inhibit, event
+  configureTPDO(0, 0x180 + NODE_ID, 255, 100, 100);
   
   PdoMapEntry tpdoEntries[] = {
-    {0x3012, 0x00, 16},    // regen brake
-    {0x606A, 0x00, 16},   // motor command
+    {0x3012, 0x00, 16},
+    {0x606A, 0x00, 16},
   };
   mapTPDO(0, tpdoEntries, 2);
   // --- Register RPDOs ---
@@ -170,13 +351,12 @@ void loop() {
 
     switch (nodeOperatingMode) {
       case MODE_STOPPED: StoppedMode(); break;
-
       case MODE_PREOP: PreOpMode(); break;
-
       case MODE_OPERATIONAL: OperationalMode(); break;
-
-      default: StoppedMode(); break; // fail-safe
+      default: StoppedMode(); break;
     }
+
+    updateNextion(); // Update Nextion display
 
     Serial.println(" ");
   }
@@ -184,19 +364,10 @@ void loop() {
 
 /////////////MAIN LOOP END//////////////////////
 
-/**
-* @brief Function that is called when the system is in stopped mode, Prints Stopped Mode to console
-*/
 void StoppedMode(){
   Serial.println("Stopped Mode");
-  /**
-  TODO: Check speed/throttle, regen brakes and service brake status and send minor emergencies accordingly.
-  */
 }
 
-/**
-* @brief Pre Operational Function, calls HandleDirection and HandleChallenge
-*/
 void PreOpMode(){
   Serial.print("Pre-Op Mode");
   HandleDirection();
@@ -205,9 +376,6 @@ void PreOpMode(){
   HandleHorn();
 }
 
-/**
-*@brief OperationMode function - Calls HandleChallenge and HandleInputs
-*/
 void OperationalMode(){
   Serial.print("Op Mode");
   HandleChallenge();
@@ -216,78 +384,40 @@ void OperationalMode(){
   HandleInputs();
 }
 
-
-/**
- * @brief function that compares current to previous operational modes - if different will send to all nodes  
- */
 void UpdateOpMode(){
-
   int newOpModeRaw = ReadStable3PosBuffered(&opModeBuf);
-  
-  //Converting states 1-3 to enum OperatingMode
-
   uint8_t enumOpMode = opModes[newOpModeRaw];
-
-
-  // Checking current mode is different to new
   if(nodeOperatingMode != enumOpMode){
-    // Send command to all nodes
     nodeOperatingMode = enumOpMode;  
     Serial.print(nodeOperatingMode);
-    // Update local state
     //SendAllNMT(enumOpMode);
   }
 }
 
-
-/**
- * @brief function that is called to send NMT to all nodes
- *
- * @param operatingMode  Current operating mode (will be 0x01, 0x02 or 0x80)
- *
- */
 void SendAllNMT(uint8_t operatingMode) {
-  //ID's have been changed to variable names to aid readability
-  sendNMT(operatingMode, MOTOR_ID); // motor previously 0x01
-  sendNMT(operatingMode, BRAKES_ID); // brakes previously 0x02
-  sendNMT(operatingMode, LIGHTS_ID); // lights previously 0x04
-  sendNMT(operatingMode, AUDIO_ID); // audio sys previously 0x05
+  sendNMT(operatingMode, MOTOR_ID);
+  sendNMT(operatingMode, BRAKES_ID);
+  sendNMT(operatingMode, LIGHTS_ID);
+  sendNMT(operatingMode, AUDIO_ID);
   sendNMT(operatingMode, AUTOSTOP_ID);
   sendNMT(operatingMode, BATTERY_ID);     
-  sendNMT(operatingMode, LCD_ID); // LCD screen previously 0x09
+  sendNMT(operatingMode, LCD_ID);
 }
 
-
-
-
-/**
- * @brief function where all inputs are read and written to the OD variables
- */
 void HandleInputs() {
-  // ===== Potentiometer Inputs =====
   uint16_t motorCommand = 1023 - GetAverage(&throttleBuf);  
   od_regen_brake = 1023 - GetAverage(&brakeBuf);
-
-  if (od_service_brake_dc) { // 1, not braking
+  if (od_service_brake_dc) {
     od_motor_command = motorCommand;
-  } else { // 0, braking
+  } else {
     od_motor_command = 0;
   }
-
   Serial.print("   ||   Brake: ");
   Serial.print(od_regen_brake);
   Serial.print("   ||   Throttle: ");
   Serial.print(od_motor_command);
-
 }
 
-
-
-
-
-/**
- * @brief function that does edge detection on horn button and calls SDO write to horn node
- */
 void HandleHorn() {
   Serial.print("   ||   Horn Handle: ");
   int newHornToggle = !(digitalRead(HORN_PIN));
@@ -298,63 +428,36 @@ void HandleHorn() {
   }
 }
 
-
-
-
-
-
-/**
- * @brief Reads the switch which controls the parking break, if the new digital read does not equal the old the parking is sent to the brakes and motors)
- */
 void HandleParking() {
   Serial.print("   ||   Parking Handle: ");
   int newServiceBrake = digitalRead(SERVICE_BRAKE_PIN);
   Serial.print(newServiceBrake);
   if (od_service_brake_dc != newServiceBrake) {
-    
-    //1 is not braking - 0 is braking
     od_service_brake_dc = newServiceBrake;
     executeSDOWrite(NODE_ID, BRAKES_ID, 0x3012, 0x02, sizeof(od_service_brake_dc), &od_service_brake_dc);
     Serial.print("Sending Parking");
     Serial.println(od_service_brake_dc);
-
   }
 }
 
-
-
-
-
-/**
-*@brief HandleDirection function reads the desired direction from the 3 positions switch and sends relevent direction to motor and lights
-*/
 void HandleDirection() {
   Serial.print("   ||   Direction Handle: ");
   int newDirectionMode = ReadStable3PosBuffered(&dirBuf);
   Serial.print(newDirectionMode);
   if ((od_direction_mode != newDirectionMode) && (newDirectionMode > 0)) {
-    // 1 is forawrd, 2 is neutral, 3 is back 
     od_direction_mode = newDirectionMode;
     executeSDOWrite(NODE_ID, MOTOR_ID, 0x6060, 0x00, sizeof(od_direction_mode), &od_direction_mode);
     executeSDOWrite(NODE_ID, LIGHTS_ID, 0x6060, 0x00, sizeof(od_direction_mode), &od_direction_mode);
-
     Serial.print("Sending direction");
     Serial.println(od_direction_mode);
   }
 }
 
-
-
-
-/**
-*@brief Function reads challange 5 position switch, checks if the challenge has changed, and if so writes new challenge to motors. 
-*/
 void HandleChallenge() {
   Serial.print("   ||   Challenge Handle: ");
   int newChallengeMode = ReadStable5PosBuffered(&challengeBuf);
   Serial.print(newChallengeMode);
   if ((od_challenge_mode != newChallengeMode) && (newChallengeMode > 0)) {
-    // 1 is forawrd, 2 is neutral, 3 is back 
     od_challenge_mode = newChallengeMode;
     executeSDOWrite(NODE_ID, MOTOR_ID, 0x6062, 0x00, sizeof(od_challenge_mode), &od_challenge_mode);
     executeSDOWrite(NODE_ID, AUTOSTOP_ID, 0x6062, 0x00, sizeof(od_challenge_mode), &od_challenge_mode);
@@ -363,45 +466,23 @@ void HandleChallenge() {
   }
 }
 
-
-
-
-
-/**
-*@brief Function reads the condition pin, if new state is different to previous state the SDO for the condition is sent to the motor. 
-*/
 void HandleCondition(){
   Serial.print("   ||   Condition Handle");
   int newConditionMode = ReadStable5PosBuffered(&conditionBuf);
   Serial.print(newConditionMode);
-  //Only sends the new condition object as an SDO if there has been a change in the condition. 
   if(od_condition_mode != newConditionMode){
     od_condition_mode = newConditionMode;
     executeSDOWrite(NODE_ID,MOTOR_ID,0x6061,0x00,sizeof(od_condition_mode),&od_condition_mode);
     Serial.print("Sending Condition");
     Serial.println(od_condition_mode);
-    
   }
 }
 
-/**
- * @brief Updates the circular ADC sample buffer with a new reading from the specified pin
- *
- * @param buf Pointer to the ADCBuffer to update
- * @param pin The analog pin to read from
- */
 void UpdateADCBuffer(ADCBuffer* buf, int pin) {  
   buf->samples[buf->index] = analogRead(pin);  
   buf->index = (buf->index + 1) % BUF_SIZE; 
 }
 
-/**
- * @brief Computes the average of all samples currently stored in the ADC buffer
- *
- * @param buf Pointer to the ADCBuffer to average
- *
- * @return Integer average of all samples in the buffer
- */
 int GetAverage(ADCBuffer* buf) { 
   int sum = 0;  
   for (int i = 0; i < BUF_SIZE; i++) {    
@@ -410,41 +491,19 @@ int GetAverage(ADCBuffer* buf) {
   return sum / BUF_SIZE; 
 }
 
-/**
- * @brief Returns a stable 3-position switch reading by averaging the ADC buffer and decoding to nearest position
- *
- * @param buf Pointer to the ADCBuffer associated with the switch pin
- *
- * @return Decoded switch position (1–3)
- */
 int ReadStable3PosBuffered(ADCBuffer* buf) {  
   int avg = GetAverage(buf);  
   return DecodeNearest3(avg); 
 }
 
-/**
- * @brief Returns a stable 5-position switch reading by averaging the ADC buffer and decoding to nearest position
- *
- * @param buf Pointer to the ADCBuffer associated with the switch pin
- *
- * @return Decoded switch position (1–5)
- */
 int ReadStable5PosBuffered(ADCBuffer* buf) {  
   int avg = GetAverage(buf);  
   return DecodeNearest5(avg); 
 }
 
-/**
-*@brief Recieves raw analog value and finds the nearest setting (1-3)
-*
-*@param raw The raw ADC read
-*
-*@return returns the closest index (1-3)
-*/
 int DecodeNearest3(int raw) {
   int bestIndex = 0;
   int bestErr = abs(raw - THREE_LEVELS[0]);
-
   for (int i = 1; i < 3; i++) {
     int err = abs(raw - THREE_LEVELS[i]);
     if (err < bestErr) {
@@ -452,19 +511,9 @@ int DecodeNearest3(int raw) {
       bestIndex = i;
     }
   }
-
-  return bestIndex + 1;  // states 1..3
+  return bestIndex + 1;
 }
 
-
-
-/**
-*@brief Recives raw analaog read value and outputs the nearest position, returning 1-5
-*
-*@param raw Raw value from analog read to be converted to position 1-5 
-*
-*@return Returns the nearest position 1-5. 
-*/
 int DecodeNearest5(int raw) {
   int bestIndex = 0;
   int bestErr = abs(raw - FIVE_LEVELS[0]);
@@ -475,18 +524,11 @@ int DecodeNearest5(int raw) {
       bestIndex = i;
     }
   }
-
-  return bestIndex + 1;  // states 1..5
+  return bestIndex + 1;
 }
 
-/**
- * @brief FreeRTOS task that continuously samples all analog input pins into their respective ADC buffers at 200 Hz
- *
- * @param pvParameters Unused task parameter (pass NULL)
- */
 void InputTask(void* pvParameters) {
   const TickType_t delayTicks = pdMS_TO_TICKS(5); // 200 Hz sampling
-
   while (true) { 
     UpdateADCBuffer(&throttleBuf, THROTTLE_PIN); 
     UpdateADCBuffer(&brakeBuf, BRAKE_PIN); 
@@ -494,8 +536,7 @@ void InputTask(void* pvParameters) {
     UpdateADCBuffer(&opModeBuf, OP_MODE_PIN); 
     UpdateADCBuffer(&challengeBuf, CHALLENGE_MODE_PIN); 
     UpdateADCBuffer(&conditionBuf, CONDITION_MODE_PIN); 
-
-  vTaskDelay(delayTicks);
+    vTaskDelay(delayTicks);
   } 
 }
 
@@ -505,5 +546,3 @@ void InitBuffer(ADCBuffer* buf, int pin) {
   }
   buf->index = 0;
 }
-
-
