@@ -104,8 +104,8 @@ void setup() {
 void loop() {
   //User Code begin loop() ----------------------------------------------------
   unsigned long  currentMillis = millis();
-  
-  CheckSensors(); // always check the sensors
+
+  // CheckSensors(); // always check the sensors
   
   // --- Stopped mode (This is default starting point) ---
   if (nodeOperatingMode == 0x02){ 
@@ -221,7 +221,7 @@ void HandleOpMode()
     case OFF:
       digitalWrite(LIGHT_FWD, LOW);
       digitalWrite(LIGHT_REV, LOW);
-      digitalWrite(LIGHT_PREOP, LOW);
+      digitalWrite(LIGHT_PREOP, HIGH);
       break;
   }
 }
