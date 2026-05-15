@@ -1,7 +1,8 @@
+uint8_t NODE_ID = 2; // brakes node id is 2
+
 #include <CAN_MREx.h>
 #include <Adafruit_NeoPixel.h>
-
-uint8_t nodeID = 2; // brakes node id is 2
+#include "../../../shared/DualSerial/DualSerial.cpp"
 
 #define TX_GPIO_NUM GPIO_NUM_8 //18
 #define RX_GPIO_NUM GPIO_NUM_7 //19
@@ -29,11 +30,11 @@ uint8_t od_direction_mode = 0;
 
 
 void setup() {
-  Serial.begin(115200);
+  DualSerial.begin(115200);
   delay(1000); // wait to help connection
-  Serial.println("Brakes node started (Node 2)");
+  DualSerial.println("Brakes node started (Node 2)");
 
-  initCANMREX(TX_GPIO_NUM, RX_GPIO_NUM, nodeID);
+  initCANMREX(TX_GPIO_NUM, RX_GPIO_NUM, NODE_ID);
 
   pinMode(SERVICE_BRAKE_PIN, OUTPUT);
   // pinMode(LED_LIGHT, OUTPUT);
@@ -59,7 +60,7 @@ void setup() {
       CAN_Task,
       "CAN Task",
       6144,
-      &nodeID,
+      &NODE_ID,
       3,
       NULL,
       0
@@ -121,12 +122,12 @@ void loop() {
     lastOut = out;
     digitalWrite(SERVICE_BRAKE_PIN, out);
 
-    Serial.print("Mode = 0x");
-    Serial.print(nodeOperatingMode, HEX);
-    Serial.print(" | Service brake flag = ");
-    Serial.print(od_service_brake_dc);
-    Serial.print(" | Friction brake: ");
-    Serial.println(out == HIGH ? "RELEASED (relay ON)" : "APPLIED (relay OFF)");
+    DualSerial.print("Mode = 0x");
+    DualSerial.print(nodeOperatingMode, HEX);
+    DualSerial.print(" | Service brake flag = ");
+    DualSerial.print(od_service_brake_dc);
+    DualSerial.print(" | Friction brake: ");
+    DualSerial.println(out == HIGH ? "RELEASED (relay ON)" : "APPLIED (relay OFF)");
   }
 
 }

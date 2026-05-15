@@ -13,13 +13,14 @@
 #include "CAN_MREx.h" // inlcudes all CAN MREX files
 #include "VeDirectFrameHandler.h" // parser
 #include "Arduino.h"
+uint8_t NODE_ID = 7;  // battery is node 7
 #include <HardwareSerial.h>
+#include "../../shared/DualSerial/DualSerial.cpp"
 
 // User code begin: ------------------------------------------------------
 VeDirectFrameHandler myparser;
 
 // --- CAN MREx initialisation ---
-uint8_t nodeID = 7;  // battery is node 7
 const bool nmtMaster = false;
 const bool heartbeatConsumer = false;
 
@@ -60,22 +61,22 @@ void setup() {
   pinMode(23, OUTPUT);
   digitalWrite(23, HIGH);
 
-  Serial.begin(115200); 
+  DualSerial.begin(115200); 
   delay(1000);
-  Serial.println("Serial Coms started at 115200 baud");
+  DualSerial.println("DualSerial Coms started at 115200 baud");
 
   veSerial.begin(19200, SERIAL_8N1, 16, 17); // GPIO 16 - RX; GPIO 17 -TX. // ESP32 <-> Shunt
   delay(1000);
-  Serial.println("Reading values from shunt started at 19200 baud");
+  DualSerial.println("Reading values from shunt started at 19200 baud");
   
   //Initialize CANMREX protocol
-  initCANMREX(TX_GPIO_NUM, RX_GPIO_NUM, nodeID);
+  initCANMREX(TX_GPIO_NUM, RX_GPIO_NUM, NODE_ID);
 
   xTaskCreatePinnedToCore(
       CAN_Task,
       "CAN Task",
       6144,
-      &nodeID,
+      &NODE_ID,
       3,
       NULL,
       0
@@ -95,8 +96,8 @@ void setup() {
 
   // --- Configure TPDOs and RPDOs ---
 
-  configureTPDO(0, 0x180 + nodeID, 255, 100, 1000);  // TPDO 1, COB-ID, transType, inhibit, event
-  configureTPDO(1, 0x280 + nodeID, 255, 100, 1000);  // TPDO 2, COB-ID, transType, inhibit, event
+  configureTPDO(0, 0x180 + NODE_ID, 255, 100, 1000);  // TPDO 1, COB-ID, transType, inhibit, event
+  configureTPDO(1, 0x280 + NODE_ID, 255, 100, 1000);  // TPDO 2, COB-ID, transType, inhibit, event
   configureRPDO(0, 0x180 + 3, 255, 0); // RPDO 1, COB-ID, transType, inhibit. This node receives from node 3 which is driver controls.
 
   // --- TPDO and RPDO entries ---
@@ -147,9 +148,9 @@ void EverySecond() {
     static unsigned long prev_millis;
     if (millis() - prev_millis > 1000) {
         PrintData();
-        Serial.print("Recovered Energy");
-        Serial.print(" = ");
-        Serial.println(recovered_energy);
+        DualSerial.print("Recovered Energy");
+        DualSerial.print(" = ");
+        DualSerial.println(recovered_energy);
         prev_millis = millis();
     }
 }
@@ -160,9 +161,9 @@ void EverySecond() {
  */
 void PrintData() {
     for ( int i = 0; i < myparser.veEnd; i++ ) {
-    Serial.print(myparser.veData[i].veName);
-    Serial.print(" = ");
-    Serial.println(myparser.veData[i].veValue);    
+    DualSerial.print(myparser.veData[i].veName);
+    DualSerial.print(" = ");
+    DualSerial.println(myparser.veData[i].veValue);    
     }
 }
 
@@ -264,8 +265,8 @@ void loop(){
       // if new data is not received
     currentMillis = millis();
     if (currentMillis - last_data_received_time >= shunt_data_interval) { // if more than 1.5s pass and still no data in buffer then raise error because a new block should be received every sec.
-      sendEMCY(1,nodeID, 0x00000701); // Minor Emergency
-      Serial.println("No Data in the buffer!");
+      sendEMCY(1,NODE_ID, 0x00000701); // Minor Emergency
+      DualSerial.println("No Data in the buffer!");
       last_data_received_time = currentMillis;
       }
     }

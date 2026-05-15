@@ -1,6 +1,7 @@
 #include <CAN_MREx.h>
 #include <controller.h>
 #include <stdlib.h>
+#include "../../../shared/DualSerial/DualSerial.cpp"
 
 /**
  * @file Controller.ino
@@ -16,7 +17,7 @@
  *
  * @date Created: 05/08/2025
  *
- * @version 1.2.2
+ * @version 1.3.0
  *
  * @organisation MREX
  *
@@ -75,9 +76,9 @@ ADCBuffer opModeBuf = {0};
 ///////////////////SET UP/////////////////////////
 
 void setup() {
-  Serial.begin(115200);
+  DualSerial.begin(115200);
   delay(1000);
-  Serial.println("Serial Coms started at 115200 baud");
+  DualSerial.println("DualSerial Coms started at 115200 baud");
   analogReadResolution(ADC_RES_BITS);
 
   //Inputs from componments  
@@ -178,7 +179,7 @@ void loop() {
       default: StoppedMode(); break; // fail-safe
     }
 
-    Serial.println(" ");
+    DualSerial.println(" ");
   }
 }
 
@@ -188,7 +189,7 @@ void loop() {
 * @brief Function that is called when the system is in stopped mode, Prints Stopped Mode to console
 */
 void StoppedMode(){
-  Serial.println("Stopped Mode");
+  DualSerial.println("Stopped Mode");
   /**
   TODO: Check speed/throttle, regen brakes and service brake status and send minor emergencies accordingly.
   */
@@ -198,7 +199,7 @@ void StoppedMode(){
 * @brief Pre Operational Function, calls HandleDirection and HandleChallenge
 */
 void PreOpMode(){
-  Serial.print("Pre-Op Mode");
+  DualSerial.print("Pre-Op Mode");
   HandleDirection();
   HandleChallenge();
   HandleParking();
@@ -209,7 +210,7 @@ void PreOpMode(){
 *@brief OperationMode function - Calls HandleChallenge and HandleInputs
 */
 void OperationalMode(){
-  Serial.print("Op Mode");
+  DualSerial.print("Op Mode");
   HandleChallenge();
   HandleParking();
   HandleHorn();
@@ -233,7 +234,7 @@ void UpdateOpMode(){
   if(nodeOperatingMode != enumOpMode){
     // Send command to all nodes
     nodeOperatingMode = enumOpMode;  
-    Serial.print(nodeOperatingMode);
+    DualSerial.print(nodeOperatingMode);
     // Update local state
     //SendAllNMT(enumOpMode);
   }
@@ -274,10 +275,10 @@ void HandleInputs() {
     od_motor_command = 0;
   }
 
-  Serial.print("   ||   Brake: ");
-  Serial.print(od_regen_brake);
-  Serial.print("   ||   Throttle: ");
-  Serial.print(od_motor_command);
+  DualSerial.print("   ||   Brake: ");
+  DualSerial.print(od_regen_brake);
+  DualSerial.print("   ||   Throttle: ");
+  DualSerial.print(od_motor_command);
 
 }
 
@@ -289,9 +290,9 @@ void HandleInputs() {
  * @brief function that does edge detection on horn button and calls SDO write to horn node
  */
 void HandleHorn() {
-  Serial.print("   ||   Horn Handle: ");
+  DualSerial.print("   ||   Horn Handle: ");
   int newHornToggle = !(digitalRead(HORN_PIN));
-  Serial.print(newHornToggle);
+  DualSerial.print(newHornToggle);
   if (od_horn_toggle != newHornToggle) {
     od_horn_toggle = newHornToggle;
     executeSDOWrite(NODE_ID, AUDIO_ID, 0x6065, 0x00, sizeof(od_horn_toggle), &od_horn_toggle);
@@ -307,16 +308,16 @@ void HandleHorn() {
  * @brief Reads the switch which controls the parking break, if the new digital read does not equal the old the parking is sent to the brakes and motors)
  */
 void HandleParking() {
-  Serial.print("   ||   Parking Handle: ");
+  DualSerial.print("   ||   Parking Handle: ");
   int newServiceBrake = digitalRead(SERVICE_BRAKE_PIN);
-  Serial.print(newServiceBrake);
+  DualSerial.print(newServiceBrake);
   if (od_service_brake_dc != newServiceBrake) {
     
     //1 is not braking - 0 is braking
     od_service_brake_dc = newServiceBrake;
     executeSDOWrite(NODE_ID, BRAKES_ID, 0x3012, 0x02, sizeof(od_service_brake_dc), &od_service_brake_dc);
-    Serial.print("Sending Parking");
-    Serial.println(od_service_brake_dc);
+    DualSerial.print("Sending Parking");
+    DualSerial.println(od_service_brake_dc);
 
   }
 }
@@ -329,17 +330,17 @@ void HandleParking() {
 *@brief HandleDirection function reads the desired direction from the 3 positions switch and sends relevent direction to motor and lights
 */
 void HandleDirection() {
-  Serial.print("   ||   Direction Handle: ");
+  DualSerial.print("   ||   Direction Handle: ");
   int newDirectionMode = ReadStable3PosBuffered(&dirBuf);
-  Serial.print(newDirectionMode);
+  DualSerial.print(newDirectionMode);
   if ((od_direction_mode != newDirectionMode) && (newDirectionMode > 0)) {
     // 1 is forawrd, 2 is neutral, 3 is back 
     od_direction_mode = newDirectionMode;
     executeSDOWrite(NODE_ID, MOTOR_ID, 0x6060, 0x00, sizeof(od_direction_mode), &od_direction_mode);
     executeSDOWrite(NODE_ID, LIGHTS_ID, 0x6060, 0x00, sizeof(od_direction_mode), &od_direction_mode);
 
-    Serial.print("Sending direction");
-    Serial.println(od_direction_mode);
+    DualSerial.print("Sending direction");
+    DualSerial.println(od_direction_mode);
   }
 }
 
@@ -350,16 +351,16 @@ void HandleDirection() {
 *@brief Function reads challange 5 position switch, checks if the challenge has changed, and if so writes new challenge to motors. 
 */
 void HandleChallenge() {
-  Serial.print("   ||   Challenge Handle: ");
+  DualSerial.print("   ||   Challenge Handle: ");
   int newChallengeMode = ReadStable5PosBuffered(&challengeBuf);
-  Serial.print(newChallengeMode);
+  DualSerial.print(newChallengeMode);
   if ((od_challenge_mode != newChallengeMode) && (newChallengeMode > 0)) {
     // 1 is forawrd, 2 is neutral, 3 is back 
     od_challenge_mode = newChallengeMode;
     executeSDOWrite(NODE_ID, MOTOR_ID, 0x6062, 0x00, sizeof(od_challenge_mode), &od_challenge_mode);
     executeSDOWrite(NODE_ID, AUTOSTOP_ID, 0x6062, 0x00, sizeof(od_challenge_mode), &od_challenge_mode);
-    Serial.print("Sending Challenge");
-    Serial.println(od_challenge_mode);
+    DualSerial.print("Sending Challenge");
+    DualSerial.println(od_challenge_mode);
   }
 }
 
@@ -371,15 +372,15 @@ void HandleChallenge() {
 *@brief Function reads the condition pin, if new state is different to previous state the SDO for the condition is sent to the motor. 
 */
 void HandleCondition(){
-  Serial.print("   ||   Condition Handle");
+  DualSerial.print("   ||   Condition Handle");
   int newConditionMode = ReadStable5PosBuffered(&conditionBuf);
-  Serial.print(newConditionMode);
+  DualSerial.print(newConditionMode);
   //Only sends the new condition object as an SDO if there has been a change in the condition. 
   if(od_condition_mode != newConditionMode){
     od_condition_mode = newConditionMode;
     executeSDOWrite(NODE_ID,MOTOR_ID,0x6061,0x00,sizeof(od_condition_mode),&od_condition_mode);
-    Serial.print("Sending Condition");
-    Serial.println(od_condition_mode);
+    DualSerial.print("Sending Condition");
+    DualSerial.println(od_condition_mode);
     
   }
 }

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.0] - 2026-05-14
+### Changed
+- Use DualSerial module for wireless serial monitoring
+
 ## [1.0.2] - 2026-03-20
 ### Added 
 - added ability for motor controller to control service brakes during operational mode.

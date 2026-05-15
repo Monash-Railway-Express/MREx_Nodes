@@ -50,15 +50,16 @@ USE 16 bit .wav files for horn. Using MP3 adds small silences at start and end o
 */
 #include <CAN_MREx.h> // inlcudes all CAN MREX files
 #include "Arduino.h"
+uint8_t NODE_ID = 5;  // Node 5 - Audio
 #include "DFRobotDFPlayerMini.h"
 #include <HardwareSerial.h>
+#include "../../../shared/DualSerial/DualSerial.cpp"
 
 
 
 
 // User code begin: ------------------------------------------------------
 // --- CAN MREx initialisation ---
-uint8_t nodeID = 5;  // Node 5 - Audio
 
 // --- Pin Definitions ---
 #define TX_GPIO_NUM GPIO_NUM_36 // Set GPIO pin for CAN Transmit
@@ -98,7 +99,7 @@ void setup() {
   Serial.println("Serial Coms started at 115200 baud");
   
   //Initialize CANMREX protocol
-  initCANMREX(TX_GPIO_NUM, RX_GPIO_NUM, nodeID);
+  initCANMREX(TX_GPIO_NUM, RX_GPIO_NUM, NODE_ID);
   xTaskCreatePinnedToCore(
  
       CAN_Task,
@@ -107,7 +108,7 @@ void setup() {
  
       6144,
  
-      &nodeID,
+      &NODE_ID,
  
       3,
  
@@ -164,7 +165,7 @@ void loop() {
   //User Code begin loop() ----------------------------------------------------
   // --- Stopped mode (This is default starting point) ---
   if (nodeOperatingMode == 0x02){ 
-    handleCAN(nodeID);
+    handleCAN(NODE_ID);
     digitalWrite(STATUS_LED, LOW);
     digitalWrite(PREOP_LED, LOW);
   }

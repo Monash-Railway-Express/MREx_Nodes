@@ -38,19 +38,20 @@
  *
  * @date 16/04/2026
  *
- * @version 1.0.0
+ * @version 1.1.0
  *
  * @organisation MREX
  */
 
+uint8_t NODE_ID = 6;
 #include <CAN_MREx.h>
+#include "../../../shared/DualSerial/DualSerial.cpp"
 
 // User code begin: -------------------------------------------------------
 
 // --- Node ID ---
 // Must NOT be const — CAN_MREx v1.13.0 requires a mutable pointer for the
 // FreeRTOS CAN task (xTaskCreatePinnedToCore passes &NODE_ID as pvParameters).
-uint8_t NODE_ID = 6;
 
 // --- CAN transceiver pins ---
 #define TX_GPIO_NUM GPIO_NUM_26
@@ -203,11 +204,11 @@ static void _CheckSensorCircuit(void) {
         if (!circuitFaultLatch) {
             sendEMCY(1, NODE_ID, EMCY_SENSOR_CIRCUIT_FAULT);
             circuitFaultLatch = true;
-            Serial.println("[Autostop] WARN: Sensor circuit fault — A == B.");
+            DualSerial.println("[Autostop] WARN: Sensor circuit fault — A == B.");
         }
     } else {
         if (circuitFaultLatch) {
-            Serial.println("[Autostop] INFO: Sensor circuit recovered.");
+            DualSerial.println("[Autostop] INFO: Sensor circuit recovered.");
         }
         circuitFaultLatch = false;
     }
@@ -233,7 +234,7 @@ static void _SendDetectionAlert(void) {
     // executeSDOWrite(NODE_ID, DEST_NODE_DRIVER,
     //                 OD_INDEX_AUTOSTOP_ALERT, OD_SUBINDEX_AUTOSTOP_ALERT,
     //                 sizeof(alertVal), &alertVal);
-    // Serial.println("[Autostop] Detection alert sent to driver controls node.");
+    // DualSerial.println("[Autostop] Detection alert sent to driver controls node.");
 }
 
 
@@ -265,10 +266,10 @@ static void _WarnIfDetectedWrongMode(void) {
     if (warnPrinted) return;
 
     if (nodeOperatingMode != MODE_OPERATIONAL) {
-        Serial.println("[Autostop] WARNING: detection but not in operational mode.");
+        DualSerial.println("[Autostop] WARNING: detection but not in operational mode.");
         warnPrinted = true;
     } else if (od_challenge_mode != AUTOSTOP_CHALLENGE_VALUE) {
-        Serial.println("[Autostop] WARNING: detection but not in autostop mode.");
+        DualSerial.println("[Autostop] WARNING: detection but not in autostop mode.");
         warnPrinted = true;
     }
 }
@@ -327,7 +328,7 @@ static void _HandleAutostop(void) {
 
             // _SendDetectionAlert();
             // sendEMCY(1, NODE_ID, EMCY_AUTOSTOP_TRIGGERED);
-            Serial.println("[Autostop] TRIGGERED — marker confirmed, detection sent to Node 1 - Motor.");
+            DualSerial.println("[Autostop] TRIGGERED — marker confirmed, detection sent to Node 1 - Motor.");
         }
     } else {
         sensorConfirmCount = 0U;
@@ -378,7 +379,7 @@ void OperationalMode(void) {
     // autostop. od_challenge_mode is updated in the background by the CAN task
     // whenever Node 3 SDO-writes it.
     if (autostopLatched && (od_challenge_mode != AUTOSTOP_CHALLENGE_VALUE)) {
-        Serial.println("[Autostop] INFO: Challenge mode changed — latch released.");
+        DualSerial.println("[Autostop] INFO: Challenge mode changed — latch released.");
         autostopLatched       = false;
         od_autostop_detection = 0U;
         sensorConfirmCount    = 0U;
@@ -397,9 +398,9 @@ void OperationalMode(void) {
 // =============================================================================
 
 void setup() {
-    Serial.begin(SERIAL_BAUD_RATE);
+    DualSerial.begin(SERIAL_BAUD_RATE);
     delay(STARTUP_DELAY_MS);
-    Serial.println("Serial Coms started at 115200 baud");
+    DualSerial.println("DualSerial Coms started at 115200 baud");
 
     // Initialise CAN MREx and start the FreeRTOS CAN task.
     // NODE_ID must NOT be const — task takes &NODE_ID as pvParameters.

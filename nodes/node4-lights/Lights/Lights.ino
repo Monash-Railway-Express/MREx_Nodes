@@ -5,8 +5,8 @@
  * Organisation:    MREX
  * Author:          Aung Hpone Thant, Chiara Gillam, Oscar Boulter
  * Date Created:    5/10/2025
- * Last Modified:   16/04/2026
- * Version:         1.2
+ * Last Modified:   14/05/2026
+ * Version:         1.3.0
  *
  *This code is for the lighting node (Node 4 on the loco). 
  *LIGHTS_FWD will be the control for the white lights on the front and red on the back,
@@ -14,11 +14,12 @@
  *LIGHTS_PREOP control the yellow lights on all faces of the loco.
  */
 
+uint8_t NODE_ID = 4;  // Change this to set your device's node ID
 #include <CAN_MREx.h> // inlcudes all CAN MREX files
+#include "../../../shared/DualSerial/DualSerial.cpp"
 
 // User code begin: ------------------------------------------------------
 // --- CAN MREx initialisation ---
-uint8_t nodeID = 4;  // Change this to set your device's node ID
 
 // --- Pin Definitions ---
 #define TX_GPIO_NUM GPIO_NUM_5 // Set GPIO pin for CAN Transmit
@@ -49,17 +50,17 @@ unsigned long nextPollTime; //used for non blocking delay to request the current
 
 
 void setup() {
-  Serial.begin(115200);
+  DualSerial.begin(115200);
   delay(1000);
-  Serial.println("Serial Coms started at 115200 baud");
+  DualSerial.println("DualSerial Coms started at 115200 baud");
   
   //Initialize CANMREX protocol
-  initCANMREX(TX_GPIO_NUM, RX_GPIO_NUM, nodeID);
+  initCANMREX(TX_GPIO_NUM, RX_GPIO_NUM, NODE_ID);
   xTaskCreatePinnedToCore(
       CAN_Task,
       "CAN Task",
       6144,
-      &nodeID,
+      &NODE_ID,
       3,
       NULL,
       0
@@ -72,7 +73,7 @@ void setup() {
   registerODEntry(0x6060, 0x00, 2, sizeof(dirMode), &dirMode);
 
   // --- Register TPDOs ---
-  configureTPDO(0, 0x184 + nodeID, 255, 100, 100);
+  configureTPDO(0, 0x184 + NODE_ID, 255, 100, 100);
 
   PdoMapEntry tpdoEntries[] = {
       {0x1004, 0x00, 16},  // Example: index 0x2000, subindex 1, 16 bits
@@ -108,19 +109,19 @@ void loop() {
   
   // --- Stopped mode (This is default starting point) ---
   if (nodeOperatingMode == 0x02){ 
-    //handleCAN(nodeID);
+    //handleCAN(NODE_ID);
     driveState = Off;
   }
 
   // --- Pre operational state (This is where you can do checks and make sure that everything is okay) ---
   if (nodeOperatingMode == 0x80){ 
-    //handleCAN(nodeID);
+    //handleCAN(NODE_ID);
     driveState = PreOp;
   }
 
   // --- Operational state (Normal operating mode) ---
   if (nodeOperatingMode == 0x01){ 
-    //handleCAN(nodeID);
+    //handleCAN(NODE_ID);
     //request the state of the motor drive direction every 200ms
     if (currentMillis >= nextPollTime)
     {
@@ -137,9 +138,9 @@ void loop() {
 void HandleDirStates()
 {
   // //reads the motor direction from the controller.
-  // dirMode32 = executeSDORead(nodeID, 3, 0x6060, 0x00); 
+  // dirMode32 = executeSDORead(NODE_ID, 3, 0x6060, 0x00); 
   // //dirMode = 1;
-  // //executeSDOWrite(nodeID, 3, 0x6060, 0x00, sizeof(uint8_t), &dirMode);
+  // //executeSDOWrite(NODE_ID, 3, 0x6060, 0x00, sizeof(uint8_t), &dirMode);
   // dirMode = (uint8_t)dirMode32;
 
   //switches the drive state based on the motor direction
@@ -256,28 +257,28 @@ void checkSensors(){
 
 
   //Debugging
-  Serial.println("Temperature:");
-  Serial.print("  R: ");
-  Serial.print(tempR);
-  Serial.print("  F: ");
-  Serial.print(tempF);
+  DualSerial.println("Temperature:");
+  DualSerial.print("  R: ");
+  DualSerial.print(tempR);
+  DualSerial.print("  F: ");
+  DualSerial.print(tempF);
 
   heatF_EMCY = tempF > 70;
   heatR_EMCY = tempR > 70;
 
   if (smokeEMCY){
-    Serial.println("Smoke Error!");
-    sendEMCY(0, nodeID, 0x00505);
+    DualSerial.println("Smoke Error!");
+    sendEMCY(0, NODE_ID, 0x00505);
   }
 
   if (heatF_EMCY) {
-    Serial.println("Temperature F Error!");
-    sendEMCY(0, nodeID, 0x00506);
+    DualSerial.println("Temperature F Error!");
+    sendEMCY(0, NODE_ID, 0x00506);
   }
 
     if (heatR_EMCY) {
-    Serial.println("Temperature R Error!");
-    sendEMCY(0, nodeID, 0x00507);
+    DualSerial.println("Temperature R Error!");
+    sendEMCY(0, NODE_ID, 0x00507);
   }
 
 }
