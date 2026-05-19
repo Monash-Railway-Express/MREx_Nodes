@@ -25,20 +25,15 @@
  *   4. Latch releases when challenge mode changes away from 3 or the node
  *      leaves OPERATIONAL.
  *
- * *** NODE 3 REQUIREMENT ***
- * driver_controller.ino must register OD entry 0x3016:00 as a writable
- * uint8_t variable (od_autostop_alert) to receive the detection alert from
- * this node. Node 3 should act on this flag (e.g. send NMT stop or update
- * its own state) when od_autostop_alert == 1 during autostop challenge mode.
- *
  * NOTE: Hardware is ESP32-WROOM-32UE. GPIO 32 and 33 are both ADC1 channels
  * (CH4 and CH5) — reliable analog inputs with no peripheral conflicts.
  *
  * @author Patrick McCarthy
+ * @author Audrey Tasevski
  *
- * @date 16/04/2026
+ * @date 11/05/2026
  *
- * @version 1.0.0
+ * @version 1.1.0
  *
  * @organisation MREX
  */
@@ -51,6 +46,17 @@
 // Must NOT be const — CAN_MREx v1.13.0 requires a mutable pointer for the
 // FreeRTOS CAN task (xTaskCreatePinnedToCore passes &NODE_ID as pvParameters).
 uint8_t NODE_ID = 6;
+
+//Defining Node ID's
+#define MOTOR_ID 0x01
+#define BRAKES_ID 0x02
+#define DRIVER_ID 0x03
+#define LIGHTS_ID 0x04
+#define AUDIO_ID 0x05
+#define AUTOSTOP_ID 0x06
+#define BATTERY_ID 0x07
+#define LOGGER_ID 0x08
+#define LCD_ID 0x09
 
 // --- CAN transceiver pins ---
 #define TX_GPIO_NUM GPIO_NUM_26
@@ -68,10 +74,10 @@ static const uint8_t SENSOR_B_PIN = 33U;  // Not detected / inverse output (ADC1
 // ADC threshold for treating a sensor output as logic HIGH.
 // 200 / 4095 * 3.3V ~ 0.16V — safely above noise, well below the 1V minimum
 // HIGH voltage. Adjust if noise floor is higher on the physical board.
-static const uint16_t SENSOR_DETECT_THRESHOLD_ADC = 200U;
+static const uint16_t SENSOR_DETECT_THRESHOLD_ADC = 200;
 
 // --- Timing constants (all in milliseconds) ---
-static const uint32_t SENSOR_POLL_MS = 20UL;   // Sensor read interval
+static const uint32_t SENSOR_POLL_MS = 20;   // Sensor read interval
 
 // --- Safety threshold ---
 // Number of consecutive SENSOR_POLL_MS reads that must all be HIGH before the
@@ -90,26 +96,26 @@ static const uint8_t DEST_NODE_DRIVER = 3U;  // Driver controls
 
 // --- Object Dictionary addresses ---
 // OD 0x1050:00 — od_autostop_detection. This node is the source (SDO, RW).
-static const uint16_t OD_INDEX_AUTOSTOP_DET      = 0x1050U;
-static const uint8_t  OD_SUBINDEX_AUTOSTOP_DET   = 0x00U;
+static const uint16_t OD_INDEX_AUTOSTOP_DET      = 0x1050;
+static const uint8_t  OD_SUBINDEX_AUTOSTOP_DET   = 0x00;
 
 // OD 0x6062:00 — od_challenge_mode. Node 3 SDO-writes this on switch change.
-static const uint16_t OD_INDEX_CHALLENGE_MODE     = 0x6062U;
-static const uint8_t  OD_SUBINDEX_CHALLENGE_MODE  = 0x00U;
+static const uint16_t OD_INDEX_CHALLENGE_MODE     = 0x6062;
+static const uint8_t  OD_SUBINDEX_CHALLENGE_MODE  = 0x00;
 
 // OD 0x3016:00 — od_autostop_alert. Written by Node 6 to Node 3 on detection.
 // *** Node 3 must register this address as a writable uint8_t OD entry. ***
-// static const uint16_t OD_INDEX_AUTOSTOP_ALERT     = 0x3016U;
-// static const uint8_t  OD_SUBINDEX_AUTOSTOP_ALERT  = 0x00U;
+// static const uint16_t OD_INDEX_AUTOSTOP_ALERT     = 0x3010;
+// static const uint8_t  OD_SUBINDEX_AUTOSTOP_ALERT  = 0x00;
 
 // --- EMCY error codes (Node 6 range: 0x0006xxxx) ---
 // Priority 0 = major (halts system), priority 1 = minor (logged warning, no halt).
-static const uint32_t EMCY_SENSOR_CIRCUIT_FAULT = 0x00060601UL;  // A == B (circuit open/short)
-static const uint32_t EMCY_AUTOSTOP_TRIGGERED   = 0x00060602UL;  // Marker detected, alert sent
+static const uint32_t EMCY_SENSOR_CIRCUIT_FAULT = 0x00060601;  // A == B (circuit open/short)
+static const uint32_t EMCY_AUTOSTOP_TRIGGERED   = 0x00060602;  // Marker detected, alert sent
 
 // --- Misc ---
-static const uint32_t SERIAL_BAUD_RATE = 115200UL;
-static const uint32_t STARTUP_DELAY_MS = 1000UL;
+static const uint32_t SERIAL_BAUD_RATE = 115200;
+static const uint32_t STARTUP_DELAY_MS = 1000;
 
 // --- OD variables ---
 
@@ -128,6 +134,12 @@ uint8_t od_challenge_mode = 0;
 // Dir:      Written by this node; readable by others via SDO.
 // PDO map:  None.
 uint8_t od_autostop_detection = 0;
+
+// OD 1051:00 - Current number of the train location (0-8). <RW>.
+uint8_t od_location_counter = 0;
+
+// OD 0x606C:00 - True speed of motors (in km/h). <R>. Mapped to <RPDO1>.
+uint32_t od_true_speed = 0;
 
 // User code end ----------------------------------------------------------
 
@@ -186,7 +198,7 @@ static bool _ReadSensor(bool *aHigh, bool *bHigh) {
  * Latch clears automatically when the circuit recovers.
  */
 static void _CheckSensorCircuit(void) {
-    static uint32_t lastMs = 0UL;
+    static uint32_t lastMs = 0;
     uint32_t nowMs = millis();
 
     if ((nowMs - lastMs) < SENSOR_POLL_MS) {
@@ -213,31 +225,6 @@ static void _CheckSensorCircuit(void) {
     }
 }
 
-
-/**
- * @brief Send binary detection alert (value 1) to Node 3 via SDO.
- *
- * @details Writes 1 to od_autostop_alert (0x3016:00) on the driver controls
- * node. Called once when the marker is confirmed. Node 3 is responsible for
- * acting on this flag (e.g. sending an NMT stop command or updating its own
- * challenge state).
- *
- * NOTE: Node 3 (driver_controller.ino) must register 0x3016:00 as a writable
- * uint8_t OD entry to receive this write.
- */
-static void _SendDetectionAlert(void) {
-    // TODO: Implement od_autostop_alert (0x3016:00) handling in driver_controller.ino
-    //       (Node 3) before enabling this write. Node 3 must register the OD entry
-    //       and define what action to take when od_autostop_alert == 1.
-    // uint8_t alertVal = 1U;
-    // executeSDOWrite(NODE_ID, DEST_NODE_DRIVER,
-    //                 OD_INDEX_AUTOSTOP_ALERT, OD_SUBINDEX_AUTOSTOP_ALERT,
-    //                 sizeof(alertVal), &alertVal);
-    // Serial.println("[Autostop] Detection alert sent to driver controls node.");
-}
-
-
-
 /**
  * @brief Print a warning if the sensor detects the reflector but the node is
  *        not in the correct state to act on it.
@@ -248,7 +235,7 @@ static void _SendDetectionAlert(void) {
  * ignored.
  */
 static void _WarnIfDetectedWrongMode(void) {
-    static uint32_t lastMs      = 0UL;
+    static uint32_t lastMs      = 0;
     static bool     warnPrinted = false;
     uint32_t nowMs = millis();
     if ((nowMs - lastMs) < SENSOR_POLL_MS) return;
@@ -267,12 +254,12 @@ static void _WarnIfDetectedWrongMode(void) {
     if (nodeOperatingMode != MODE_OPERATIONAL) {
         Serial.println("[Autostop] WARNING: detection but not in operational mode.");
         warnPrinted = true;
-    } else if (od_challenge_mode != AUTOSTOP_CHALLENGE_VALUE) {
-        Serial.println("[Autostop] WARNING: detection but not in autostop mode.");
-        warnPrinted = true;
-    }
+    } 
+    // else if (od_challenge_mode != AUTOSTOP_CHALLENGE_VALUE) {
+    //     Serial.println("[Autostop] WARNING: detection but not in autostop mode.");
+    //     warnPrinted = true;
+    // }
 }
-
 
 /**
  * @brief Confirmation counter, latch logic, and periodic stop assertion.
@@ -287,7 +274,7 @@ static void _WarnIfDetectedWrongMode(void) {
  *    or the node leaves OPERATIONAL (StoppedMode resets all state).
  */
 static void _HandleAutostop(void) {
-    static uint32_t lastSensorMs = 0UL;
+    static uint32_t lastSensorMs = 0;
     uint32_t nowMs = millis();
 
     // Latch holds until Node 3 writes a new od_challenge_mode != 3.
@@ -307,7 +294,7 @@ static void _HandleAutostop(void) {
 
     if (!valid) {
         // Circuit fault — do not trigger. EMCY is handled by _CheckSensorCircuit.
-        sensorConfirmCount = 0U;
+        sensorConfirmCount = 0;
         return;
     }
 
@@ -316,7 +303,7 @@ static void _HandleAutostop(void) {
 
         if (sensorConfirmCount >= AUTOSTOP_CONFIRM_COUNT) {
             autostopLatched       = true;
-            od_autostop_detection = 1U;
+            od_autostop_detection = 1;
 
             // SDO write od_autostop_detection to Node 3 so it knows the
             // marker was detected. Node 3 must register 0x1050:00 as a
@@ -330,10 +317,77 @@ static void _HandleAutostop(void) {
             Serial.println("[Autostop] TRIGGERED — marker confirmed, detection sent to Node 1 - Motor.");
         }
     } else {
-        sensorConfirmCount = 0U;
+        sensorConfirmCount = 0;
     }
 }
 
+static void _SendPassing() {
+    executeSDOWrite(NODE_ID, AUDIO_ID, 0x1051, 0x00, sizeof(od_location_counter), &od_location_counter);
+}
+
+static void _SendStandStill(){
+    if(od_true_speed==0){
+        executeSDOWrite(NODE_ID, AUDIO_ID, 0x1051, 0x00, sizeof(od_location_counter), &od_location_counter);
+    }
+}
+
+static void _ChangeLocation(){
+    static uint32_t lastMs      = 0;
+    uint32_t nowMs = millis();
+    if ((nowMs - lastMs) < SENSOR_POLL_MS) return;
+    lastMs = nowMs;
+
+    bool aHigh, bHigh;
+    bool valid = _ReadSensor(&aHigh, &bHigh);
+
+    if (!valid) {
+        // Circuit fault — do not trigger. EMCY is handled by _CheckSensorCircuit.
+        sensorConfirmCount = 0;
+        return;
+    }
+
+    if (aHigh) {
+        sensorConfirmCount++;
+
+        if (sensorConfirmCount >= AUTOSTOP_CONFIRM_COUNT) {
+            od_location_counter =  od_location_counter + 1;
+
+        Serial.println("Sensor TRIGGERED — marker confirmed, location updated" );
+        }
+    }
+}
+
+/**
+ * @brief function to iterate the location of the train
+ *
+ * @details Point Positions per RULES
+    1 - Past station Box (Passing)
+    // Have 2 traction markers here
+    2 - Autostop activation (Passing)
+    3 - Ready for Ride comfort (Stand still)
+    4 - Completing Ride comfort (Stand Still)
+    5 - Haven on return (Passing)
+    6 - Ready for traction (Stand Still)
+    7 - Completion traction (Passing)
+    8 - Before Head Shunt (Stand Still)
+ */
+static void _HandleLocationAnnoucement() {
+    //Check the location counter and update 
+    ChangeLocation();
+
+    switch (od_location_counter) {
+        case 1: _SendPassing()   ; break; //Point 1
+        //Have traction markers here in circuit
+        case 4: _SendPassing()   ; break; //Point 2
+        case 5: _SendStandStill(); break; //Point 3
+        case 6: _SendStandStill(); break; //Point 4
+        case 7: _SendPassing()   ; break; //Point 5
+        case 8: _SendStandStill(); break; //Point 6
+        case 9: _SendPassing()   ; break;
+        case 10:_SendStandStill(); break;
+        default: break;  // fail-safe
+    }
+}
 
 // =============================================================================
 // Operating mode handlers
@@ -345,8 +399,8 @@ static void _HandleAutostop(void) {
 void StoppedMode(void) {
     autostopLatched       = false;
     circuitFaultLatch     = false;
-    od_autostop_detection = 0U;
-    sensorConfirmCount    = 0U;
+    od_autostop_detection = 0;
+    sensorConfirmCount    = 0;
     // od_challenge_mode is NOT reset here — it is owned by Node 3 and should
     // retain the last written value so it is immediately valid on re-entry
     // to OPERATIONAL without needing Node 3 to re-send it.
@@ -380,11 +434,13 @@ void OperationalMode(void) {
     if (autostopLatched && (od_challenge_mode != AUTOSTOP_CHALLENGE_VALUE)) {
         Serial.println("[Autostop] INFO: Challenge mode changed — latch released.");
         autostopLatched       = false;
-        od_autostop_detection = 0U;
-        sensorConfirmCount    = 0U;
+        od_autostop_detection = 0;
+        sensorConfirmCount    = 0;
     }
 
     _CheckSensorCircuit();
+
+    _HandleLocationAnnoucement();
 
     if (od_challenge_mode == AUTOSTOP_CHALLENGE_VALUE) {
         _HandleAutostop();
@@ -432,6 +488,8 @@ void setup() {
     // INPUT is set explicitly to prevent accidental driving of the pins.
     pinMode(SENSOR_A_PIN, INPUT);
     pinMode(SENSOR_B_PIN, INPUT);
+
+    //TO DO - set up PDO
 
     // User code Setup end --------------------------------------------------
 }
