@@ -59,7 +59,6 @@ USE 16 bit .wav files for horn. Using MP3 adds small silences at start and end o
 // User code begin: ------------------------------------------------------
 // --- CAN MREx initialisation ---
 uint8_t nodeID = 5;  // Node 5 - Audio
-
 // --- Pin Definitions ---
 #define TX_GPIO_NUM GPIO_NUM_36 // Set GPIO pin for CAN Transmit
 #define RX_GPIO_NUM GPIO_NUM_35 // Set GPIO pins for CAN Receive
@@ -83,9 +82,17 @@ DFRobotDFPlayerMini myDFPlayer;
 
 
 //user variables
-
+// --- Operating Modes ---
+enum OperatingMode : uint8_t {
+    MODE_STOPPED        = 0x02,
+    MODE_PREOP          = 0x80,
+    MODE_OPERATIONAL    = 0x01
+};
 //function prototypes
 void printDetail(uint8_t type, int value);
+void StoppedMode();
+void PreOpMode();
+void OperationalMode();
 void HandleHorn();
 
 
@@ -153,7 +160,7 @@ void setup() {
   pinMode(DFBUSY, INPUT);
   pinMode(STATUS_LED, OUTPUT);
   pinMode(PREOP_LED, OUTPUT);
-//digitalWrite(STATUS_LED, HIGH);
+  digitalWrite(STATUS_LED, HIGH);
   // User code Setup end ------------------------------------------------------
 
 
@@ -162,36 +169,48 @@ void setup() {
 
 void loop() {
   //User Code begin loop() ----------------------------------------------------
+  // completing operation mode functionality
+    switch (nodeOperatingMode) {
+        case MODE_STOPPED:     StoppedMode();     break;
+        case MODE_PREOP:       PreOpMode();       break;
+        case MODE_OPERATIONAL: OperationalMode(); break;
+        default:               StoppedMode();     break;  // fail-safe
+    }
   // --- Stopped mode (This is default starting point) ---
   if (nodeOperatingMode == 0x02){ 
-    handleCAN(nodeID);
-    digitalWrite(STATUS_LED, LOW);
-    digitalWrite(PREOP_LED, LOW);
+    
   }
 
   // --- Pre operational state (This is where you can do checks and make sure that everything is okay) ---
   if (nodeOperatingMode == 0x80){ 
-    digitalWrite(STATUS_LED, LOW);
-    digitalWrite(PREOP_LED, HIGH);
-    if (myDFPlayer.available()) {
-      printDetail(myDFPlayer.readType(), myDFPlayer.read()); //Print the detail message from DFPlayer to handle different errors and states.
-    }
+    
     
   }
 
   // --- Operational state (Normal operating mode) ---
   if (nodeOperatingMode == 0x01){ 
-    digitalWrite(STATUS_LED, HIGH);
-    HandleHorn();
-    if (myDFPlayer.available()) {
-      //printDetail(myDFPlayer.readType(), myDFPlayer.read()); //Print the detail message from DFPlayer to handle different errors and states.
-    }
+
   }
 
   //User code end loop() --------------------------------------------------------
 }
 
+void StoppedMode(){
+  digitalWrite(STATUS_LED, LOW);
+  digitalWrite(PREOP_LED, LOW);
+}
 
+void PreOpMode(){
+  digitalWrite(STATUS_LED, LOW);
+  digitalWrite(PREOP_LED, HIGH);
+  HandleHorn();
+}
+
+void OperationalMode(){
+  digitalWrite(STATUS_LED, HIGH);
+  digitalWrite(PREOP_LED, LOW);
+  HandleHorn();
+}
 /*
 * @brief Handles logic for playing the horn. 
 *
@@ -212,7 +231,7 @@ void HandleHorn() {
       if(hornStatePrev)
       {
         //play the looping segment of the horn
-        myDFPlayer.loop(2);
+        myDFPlayer.loop(HORN_LOOP_SOUND);
         hornStateMNo = 2;
       }
       
@@ -224,7 +243,7 @@ void HandleHorn() {
       //2--->1
       if(!hornStatePrev)
       {
-        myDFPlayer.play(1);
+        myDFPlayer.play(HORN_END_SOUND);
         hornStateMNo = 1;
       }
       
