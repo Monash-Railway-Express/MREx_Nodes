@@ -24,6 +24,7 @@
 
 #include <CAN_MREx.h> // inlcudes all CAN MREX files
 #include <lights_n_sensors.h>
+#include "../../../shared/DualSerial/DualSerial.cpp"
 
 
 // --- OD definitions ---
@@ -42,9 +43,9 @@ uint8_t drive_state = OFF;
  * @brief Initial Set up of Object Dictionary & Pin communication
  */
 void setup() {
-  Serial.begin(115200);
+  DualSerial.begin(115200);
   delay(1000);
-  Serial.println("Serial Coms started at 115200 baud");
+  DualSerial.println("DualSerial Coms started at 115200 baud");
   
   //Initialize CANMREX protocol
   initCANMREX(TX_GPIO_NUM, RX_GPIO_NUM, NODE_ID);
@@ -270,28 +271,28 @@ void CheckSensors(){
 
 
   //Debugging
-  Serial.println("Temperature:");
-  Serial.print("  Rear: ");
-  Serial.println(temperatureRear);
-  Serial.print("  Front: ");
-  Serial.println(temperatureFront);
+  DualSerial.println("Temperature:");
+  DualSerial.print("  Rear: ");
+  DualSerial.println(temperatureRear);
+  DualSerial.print("  Front: ");
+  DualSerial.println(temperatureFront);
 
   heatFrontEMCY = temperatureFront > allowableTemperature;
   heatRearEMCY = temperatureRear > allowableTemperature;
-  Serial.println();
+  DualSerial.println();
   
   if (smokeEMCY){
-    Serial.println("Smoke Detected in the Locomotive!");
+    DualSerial.println("Smoke Detected in the Locomotive!");
     sendEMCY(0, NODE_ID, 0x00505);
   }
 
   if (heatFrontEMCY) {
-    Serial.println("Tempetaure inside Locomotive Front is Too High!");
+    DualSerial.println("Tempetaure inside Locomotive Front is Too High!");
     sendEMCY(0, NODE_ID, 0x00506);
   }
 
     if (heatRearEMCY) {
-    Serial.println("Tempetaure inside Locomotive Rear is Too High!");
+    DualSerial.println("Tempetaure inside Locomotive Rear is Too High!");
     sendEMCY(0, NODE_ID, 0x00507);
   }
 
