@@ -52,7 +52,7 @@ USE 16 bit .wav files for horn. Using MP3 adds small silences at start and end o
 #include "Arduino.h"
 #include "DFRobotDFPlayerMini.h"
 #include <HardwareSerial.h>
-
+#include <map>
 
 
 
@@ -68,6 +68,7 @@ uint8_t nodeID = 5;  // Node 5 - Audio
 
 // --- OD definitions ---
 uint8_t od_horn = 0;
+uint8_t od_loc_counter = 0;
 
 //DFPlayer Setup
 #define DFBUSY 13 //used to check if DFPlayer is playing tracks or not. Connect to BUSY pin on DFPlayer. If High, its free.
@@ -76,6 +77,36 @@ uint8_t od_horn = 0;
 #define STARTUP_FB_SOUND 1
 #define HORN_LOOP_SOUND 2
 #define HORN_END_SOUND 3
+//location announcement sound numbers
+#define LOC_ANN1_START_SOUND 4
+#define LOC_ANN2_AUTOSTOP_SOUND 5
+#define LOC_ANN3_COMFORT_SOUND 6
+#define LOC_ANN4_COMFORT_END_SOUND 7
+#define LOC_ANN5_HAVEN_SOUND 8
+#define LOC_ANN6_TCN_SOUND 9
+#define LOC_ANN7_TCN_END_SOUND 10
+#define LOC_ANN8_END_SOUND 11
+
+//location announcement 
+/*
+1 - Past station Box (Passing)
+// Have 2 traction markers here
+2 - Autostop activation (Passing)
+3 - Ready for Ride comfort (Stand still)
+4 - Completing Ride comfort (Stand Still)
+5 - Haven on return (Passing)
+6 - Ready for traction (Stand Still)
+7 - Completion traction (Passing)
+8 - Before Head Shunt (Stand Still)
+*/
+#define LOC_ANN1_START 1
+#define LOC_ANN2_AUTOSTOP 4
+#define LOC_ANN3_COMFORT 5
+#define LOC_ANN4_COMFORT_END 6
+#define LOC_ANN5_HAVEN 7
+#define LOC_ANN6_TCN 8
+#define LOC_ANN7_TCN_END 9
+#define LOC_ANN8_END 10
 
 HardwareSerial player_serial(1); //initialise UART 1 of ESP as the serial for the DFPlayer module
 DFRobotDFPlayerMini myDFPlayer;
@@ -126,7 +157,7 @@ void setup() {
   // User code Setup Begin: -------------------------------------------------
   // --- Register OD entries ---
   registerODEntry(0x6065, 0x00, 1, sizeof(od_horn), &od_horn);
-
+  registerODEntry(0x1051, 0x00, 1, sizeof(od_loc_counter), &od_loc_counter);
   // --- Register TPDOs ---
   
 
@@ -138,10 +169,6 @@ void setup() {
   Serial.println();
   Serial.println(F("Initializing DFPlayer ... (May take 3~5 seconds)"));
   
-  /*TODO(AP)
-  * -Figure out why DFPlayer -> ESP reply doesn't come through (most likely PCB issue with 1k ohm resistor absent)
-  * -Reset "isACK = true" when issue resolved (allows DFPlayer to return error and status messages like SD Card insert/remove/unable to play etc.)
-  */
   if (!myDFPlayer.begin(player_serial, /*isACK = */true, /*doReset = */true)) {  //Use serial to communicate with mp3.
     Serial.println(F("Unable to begin:"));
     Serial.println(F("1.Please recheck the connection!"));
@@ -249,6 +276,57 @@ void HandleHorn() {
       
       break;
   } 
+
+}
+
+/*
+* @brief Detects change to autostop counter. Every change, play a sound related to current marker
+*
+* @return Nothing
+*/
+void HandleAutoStop(){
+  static uint8_t prevCounter = 0; //state variable used for tracking changes to the autostop counter
+
+#define LOC_ANN1_START 1
+#define LOC_ANN2_AUTOSTOP 4
+#define LOC_ANN3_COMFORT 5
+#define LOC_ANN4_COMFORT_END 6
+#define LOC_ANN5_HAVEN 7
+#define LOC_ANN6_TCN 8
+#define LOC_ANN7_TCN_END 9
+#define LOC_ANN8_END 10
+  //play sound every time location counter updates
+  if(prevCounter != od_loc_counter){
+    prevCounter = od_loc_counter;
+    switch (od_loc_counter) {
+        case LOC_ANN1_START:     
+          myDFPlayer.play(LOC_ANN1_START_SOUND);     
+          break;
+        case LOC_ANN2_AUTOSTOP:       
+          myDFPlayer.play(LOC_ANN2_AUTOSTOP_SOUND);            
+          break;
+        case LOC_ANN3_COMFORT: 
+          myDFPlayer.play(LOC_ANN3_COMFORT_SOUND);     
+          break;
+        case LOC_ANN4_COMFORT_END: 
+          myDFPlayer.play(LOC_ANN4_COMFORT_END_SOUND);     
+          break;
+        case LOC_ANN5_HAVEN: 
+          myDFPlayer.play(LOC_ANN5_HAVEN_SOUND);     
+          break;
+        case LOC_ANN6_TCN: 
+          myDFPlayer.play(LOC_ANN6_TCN_SOUND);     
+          break;
+        case LOC_ANN7_TCN_END: 
+          myDFPlayer.play(LOC_ANN7_TCN_END_SOUND);     
+          break;
+        case LOC_ANN8_END: 
+          myDFPlayer.play(LOC_ANN8_END_SOUND);     
+          break;
+        default:                  
+          break;  // fail-safe
+    }  
+  }
 
 }
 
