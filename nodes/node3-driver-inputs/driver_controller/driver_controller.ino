@@ -16,19 +16,9 @@
  * @author Aditya Dinesh Kumar
  *
  * @date Created: 05/08/2025
- * @version 1.4.1
+ * @version 1.4.2
  * @organisation MREX
  *
- * @changes v1.4.0
- *   - Added RPDO receive for battery (0x187, 0x287), motor (0x181), lights (0x184)
- *   - Added full Nextion telemetry display (speed, battery, temp, tractive effort)
- *   - Added EMCY listener — displays faults and lights EMCY pill
- *   - Added regen-only pill — derived from recovered_energy_can > 0 AND power_can > 0
- *   - Added tractive effort pill (YES/NO)
- *   - Added autostop alert OD entry (0x3016:00)
- *   - Replaced Track Condition display with Autostop status
- *   - Brake status now supports three states: Released / Applied / Fault
- *   - Speed scaling assumed x10 (e.g. 179 = 17.9 km/h) — confirm with motor node
 */
 
 // ═══════════════════════════════════════════════════════════════
@@ -61,11 +51,6 @@ uint8_t od_service_brake_dc = 0;
 
 // Free
 uint8_t od_switch_2 = 0;
-
-// OD 0x3016:00 - Autostop alert from Node 6 (1=marker detected).
-// *** Node 6 SDO-writes this when marker is confirmed. ***
-// *** Patrick must uncomment _SendDetectionAlert() in autostop_detector.ino ***
-uint8_t od_autostop_alert = 0;
 
 // ═══════════════════════════════════════════════════════════════
 // OD DEFINITIONS — RECEIVED FROM OTHER NODES VIA RPDO
@@ -304,8 +289,10 @@ void updateNextion() {
   }
 
   // ── AUTOSTOP STATUS (replaces Track Condition) ──────────────
-  // Shows active when challenge = autostop AND alert received from Node 6
-  bool autostopActive = (od_challenge_mode == 3 && od_autostop_alert == 1);
+  // Reads od_autostop_detection directly from Node 6 via SDO
+  uint8_t autostopDetected = 0;
+  executeSDORead(NODE_ID, AUTOSTOP_ID, 0x1050, 0x00, sizeof(autostopDetected), &autostopDetected);
+  bool autostopActive = (od_challenge_mode == 3 && autostopDetected == 1);
   if (autostopActive != prevAutostop) {
     sendText("t_autostop", autostopActive ? "ACTIVE" : "Standby");
     sendColour("t_autostop", "pco", autostopActive ? NEX_GREEN : NEX_GREY);
@@ -487,9 +474,8 @@ void setup() {
   registerODEntry(0x6065, 0x00, 2, sizeof(od_horn_toggle),      &od_horn_toggle);
   registerODEntry(0x3012, 0x02, 2, sizeof(od_service_brake_dc), &od_service_brake_dc);
 
-  // Autostop alert — written by Node 6 via SDO on marker detection
-  // *** Patrick must uncomment _SendDetectionAlert() in autostop_detector.ino ***
-  registerODEntry(0x3016, 0x00, 2, sizeof(od_autostop_alert),   &od_autostop_alert);
+  // Autostop detection is read directly from Node 6 via SDO read in updateNextion()
+  // No local OD entry needed — Node 6 owns od_autostop_detection at 0x1050:00
 
   // Incoming telemetry OD entries — populated via RPDO
   registerODEntry(0x606C, 0x00, 2, sizeof(od_true_speed),       &od_true_speed);
@@ -681,8 +667,6 @@ void HandleChallenge() {
     od_challenge_mode = newChallengeMode;
     executeSDOWrite(NODE_ID, MOTOR_ID,    0x6062, 0x00, sizeof(od_challenge_mode), &od_challenge_mode);
     executeSDOWrite(NODE_ID, AUTOSTOP_ID, 0x6062, 0x00, sizeof(od_challenge_mode), &od_challenge_mode);
-    // Reset autostop alert when challenge mode changes
-    od_autostop_alert = 0;
     Serial.print("Sending Challenge: "); Serial.println(od_challenge_mode);
   }
 }
