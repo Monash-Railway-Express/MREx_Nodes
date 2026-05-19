@@ -68,8 +68,8 @@ uint8_t NODE_ID = 6;
 // digital HIGH threshold is ~2.475V), so analogRead + threshold is used.
 // A (GPIO 32) = positive detection output (HIGH when reflector detected).
 // B (GPIO 33) = inverse/negative output — must always equal logical-NOT of A.
-static const uint8_t SENSOR_A_PIN = 32U;  // Reflector detected (ADC1_CH4)
-static const uint8_t SENSOR_B_PIN = 33U;  // Not detected / inverse output (ADC1_CH5)
+static const uint8_t SENSOR_A_PIN = 32;  // Reflector detected (ADC1_CH4)
+static const uint8_t SENSOR_B_PIN = 33;  // Not detected / inverse output (ADC1_CH5)
 
 // ADC threshold for treating a sensor output as logic HIGH.
 // 200 / 4095 * 3.3V ~ 0.16V — safely above noise, well below the 1V minimum
@@ -84,15 +84,15 @@ static const uint32_t SENSOR_POLL_MS = 20;   // Sensor read interval
 // autostop triggers. Prevents transient reflections or EMI from causing a
 // false stop. At 20 ms interval: 3 reads = minimum 60 ms of continuous
 // detection required.
-static const uint8_t AUTOSTOP_CONFIRM_COUNT   = 3U;
+static const uint8_t AUTOSTOP_CONFIRM_COUNT   = 3;
 
 // Challenge mode value for autostop (matches od_challenge_mode on Node 3):
 // 1=throttle, 2=speed, 3=autostop, 4=regen, 5=traction
-static const uint8_t AUTOSTOP_CHALLENGE_VALUE = 3U;
+static const uint8_t AUTOSTOP_CHALLENGE_VALUE = 3;
 
 // --- Destination node IDs ---
-static const uint8_t DEST_NODE_MOTOR = 1U;  // Motor — receives detection alert SDO
-static const uint8_t DEST_NODE_DRIVER = 3U;  // Driver controls
+static const uint8_t DEST_NODE_MOTOR = 1;  // Motor — receives detection alert SDO
+static const uint8_t DEST_NODE_DRIVER = 3;  // Driver controls
 
 // --- Object Dictionary addresses ---
 // OD 0x1050:00 — od_autostop_detection. This node is the source (SDO, RW).
@@ -331,9 +331,10 @@ static void _SendStandStill(){
     }
 }
 
-static void _ChangeLocation(){
+static uint8_t _ChangeLocation(){
     static uint32_t lastMs      = 0;
     uint32_t nowMs = millis();
+    uint8_t newLocation = 0;
     if ((nowMs - lastMs) < SENSOR_POLL_MS) return;
     lastMs = nowMs;
 
@@ -344,17 +345,21 @@ static void _ChangeLocation(){
         // Circuit fault — do not trigger. EMCY is handled by _CheckSensorCircuit.
         sensorConfirmCount = 0;
         return;
+
     }
 
     if (aHigh) {
         sensorConfirmCount++;
 
+
         if (sensorConfirmCount >= AUTOSTOP_CONFIRM_COUNT) {
-            od_location_counter =  od_location_counter + 1;
+            newLocation =  od_location_counter + 1;
 
         Serial.println("Sensor TRIGGERED — marker confirmed, location updated" );
         }
     }
+
+    return newLocation;
 }
 
 /**
@@ -373,19 +378,24 @@ static void _ChangeLocation(){
  */
 static void _HandleLocationAnnoucement() {
     //Check the location counter and update 
-    ChangeLocation();
+    uint8_t newLocation = ChangeLocation();
+    Serial.print("At location: " );
+    Serial.println(od_location_counter);
 
-    switch (od_location_counter) {
-        case 1: _SendPassing()   ; break; //Point 1
-        //Have traction markers here in circuit
-        case 4: _SendPassing()   ; break; //Point 2
-        case 5: _SendStandStill(); break; //Point 3
-        case 6: _SendStandStill(); break; //Point 4
-        case 7: _SendPassing()   ; break; //Point 5
-        case 8: _SendStandStill(); break; //Point 6
-        case 9: _SendPassing()   ; break;
-        case 10:_SendStandStill(); break;
-        default: break;  // fail-safe
+    if(newLocation != od_location_counter){
+        od_location_counter = newLocation;
+        switch (od_location_counter) {
+            case 1: _SendPassing()   ; break; //Point 1
+            //Have traction markers here in circuit
+            case 4: _SendPassing()   ; break; //Point 2
+            case 5: _SendStandStill(); break; //Point 3
+            case 6: _SendStandStill(); break; //Point 4
+            case 7: _SendPassing()   ; break; //Point 5
+            case 8: _SendStandStill(); break; //Point 6
+            case 9: _SendPassing()   ; break;
+            case 10:_SendStandStill(); break;
+            default: break;  // fail-safe
+        }   
     }
 }
 
