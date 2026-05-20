@@ -21,22 +21,22 @@ struct PinTest {
 
 // All pins from your motor-node firmware
 PinTest pins[] = {
-  {"THROTTLE_SWITCH",        GPIO_NUM_4},
-  {"REVERSING_SWITCH_MC",    GPIO_NUM_5},
-  {"BRAKE_SWITCH",           GPIO_NUM_6},
-  {"MOTOR1_GREEN_LED",       GPIO_NUM_7},
-  {"MOTOR2_GREEN_LED",       GPIO_NUM_15},
-  {"MOTOR1_RED_LED",         GPIO_NUM_16},
-  {"MOTOR2_RED_LED",         GPIO_NUM_17},
-  {"ENCODER_A",              GPIO_NUM_18},
-  {"ENCODER_B",              GPIO_NUM_8},
-  {"ENCODER_Z",              GPIO_NUM_9},
-  {"REVERSING_CONTACTOR",    GPIO_NUM_10},
-  {"EXTRA_GPIO_11",          GPIO_NUM_11},
-  {"EXTRA_GPIO_12",          GPIO_NUM_12},
-  {"EXTRA_GPIO_21",          GPIO_NUM_21},
-  {"EXTRA_GPIO_47",                 GPIO_NUM_47},
-  {"EXTRA_GPIO_48",                 GPIO_NUM_48}
+  // {"THROTTLE_SWITCH",        GPIO_NUM_4},
+  // {"REVERSING_SWITCH_MC",    GPIO_NUM_5},
+  // {"BRAKE_SWITCH",           GPIO_NUM_6},
+  // {"MOTOR1_GREEN_LED",       GPIO_NUM_7},
+  // {"MOTOR2_GREEN_LED",       GPIO_NUM_15},
+  // {"MOTOR1_RED_LED",         GPIO_NUM_16},
+  // {"MOTOR2_RED_LED",         GPIO_NUM_17},
+  // {"ENCODER_A",              GPIO_NUM_18},
+  // {"ENCODER_B",              GPIO_NUM_8},
+  // {"ENCODER_Z",              GPIO_NUM_9},
+  // {"EXTRA_GPIO_10",    GPIO_NUM_10},
+  // {"EXTRA_GPIO_11",          GPIO_NUM_11},
+  // {"EXTRA_GPIO_12",          GPIO_NUM_12},
+  // {"EXTRA_GPIO_21",          GPIO_NUM_21},
+  {"REVERSING_CONTACTOR",                 GPIO_NUM_47}
+  // {"EXTRA_GPIO_48",                 GPIO_NUM_48}
 };
 
 const int numPins = sizeof(pins) / sizeof(pins[0]);
