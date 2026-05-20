@@ -1,5 +1,10 @@
+<<<<<<< Updated upstream
 /**
  * PCB DAC test file
+=======
+  /**
+ * PCB DAC test  file 
+>>>>>>> Stashed changes
  *
  * File:            PCB_DAC_test.ino
  * Organisation:    MREX
@@ -89,6 +94,8 @@ void setup() {
 
   commonConfig();
 }
+bool rampUp0 = true;
+bool rampUp1 = true;
 
 // ------------------------------------------------------------
 // Main loop
@@ -97,10 +104,42 @@ void loop() {
   writeDAC(0, dacValue0);
   writeDAC(1, dacValue1);
 
+<<<<<<< Updated upstream
   Serial.printf("DAC0: %d   DAC1: %d\n", dacValue0, dacValue1);
 
   updateRamp(dacValue0, rampUp0);
   updateRamp(dacValue1, rampUp1);
+=======
+  // Channel 0
+  if (rampUp0) {
+    dacValue0 += stepSize;
+    if (dacValue0 >= maxDAC) {
+      dacValue0 = maxDAC;
+      rampUp0 = false;
+    }
+  } else {
+    dacValue0 -= stepSize;
+    if (dacValue0 <= 0) {
+      dacValue0 = 0;
+      rampUp0 = true;
+    }
+  }
+
+  // Channel 1
+  if (rampUp1) {
+    dacValue1 += stepSize;
+    if (dacValue1 >= maxDAC) {
+      dacValue1 = maxDAC;
+      rampUp1 = false;
+    }
+  } else {
+    dacValue1 -= stepSize;
+    if (dacValue1 <= 0) {
+      dacValue1 = 0;
+      rampUp1 = true;
+    }
+  }
+>>>>>>> Stashed changes
 
   delay(stepDelay);
 }
