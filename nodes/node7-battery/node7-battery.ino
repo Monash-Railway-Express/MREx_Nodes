@@ -56,9 +56,6 @@ uint16_t voltage = 0; // voltage always positive
 uint32_t power_can = 0; // Instantenous Power
 uint16_t state_of_charge = 0; // 0-100%. +/- 0.1%. If the SOC is 88.3% it is sent as 883 so 16 bits enough.
 uint32_t recovered_energy_can = 0;
-uint16_t regen_brake = 0;
-uint16_t motor_command = 0;
-
 
 // =============================================================================
 // Global Variables
@@ -73,7 +70,6 @@ int32_t slice_area = 0;
 
 bool prev_sample_1 = false; // flag that is set to true after the first power sample after regen starts is received
 bool prev_sample_2 = false; // flag that is set to true after the first power sample after loco starts up again is received4
-bool regen_occured = false;
 unsigned long currentMillis = 0;
 unsigned long last_data_received_time = 0;
 const unsigned long shunt_data_interval = 1500; // If 1.5s pass without receiving data from the shunt, then send error message
@@ -113,14 +109,12 @@ void setup() {
   registerODEntry(0x2000, 0x02, 2, sizeof(state_of_charge), &state_of_charge); 
   registerODEntry(0x2000, 0x03, 2, sizeof(power_can), &power_can);
   registerODEntry(0x2000, 0x04, 2, sizeof(recovered_energy_can), &recovered_energy_can);
-  registerODEntry(0x606A, 0x00, 2, sizeof(motor_command), &motor_command);
-  registerODEntry(0x3012, 0x00, 2, sizeof(regen_brake), &regen_brake);
-
+  
   // --- Configure TPDOs and RPDOs ---
 
   configureTPDO(0, 0x180 + NODE_ID, 255, 100, 1000);  // TPDO 1, COB-ID, transType, inhibit, timer
   configureTPDO(1, 0x280 + NODE_ID, 255, 100, 1000);  // TPDO 2, COB-ID, transType, inhibit, timer
-  configureRPDO(0, 0x180 + DRIVER_ID, 255, 0); // RPDO 1, COB-ID, transType, inhibit. This node receives from node 3 which is driver controls.
+  
 
   // --- TPDO and RPDO entries ---
   
@@ -135,17 +129,11 @@ void setup() {
       {0x2000, 0x04, 32},   // recovered energy
     };
     
-  PdoMapEntry rpdoEntries[] = {
-    {0x606A, 0x00, 16},     // motor command
-    {0x3012, 0x00, 16}      // regen
-  };
-
   // --- Map TPDOs and RPDOs ---
 
   mapTPDO(0, tpdoEntries1, 3); //TPDO 1, entries, num entries
   mapTPDO(1, tpdoEntries2, 2); //TPDO 2, entries, num entries
-  mapRPDO(0, rpdoEntries, 2); // RPDO 1, entries, num entries
-
+  
 }
 
 /**
@@ -192,56 +180,47 @@ void PrintData() {
  * @brief computes recovered energy
  * @return nothing
  */
-
 void findRecoveredEnergy() {
-  if (motor_command > 0 && regen_occured == true) { // If regen already occured and there is throttle that means we are restarting in the energy storage challenge so recovered energy should now decrement
-  // if power is less than or equal or to 0 then don't decrement. Power should be positive because motor_command > 10 means we have throttle?
-      if (power <= 0) {
-      prev_sample_2 = false;
-      recovered_energy_can = (uint32_t)recovered_energy;
+  if (power < 0) {
+    prev_sample_2 = false; 
+    power_sample = -power; 
+    if (prev_sample_1 == false) {
+      prev_power_sample = power_sample;
+      prev_sample_1 = true;
+      recovered_energy_can = recovered_energy;
       return;
-      }
-      // code below runs if power is positive
-      prev_sample_1 = false; // This flag indicates if a power sample is the first power sample when regenerative braking is active. Necessary to reset in case we have regen for a second time.
-      power_sample = (uint32_t)power; // Take absolute value of power. Explicit casting recommended.
-      if (prev_sample_2 == false) {  // If prev_sample_2 is false that means this power sample is the first sample we have when power is positive or it is the first power sample after we restarted
-      prev_power_sample = power_sample; // save it as previous sample so that we can use it to calculate slice area
-      prev_sample_2 = true; // so the next power samples are correctly NOT interpreted as the first power sample
-      recovered_energy_can = (uint32_t)recovered_energy; // The recovered energy value will stay constant until we have a second sample. Two samples are needed to calculate slice area.
-      return; // return because we cannot calculate area witj just one sample
-      }
-      new_power_sample = power_sample; 
-      slice_area = ((prev_power_sample + new_power_sample)/2)*1; // calculate area of trapezium. The time between samples is 1 second so height of trapezium is 1.
-      if (slice_area >= recovered_energy) { // If the energy we need to subract is greater than the recovered energy value clamp it to 0 so it never goes negative
-        recovered_energy = 0;
-      }
-      else {
-        recovered_energy -= slice_area; // Otherwise decrement the recovered energy
-      }
-      prev_power_sample = new_power_sample; // current sample will be previous sample for the next decrement calculation
-      recovered_energy_can = (uint32_t)recovered_energy; // update remaining recovered energy value. Explicit casting is recommended.
-
-  } else if (power < 0) { // If the power is negative that means we are in regen mode
-      regen_occured = true; // set flag to indicate regen occured. This flag prevents us from decrementing the recovered energy when power is positive. We will only decrement for positive power after regen has occured which is desired
-      prev_sample_2 = false; // reset in case we want to decrement for the second time after regeb has occurred for the second time
-      power_sample = (uint32_t)-power; // take absolute value for easier calculation. Explicit casting is recommened.
-      if (prev_sample_1 == false){ // this means this power value is the first power value when regenerative braking is in action
-      prev_power_sample = power_sample; // make this sample previous sample. a second sample is required to calculate slice area
-      prev_sample_1 = true; // flag set to true here so for the second sample onwards, code in the else condition will be executed. samples starting from the second sample are interpreted correctly as not the first sample.
-      recovered_energy_can = (uint32_t)recovered_energy; // keep recovered energy value constant until we have a second value.
-      return; // return because one sample is not enough to calculate the area of the trapezoidal slide
-      }
-      new_power_sample = power_sample; 
-      slice_area = ((prev_power_sample + new_power_sample)/2)*1;  // calculate area of trapezium. The time between samples is 1 second so height of trapezium is 1.
-      recovered_energy += slice_area; // aggregate area of the trapeziums. increment recovered energy.
-      prev_power_sample = new_power_sample;  // current sample will be previous sample for the next decrement calculation
-      recovered_energy_can = (uint32_t)recovered_energy; // update remaining recovered energy value. Explicit casting is recommended.
-  // Otherwise hold the value. In stopped state, hold the recovered energy value constant.
-  } else {
-      prev_sample_1 = false;
-      prev_sample_2 = false;
-      recovered_energy_can = (uint32_t)recovered_energy;
+    }
+    new_power_sample = power_sample;
+    slice_area = ((prev_power_sample + new_power_sample) / 2) * 1;
+    recovered_energy += slice_area;
+    prev_power_sample = new_power_sample;
   }
+  else {
+    prev_sample_1 = false; 
+    if (recovered_energy <= 0) {
+      recovered_energy = 0;
+      prev_sample_2 = false;
+      recovered_energy_can = 0;
+      return;
+    }
+    power_sample = power;
+    if (prev_sample_2 == false) {
+      prev_power_sample = power_sample;
+      prev_sample_2 = true;
+      recovered_energy_can = recovered_energy;
+      return;
+    }
+    new_power_sample = power_sample;
+    slice_area = ((prev_power_sample + new_power_sample) / 2) * 1;
+    if (slice_area >= recovered_energy) {
+      recovered_energy = 0;
+      prev_sample_2 = false;
+    } else {
+      recovered_energy -= slice_area;
+    }
+    prev_power_sample = new_power_sample;
+  }
+  recovered_energy_can = recovered_energy;
 }
 
 /**
@@ -309,64 +288,4 @@ void loop(){
 
     default: break;
   }
-
-  /**
-  Deprecated
-  */
-  // // --- Pre operational state (This is where you can do checks and make sure that everything is okay) ---
-  
-  // if (nodeOperatingMode == 0x80){ 
-  //   ReadVEData(); // this function passes each incoming byte into rxData. rxData stores the name-value pairs in the buffer (array of structs - 1 struct is 1 name-value pair).
-  //   // EverySecond(); // Debug: print the data in the buffer every second.
-  //   if (veParser.isDataAvailable()) {
-  //     updateODentries();  
-  //     last_data_received_time = millis(); // if new data is received update the OD entries and record the time
-  //   } else {
-  //     // if new data is not received
-  //   currentMillis = millis();
-  //   if (currentMillis - last_data_received_time >= shunt_data_interval) { // if more than 1.5s pass and still no data in buffer then raise error because a new block should be received every sec.
-  //     sendEMCY(1,nodeID, 0x00000701); // Minor Emergency
-  //     Serial.println("No Data in the buffer!");
-  //     last_data_received_time = currentMillis;
-  //     }
-  //   }
-  // }
-
-  // // --- Operational state (Normal operating mode) ---
-  // if (nodeOperatingMode == 0x01){ 
-  //   ReadVEData(); // this function passes each incoming byte into rxData. rxData stores the name-value pairs in the buffer (array of structs - 1 struct is 1 name-value pair).
-  //   // EverySecond();
-  //   if (veParser.isDataAvailable()) { // Update OD entries every s. A new block is received every second.
-  //       updateODentries();   
-  //     }
-  //   }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
