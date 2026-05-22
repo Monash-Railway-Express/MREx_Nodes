@@ -514,9 +514,8 @@ void setup() {
   configureRPDO(0, 0x181, 255, 0);
   PdoMapEntry rpdoMotor[] = {
     {0x606C, 0x00, 32},  // true speed
-    {0x606E, 0x00, 32},  // tractive effort
   };
-  mapRPDO(0, rpdoMotor, 2);
+  mapRPDO(0, rpdoMotor, 1);
 
   // RPDO2 — Battery TPDO1 (COB-ID 0x187): current + voltage + SOC
   configureRPDO(1, 0x187, 255, 0);
