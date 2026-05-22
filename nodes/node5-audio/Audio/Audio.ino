@@ -94,9 +94,9 @@ void HandleHorn();
 
 
 void setup() {
-  Serial.begin(115200);
+  DualSerial.begin(115200);
   delay(1000);
-  Serial.println("Serial Coms started at 115200 baud");
+  DualSerial.println("DualSerial Coms started at 115200 baud");
   
   //Initialize CANMREX protocol
   initCANMREX(TX_GPIO_NUM, RX_GPIO_NUM, NODE_ID);
@@ -129,24 +129,24 @@ void setup() {
 
   // --- DFPlayer Setup ---
   player_serial.begin(9600, SERIAL_8N1, /*rx =*/17, /*tx =*/16);
-  Serial.println();
-  Serial.println(F("Initializing DFPlayer ... (May take 3~5 seconds)"));
+  DualSerial.println();
+  DualSerial.println(F("Initializing DFPlayer ... (May take 3~5 seconds)"));
   
   /*TODO(AP)
   * -Figure out why DFPlayer -> ESP reply doesn't come through (most likely PCB issue with 1k ohm resistor absent)
   * -Reset "isACK = true" when issue resolved (allows DFPlayer to return error and status messages like SD Card insert/remove/unable to play etc.)
   */
   if (!myDFPlayer.begin(player_serial, /*isACK = */false, /*doReset = */true)) {  //Use serial to communicate with mp3.
-    Serial.println(F("Unable to begin:"));
-    Serial.println(F("1.Please recheck the connection!"));
-    Serial.println(F("2.Please insert the SD card!"));
+    DualSerial.println(F("Unable to begin:"));
+    DualSerial.println(F("1.Please recheck the connection!"));
+    DualSerial.println(F("2.Please insert the SD card!"));
     sendEMCY(0x01,5,0x00000500); //send minor EMCY message when SD card read failed on startup
     while(true){
       delay(0); // Code to compatible with ESP8266 watch dog.
     }
   }
   delay(500);
-  Serial.println(F("Audio system online."));
+  DualSerial.println(F("Audio system online."));
   myDFPlayer.volume(30);  //Set volume value. From 0 to 30
   delay(500);
   myDFPlayer.play(STARTUP_FB_SOUND);
@@ -202,8 +202,8 @@ void HandleHorn() {
   static bool hornStatePrev;
   static uint8_t hornStateMNo = 1; //for horn state machin
   hornStatePrev = (bool)od_horn;
-  //Serial.print("Horn state:");
-  //Serial.println(hornStatePrev);
+  //DualSerial.print("Horn state:");
+  //DualSerial.println(hornStatePrev);
 
   switch (hornStateMNo)
   {
@@ -243,54 +243,54 @@ void HandleHorn() {
 void printDetail(uint8_t type, int value){
   switch (type) {
     case TimeOut:
-      Serial.println(F("Time Out!"));
+      DualSerial.println(F("Time Out!"));
       break;
     case WrongStack:
-      Serial.println(F("Stack Wrong!"));
+      DualSerial.println(F("Stack Wrong!"));
       break;
     case DFPlayerCardInserted:
-      Serial.println(F("Card Inserted!"));
+      DualSerial.println(F("Card Inserted!"));
       break;
     case DFPlayerCardRemoved:
-      Serial.println(F("Card Removed!"));
+      DualSerial.println(F("Card Removed!"));
       break;
     case DFPlayerCardOnline:
-      Serial.println(F("Card Online!"));
+      DualSerial.println(F("Card Online!"));
       break;
     case DFPlayerUSBInserted:
-      Serial.println("USB Inserted!");
+      DualSerial.println("USB Inserted!");
       break;
     case DFPlayerUSBRemoved:
-      Serial.println("USB Removed!");
+      DualSerial.println("USB Removed!");
       break;
     case DFPlayerPlayFinished:
-      Serial.print(F("Number:"));
-      Serial.print(value);
-      Serial.println(F(" Play Finished!"));
+      DualSerial.print(F("Number:"));
+      DualSerial.print(value);
+      DualSerial.println(F(" Play Finished!"));
       break;
     case DFPlayerError:
-      Serial.print(F("DFPlayerError:"));
+      DualSerial.print(F("DFPlayerError:"));
       switch (value) {
         case Busy:
-          Serial.println(F("Card not found"));
+          DualSerial.println(F("Card not found"));
           break;
         case Sleeping:
-          Serial.println(F("Sleeping"));
+          DualSerial.println(F("Sleeping"));
           break;
         case SerialWrongStack:
-          Serial.println(F("Get Wrong Stack"));
+          DualSerial.println(F("Get Wrong Stack"));
           break;
         case CheckSumNotMatch:
-          Serial.println(F("Check Sum Not Match"));
+          DualSerial.println(F("Check Sum Not Match"));
           break;
         case FileIndexOut:
-          Serial.println(F("File Index Out of Bound"));
+          DualSerial.println(F("File Index Out of Bound"));
           break;
         case FileMismatch:
-          Serial.println(F("Cannot Find File"));
+          DualSerial.println(F("Cannot Find File"));
           break;
         case Advertise:
-          Serial.println(F("In Advertise"));
+          DualSerial.println(F("In Advertise"));
           break;
         default:
           break;
