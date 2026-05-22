@@ -19,6 +19,16 @@
  * @version 1.4.2
  * @organisation MREX
  *
+ * @changes v1.4.0
+ *   - Added RPDO receive for battery (0x187, 0x287), motor (0x181), lights (0x184)
+ *   - Added full Nextion telemetry display (speed, battery, temp, tractive effort)
+ *   - Added EMCY listener — displays faults and lights EMCY pill
+ *   - Added regen-only pill — derived from recovered_energy_can > 0 AND power_can > 0
+ *   - Added tractive effort pill (YES/NO)
+ *   - Added autostop alert OD entry (0x3016:00)
+ *   - Replaced Track Condition display with Autostop status
+ *   - Brake status now supports three states: Released / Applied / Fault
+ *   - Speed scaling assumed x10 (e.g. 179 = 17.9 km/h) — confirm with motor node
 */
 
 // ═══════════════════════════════════════════════════════════════
@@ -289,10 +299,12 @@ void updateNextion() {
   }
 
   // ── AUTOSTOP STATUS (replaces Track Condition) ──────────────
-  // Reads od_autostop_detection directly from Node 6 via SDO
-  uint8_t autostopDetected = 0;
-  executeSDORead(NODE_ID, AUTOSTOP_ID, 0x1050, 0x00, sizeof(autostopDetected), &autostopDetected);
-  bool autostopActive = (od_challenge_mode == 3 && autostopDetected == 1);
+  // Only reads from Node 6 when autostop challenge is active
+  uint32_t autostopDetected = 0;
+  if (od_challenge_mode == 3) {
+    autostopDetected = executeSDORead(NODE_ID, AUTOSTOP_ID, 0x1050, 0x00);
+  }
+  bool autostopActive = (autostopDetected == 1);
   if (autostopActive != prevAutostop) {
     sendText("t_autostop", autostopActive ? "ACTIVE" : "Standby");
     sendColour("t_autostop", "pco", autostopActive ? NEX_GREEN : NEX_GREY);
