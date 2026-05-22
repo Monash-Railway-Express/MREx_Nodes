@@ -72,7 +72,7 @@ void setup() {
   registerODEntry(0x6060, 0x00, 2, sizeof(dirMode), &dirMode);
 
   // --- Register TPDOs ---
-  configureTPDO(0, 0x184 + nodeID, 255, 100, 100);
+  configureTPDO(0, 0x180 + nodeID, 255, 100, 100);
 
   PdoMapEntry tpdoEntries[] = {
       {0x1004, 0x00, 16},  // Example: index 0x2000, subindex 1, 16 bits
