@@ -599,7 +599,7 @@ void UpdateOpMode() {
   if (nodeOperatingMode != enumOpMode) {
     nodeOperatingMode = enumOpMode;
     Serial.print(nodeOperatingMode);
-    // SendAllNMT(enumOpMode);
+    SendAllNMT(enumOpMode);
   }
 }
 
