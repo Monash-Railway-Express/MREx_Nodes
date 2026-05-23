@@ -87,7 +87,7 @@ uint8_t od_loc_counter = 0;
 #define LOC_ANN7_TCN_END_SOUND 10
 #define LOC_ANN8_END_SOUND 11
 
-//location announcement 
+//location announcement counter values
 /*
 1 - Past station Box (Passing)
 // Have 2 traction markers here
@@ -107,6 +107,21 @@ uint8_t od_loc_counter = 0;
 #define LOC_ANN6_TCN 8
 #define LOC_ANN7_TCN_END 9
 #define LOC_ANN8_END 10
+
+
+/*
+Location announcement data. 
+First number is the "location counter" sent from autostop node
+Second number is the index for the mp3 module for the associated announcement
+*/
+std::map<uint8_t, int> locationAnnounceSoundMap = {{1,4},
+                                        {4,5},
+                                        {5,6},
+                                        {6,7},
+                                        {7,8},
+                                        {8,9},
+                                        {9,10},
+                                        {10,11}};
 
 HardwareSerial player_serial(1); //initialise UART 1 of ESP as the serial for the DFPlayer module
 DFRobotDFPlayerMini myDFPlayer;
@@ -288,45 +303,39 @@ void HandleHorn() {
 void HandleAutoStop(){
   static uint8_t prevCounter = 0; //state variable used for tracking changes to the autostop counter
 
-#define LOC_ANN1_START 1
-#define LOC_ANN2_AUTOSTOP 4
-#define LOC_ANN3_COMFORT 5
-#define LOC_ANN4_COMFORT_END 6
-#define LOC_ANN5_HAVEN 7
-#define LOC_ANN6_TCN 8
-#define LOC_ANN7_TCN_END 9
-#define LOC_ANN8_END 10
+
   //play sound every time location counter updates
   if(prevCounter != od_loc_counter){
     prevCounter = od_loc_counter;
-    switch (od_loc_counter) {
-        case LOC_ANN1_START:     
-          myDFPlayer.play(LOC_ANN1_START_SOUND);     
-          break;
-        case LOC_ANN2_AUTOSTOP:       
-          myDFPlayer.play(LOC_ANN2_AUTOSTOP_SOUND);            
-          break;
-        case LOC_ANN3_COMFORT: 
-          myDFPlayer.play(LOC_ANN3_COMFORT_SOUND);     
-          break;
-        case LOC_ANN4_COMFORT_END: 
-          myDFPlayer.play(LOC_ANN4_COMFORT_END_SOUND);     
-          break;
-        case LOC_ANN5_HAVEN: 
-          myDFPlayer.play(LOC_ANN5_HAVEN_SOUND);     
-          break;
-        case LOC_ANN6_TCN: 
-          myDFPlayer.play(LOC_ANN6_TCN_SOUND);     
-          break;
-        case LOC_ANN7_TCN_END: 
-          myDFPlayer.play(LOC_ANN7_TCN_END_SOUND);     
-          break;
-        case LOC_ANN8_END: 
-          myDFPlayer.play(LOC_ANN8_END_SOUND);     
-          break;
-        default:                  
-          break;  // fail-safe
-    }  
+    myDFPlayer.play(locationAnnounceSoundMap[od_loc_counter]);   
+    // switch (od_loc_counter) {
+    //     case LOC_ANN1_START:     
+    //       myDFPlayer.play(LOC_ANN1_START_SOUND);     
+    //       break;
+    //     case LOC_ANN2_AUTOSTOP:       
+    //       myDFPlayer.play(LOC_ANN2_AUTOSTOP_SOUND);            
+    //       break;
+    //     case LOC_ANN3_COMFORT: 
+    //       myDFPlayer.play(LOC_ANN3_COMFORT_SOUND);     
+    //       break;
+    //     case LOC_ANN4_COMFORT_END: 
+    //       myDFPlayer.play(LOC_ANN4_COMFORT_END_SOUND);     
+    //       break;
+    //     case LOC_ANN5_HAVEN: 
+    //       myDFPlayer.play(LOC_ANN5_HAVEN_SOUND);     
+    //       break;
+    //     case LOC_ANN6_TCN: 
+    //       myDFPlayer.play(LOC_ANN6_TCN_SOUND);     
+    //       break;
+    //     case LOC_ANN7_TCN_END: 
+    //       myDFPlayer.play(LOC_ANN7_TCN_END_SOUND);     
+    //       break;
+    //     case LOC_ANN8_END: 
+    //       myDFPlayer.play(LOC_ANN8_END_SOUND);     
+    //       break;
+    //     default:                  
+    //       break;  // fail-safe
+    //}  
   }
 
 }
