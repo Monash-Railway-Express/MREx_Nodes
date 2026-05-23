@@ -379,11 +379,12 @@ static uint8_t _ChangeLocation(){
 static void _HandleLocationAnnoucement() {
     //Check the location counter and update 
     uint8_t newLocation = ChangeLocation();
-    Serial.print("At location: " );
-    Serial.println(od_location_counter);
+    
 
     if(newLocation != od_location_counter){
         od_location_counter = newLocation;
+        Serial.print("At location: " );
+        Serial.println(od_location_counter);
         switch (od_location_counter) {
             case 1: _SendPassing()   ; break; //Point 1
             //Have traction markers here in circuit
