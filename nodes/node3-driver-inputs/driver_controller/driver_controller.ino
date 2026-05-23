@@ -239,7 +239,7 @@ int getOpModeColour(uint8_t mode) {
 void updateNextion() {
 
   // ── SPEED (x10 scaling — 179 = 17.9 km/h) ──────────────────
-  int speed = (int)(od_true_speed);
+  int speed = (int)(od_true_speed*10);
   int speedBar = map(od_true_speed, 0, 150, 0, 100); // 15.0 km/h max
   if (speed != prevSpeed) {
     float speedF = od_true_speed / 10.0;
@@ -593,21 +593,15 @@ void OperationalMode() {
 }
 
 void UpdateOpMode() {
-  static int prevOpModeRaw = 0;
   int newOpModeRaw = ReadStable3PosBuffered(&opModeBuf);
-  if(newOpModeRaw != prevOpModeRaw){
-    prevOpModeRaw = newOpModeRaw;
-    uint8_t enumOpMode = opModes[newOpModeRaw];
-    Serial.print(nodeOperatingMode);
-<<<<<<< HEAD
-    SendAllNMT(enumOpMode);
+  uint8_t enumOpMode = opModes[newOpModeRaw];
+  if (nodeOperatingMode != enumOpMode) {
     nodeOperatingMode = enumOpMode;
-=======
+    Serial.print(nodeOperatingMode);
+    nodeOperatingMode = enumOpMode;
     // Update local state
     SendAllNMT(enumOpMode);
->>>>>>> dev
   }
-  
 }
 
 void SendAllNMT(uint8_t operatingMode) {
