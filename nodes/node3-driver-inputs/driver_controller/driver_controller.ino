@@ -599,8 +599,13 @@ void UpdateOpMode() {
     prevOpModeRaw = newOpModeRaw;
     uint8_t enumOpMode = opModes[newOpModeRaw];
     Serial.print(nodeOperatingMode);
+<<<<<<< HEAD
     SendAllNMT(enumOpMode);
     nodeOperatingMode = enumOpMode;
+=======
+    // Update local state
+    SendAllNMT(enumOpMode);
+>>>>>>> dev
   }
   
 }
