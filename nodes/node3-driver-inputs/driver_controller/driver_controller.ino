@@ -239,7 +239,7 @@ int getOpModeColour(uint8_t mode) {
 void updateNextion() {
 
   // ── SPEED (x10 scaling — 179 = 17.9 km/h) ──────────────────
-  int speed = (int)(od_true_speed / 10);
+  int speed = (int)(od_true_speed*10);
   int speedBar = map(od_true_speed, 0, 150, 0, 100); // 15.0 km/h max
   if (speed != prevSpeed) {
     float speedF = od_true_speed / 10.0;
@@ -514,9 +514,8 @@ void setup() {
   configureRPDO(0, 0x181, 255, 0);
   PdoMapEntry rpdoMotor[] = {
     {0x606C, 0x00, 32},  // true speed
-    {0x606E, 0x00, 32},  // tractive effort
   };
-  mapRPDO(0, rpdoMotor, 2);
+  mapRPDO(0, rpdoMotor, 1);
 
   // RPDO2 — Battery TPDO1 (COB-ID 0x187): current + voltage + SOC
   configureRPDO(1, 0x187, 255, 0);
@@ -599,6 +598,8 @@ void UpdateOpMode() {
   if (nodeOperatingMode != enumOpMode) {
     nodeOperatingMode = enumOpMode;
     Serial.print(nodeOperatingMode);
+    nodeOperatingMode = enumOpMode;
+    // Update local state
     SendAllNMT(enumOpMode);
   }
 }

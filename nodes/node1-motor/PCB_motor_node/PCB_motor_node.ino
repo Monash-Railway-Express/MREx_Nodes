@@ -65,7 +65,7 @@ uint32_t od_recovered_energy = 0;
 // OD 0x1050:00 - Autostop lineside marker detection. unsigned 0 or 1, edge=detected
 uint8_t od_autostop_detection = 0;
 
-
+uint32_t od_current_power = 0;
 
 // =============================================================================
 // Global Variables
@@ -141,6 +141,7 @@ void setup() {
     registerODEntry(0x6061, 0x00, 2, sizeof(od_condition_mode), &od_condition_mode);        // SDO - 8bit
     registerODEntry(0x6060, 0x00, 2, sizeof(od_direction_mode), &od_direction_mode);        // SDO - 8bit
     registerODEntry(0x6062, 0x00, 2, sizeof(od_challenge_mode), &od_challenge_mode);        // SDO - 8bit
+    registerODEntry(0x2000, 0x03, 2, sizeof(od_current_power), &od_current_power);    // RPDO - 32bit
     registerODEntry(0x2000, 0x04, 2, sizeof(od_recovered_energy), &od_recovered_energy);    // RPDO - 32bit
     registerODEntry(0x1050, 0x00, 2, sizeof(od_autostop_detection), &od_autostop_detection);    // SDO - 8bit
     
@@ -185,11 +186,13 @@ void setup() {
     /**
     * TODO
     */
-    // configureRPDO(1, 0x280 + BATTERY_ID, 255, 0);  // COB-ID matches battery node TPDO2 (0x280 + nodeID 7)
-    // PdoMapEntry rpdo1_entries[] = {
-    //     {0x2000, 0x04, 32}  // recovered_energy_can
-    // };
-    // mapRPDO(1, rpdo1_entries, 1);
+    configureRPDO(1, 0x280 + BATTERY_ID, 255, 0);
+
+    PdoMapEntry rpdo1_entries[] = {
+        {0x2000, 0x03, 32},  // power_can       — aligns bytes 0-3
+        {0x2000, 0x04, 32}   // recovered_energy_can — now correctly at bytes 4-7
+    };
+    mapRPDO(1, rpdo1_entries, 2);
 }
 
 
@@ -811,10 +814,10 @@ void SetupPCNT() {
  * @brief Sets od_service_brake_mc variable as brakes engaged or unengaged
  */
 void SetServiceBrake(bool engaged) {
-    od_service_brake_mc = engaged ? 0 : 1;   // 0 = braking, 1 = not braking
-    uint8_t value = od_service_brake_mc;
-    executeSDOWrite(NODE_ID, 2, 0x3012, 0x01, sizeof(value), &value);
-    // ^ check your CAN_MREx signature — adjust args to match
+    // od_service_brake_mc = engaged ? 0 : 1;   // 0 = braking, 1 = not braking
+    // uint8_t value = od_service_brake_mc;
+    // executeSDOWrite(NODE_ID, 2, 0x3012, 0x01, sizeof(value), &value);
+    // // ^ check your CAN_MREx signature — adjust args to match
 }
 
 /**
