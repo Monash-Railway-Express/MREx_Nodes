@@ -62,6 +62,9 @@ uint8_t NODE_ID = 6;
 #define TX_GPIO_NUM GPIO_NUM_26
 #define RX_GPIO_NUM GPIO_NUM_27
 
+//Private functions
+uint8_t _ChangeLocation();
+
 // --- Sensor GPIO pins ---
 // Hardware: QS18VP6LP outputs are voltage-divided so max voltage <= 3.3V but
 // may be as low as 1V when HIGH. digitalRead is unreliable at 1V (WROOM-32UE
@@ -331,11 +334,11 @@ static void _SendStandStill(){
     }
 }
 
-static uint8_t _ChangeLocation(){
+uint8_t _ChangeLocation(){
     static uint32_t lastMs      = 0;
     uint32_t nowMs = millis();
     uint8_t newLocation = 0;
-    if ((nowMs - lastMs) < SENSOR_POLL_MS) return;
+    if ((nowMs - lastMs) < SENSOR_POLL_MS) return od_location_counter;
     lastMs = nowMs;
 
     bool aHigh, bHigh;
@@ -344,7 +347,7 @@ static uint8_t _ChangeLocation(){
     if (!valid) {
         // Circuit fault — do not trigger. EMCY is handled by _CheckSensorCircuit.
         sensorConfirmCount = 0;
-        return;
+        return od_location_counter;
 
     }
 
@@ -378,7 +381,7 @@ static uint8_t _ChangeLocation(){
  */
 static void _HandleLocationAnnoucement() {
     //Check the location counter and update 
-    uint8_t newLocation = ChangeLocation();
+    uint8_t newLocation = _ChangeLocation();
     
 
     if(newLocation != od_location_counter){
