@@ -593,16 +593,13 @@ void OperationalMode() {
 }
 
 void UpdateOpMode() {
-  static int prevOpModeRaw = 0;
   int newOpModeRaw = ReadStable3PosBuffered(&opModeBuf);
-  if(newOpModeRaw != prevOpModeRaw){
-    prevOpModeRaw = newOpModeRaw;
-    uint8_t enumOpMode = opModes[newOpModeRaw];
+  uint8_t enumOpMode = opModes[newOpModeRaw];
+  if (nodeOperatingMode != enumOpMode) {
+    nodeOperatingMode = enumOpMode;
     Serial.print(nodeOperatingMode);
     SendAllNMT(enumOpMode);
-    nodeOperatingMode = enumOpMode;
   }
-  
 }
 
 void SendAllNMT(uint8_t operatingMode) {
