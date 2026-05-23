@@ -239,7 +239,7 @@ int getOpModeColour(uint8_t mode) {
 void updateNextion() {
 
   // ── SPEED (x10 scaling — 179 = 17.9 km/h) ──────────────────
-  int speed = (int)(od_true_speed);
+  int speed = (int)(od_true_speed*10);
   int speedBar = map(od_true_speed, 0, 150, 0, 100); // 15.0 km/h max
   if (speed != prevSpeed) {
     float speedF = od_true_speed / 10.0;
