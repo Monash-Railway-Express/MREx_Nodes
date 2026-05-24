@@ -59,8 +59,8 @@ uint8_t NODE_ID = 6;
 #define LCD_ID 0x09
 
 // --- CAN transceiver pins ---
-#define TX_GPIO_NUM GPIO_NUM_26
-#define RX_GPIO_NUM GPIO_NUM_27
+#define TX_GPIO_NUM GPIO_NUM_14
+#define RX_GPIO_NUM GPIO_NUM_13
 
 //Private functions
 uint8_t _ChangeLocation();
@@ -71,8 +71,8 @@ uint8_t _ChangeLocation();
 // digital HIGH threshold is ~2.475V), so analogRead + threshold is used.
 // A (GPIO 32) = positive detection output (HIGH when reflector detected).
 // B (GPIO 33) = inverse/negative output — must always equal logical-NOT of A.
-static const uint8_t SENSOR_A_PIN = 32;  // Reflector detected (ADC1_CH4)
-static const uint8_t SENSOR_B_PIN = 33;  // Not detected / inverse output (ADC1_CH5)
+static const uint8_t SENSOR_A_PIN = 1U;  // Reflector detected (ADC1_CH4)
+static const uint8_t SENSOR_B_PIN = 2U;  // Not detected / inverse output (ADC1_CH5)
 
 // ADC threshold for treating a sensor output as logic HIGH.
 // 200 / 4095 * 3.3V ~ 0.16V — safely above noise, well below the 1V minimum
