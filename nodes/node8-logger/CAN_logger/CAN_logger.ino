@@ -5,8 +5,8 @@
  * Organisation:    MREX
  * Author:          Chiara Gillam, Nhan Nguyen
  * Date Created:    12/10/2025
- * Last Modified:   25/04/2026
- * Version:         2.1.0
+ * Last Modified:   05/05/2026
+ * Version:         2.1.1
  *
  */
 
@@ -17,8 +17,9 @@
 
 
 
-const uint8_t NODE_ID = 8;  // Change this to set your device's node ID
 
+#include "../../../shared/MREx.h"
+const uint8_t NODE_ID = LOGGER_ID;  // Change this to set your device's node ID
 #include <SPI.h>
 #include <SD.h>
 #include <Wire.h>
