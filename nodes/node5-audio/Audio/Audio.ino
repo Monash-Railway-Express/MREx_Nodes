@@ -195,7 +195,7 @@ void setup() {
   }
   delay(500);
   Serial.println(F("Audio system online."));
-  myDFPlayer.volume(20);  //Set volume value. From 0 to 30
+  myDFPlayer.volume(30);  //Set volume value. From 0 to 30
   delay(500);
   myDFPlayer.play(STARTUP_FB_SOUND);
   // --- Set pin modes ---
