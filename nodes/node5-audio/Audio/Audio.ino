@@ -218,21 +218,6 @@ void loop() {
         case MODE_OPERATIONAL: OperationalMode(); break;
         default:               StoppedMode();     break;  // fail-safe
     }
-  // --- Stopped mode (This is default starting point) ---
-  if (nodeOperatingMode == 0x02){ 
-    
-  }
-
-  // --- Pre operational state (This is where you can do checks and make sure that everything is okay) ---
-  if (nodeOperatingMode == 0x80){ 
-    
-    
-  }
-
-  // --- Operational state (Normal operating mode) ---
-  if (nodeOperatingMode == 0x01){ 
-
-  }
 
   //User code end loop() --------------------------------------------------------
 }
