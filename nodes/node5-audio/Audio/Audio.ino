@@ -44,9 +44,6 @@ To reorder them, you have to delete and recopy them in the sequence you want.
 File names mean nothing.)
 IMPORTANT: 
 USE 16 bit .wav files for horn. Using MP3 adds small silences at start and end of clip, making looping sound choppy.
-1.) Startup Feedback Sound (Yarra Trams information chime)
-2.) Comeng Horn Middle
-3.) Comeng Horn End
 */
 #include <CAN_MREx.h> // inlcudes all CAN MREX files
 #include "Arduino.h"
@@ -73,7 +70,11 @@ uint8_t od_loc_counter = 0;
 //DFPlayer Setup
 #define DFBUSY 13 //used to check if DFPlayer is playing tracks or not. Connect to BUSY pin on DFPlayer. If High, its free.
 
-//sounds definition
+/*
+Sound index definition
+Note: These are the sounds in the order that they are copied to the SD card.
+To change any sound, it is better to move all audio files out of SD card and recopy them in this order
+*/
 #define STARTUP_FB_SOUND 1
 #define HORN_LOOP_SOUND 2
 #define HORN_END_SOUND 3
@@ -108,14 +109,14 @@ Location announcement data.
 First number is the "location counter" sent from autostop node
 Second number is the index for the mp3 module for the associated announcement
 */
-std::map<uint8_t, int> locationAnnounceSoundMap = {{LOC_ANN1_START,LOC_ANN1_START_SOUND},
-                                        {LOC_ANN2_AUTOSTOP,LOC_ANN2_AUTOSTOP_SOUND},
-                                        {LOC_ANN3_COMFORT,LOC_ANN3_COMFORT_SOUND},
-                                        {LOC_ANN4_COMFORT_END,LOC_ANN4_COMFORT_END_SOUND},
-                                        {LOC_ANN5_HAVEN,LOC_ANN5_HAVEN_SOUND},
-                                        {LOC_ANN6_TCN,LOC_ANN6_TCN_SOUND},
-                                        {LOC_ANN7_TCN_END,LOC_ANN7_TCN_END_SOUND},
-                                        {LOC_ANN8_END,LOC_ANN8_END_SOUND}};
+std::map<uint8_t, int> locationAnnounceSoundMap = { {LOC_ANN1_START,      LOC_ANN1_START_SOUND},
+                                                    {LOC_ANN2_AUTOSTOP,   LOC_ANN2_AUTOSTOP_SOUND},
+                                                    {LOC_ANN3_COMFORT,    LOC_ANN3_COMFORT_SOUND},
+                                                    {LOC_ANN4_COMFORT_END,LOC_ANN4_COMFORT_END_SOUND},
+                                                    {LOC_ANN5_HAVEN,      LOC_ANN5_HAVEN_SOUND},
+                                                    {LOC_ANN6_TCN,        LOC_ANN6_TCN_SOUND},
+                                                    {LOC_ANN7_TCN_END,    LOC_ANN7_TCN_END_SOUND},
+                                                    {LOC_ANN8_END,        LOC_ANN8_END_SOUND}};
 
 HardwareSerial player_serial(1); //initialise UART 1 of ESP as the serial for the DFPlayer module
 DFRobotDFPlayerMini myDFPlayer;
