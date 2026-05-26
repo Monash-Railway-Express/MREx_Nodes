@@ -62,6 +62,9 @@ uint8_t NODE_ID = 6;
 #define TX_GPIO_NUM GPIO_NUM_14
 #define RX_GPIO_NUM GPIO_NUM_13
 
+// --- Location Announce Cooldown ---
+#define LOC_ANN_CD 5000 //cooldown between location annoucement changes 5s
+
 //Private functions
 uint8_t _ChangeLocation();
 
@@ -336,6 +339,7 @@ static void _SendStandStill(){
 
 uint8_t _ChangeLocation(){
     static uint32_t lastMs      = 0;
+    static uint32_t lastValidLoc = 0; //the last time a valid location was detected
     uint32_t nowMs = millis();
     uint8_t newLocation = 0;
     if ((nowMs - lastMs) < SENSOR_POLL_MS) return od_location_counter;
@@ -355,8 +359,9 @@ uint8_t _ChangeLocation(){
         sensorConfirmCount++;
 
 
-        if (sensorConfirmCount >= AUTOSTOP_CONFIRM_COUNT) {
+        if (sensorConfirmCount >= AUTOSTOP_CONFIRM_COUNT && (nowMs - lastValidLoc) > LOC_ANN_CD) {
             newLocation =  od_location_counter + 1;
+            lastValidLoc = nowMs;
 
         Serial.println("Sensor TRIGGERED — marker confirmed, location updated" );
         }
