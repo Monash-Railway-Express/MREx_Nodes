@@ -181,9 +181,9 @@ void PrintData() {
  * @return nothing
  */
 void findRecoveredEnergy() {
-  if (power < 0) {
+  if (power > 0) {
     prev_sample_2 = false; 
-    power_sample = -power; 
+    power_sample = power; 
     if (prev_sample_1 == false) {
       prev_power_sample = power_sample;
       prev_sample_1 = true;
@@ -195,7 +195,7 @@ void findRecoveredEnergy() {
     recovered_energy += slice_area;
     prev_power_sample = new_power_sample;
   }
-  else {
+  else if (power <0 ){
     prev_sample_1 = false; 
     if (recovered_energy <= 0) {
       recovered_energy = 0;
@@ -203,7 +203,7 @@ void findRecoveredEnergy() {
       recovered_energy_can = 0;
       return;
     }
-    power_sample = power;
+    power_sample = -power;
     if (prev_sample_2 == false) {
       prev_power_sample = power_sample;
       prev_sample_2 = true;
@@ -235,7 +235,7 @@ void updateODentries(){
         voltage = atoi(veParser.veData[i].veValue);
        }
        else if (strcmp(veParser.veData[i].veName, "I") == 0){
-        current = atoi(veParser.veData[i].veValue);
+        current = -atoi(veParser.veData[i].veValue);
         current_can = current; 
        }
        else if (strcmp(veParser.veData[i].veName, "SOC") == 0){
