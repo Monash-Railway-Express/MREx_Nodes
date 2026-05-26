@@ -105,7 +105,7 @@ void loop() {
   //User Code begin loop() ----------------------------------------------------
   unsigned long  currentMillis = millis();
 
-  // CheckSensors(); // always check the sensors
+  CheckSensors(); // always check the sensors
   
   // --- Stopped mode (This is default starting point) ---
   if (nodeOperatingMode == 0x02){ 
@@ -240,16 +240,20 @@ void CheckSensors(){
   uint16_t temperatureRear;
   uint16_t allowableTemperature = 70;
 
-  smokeEMCY = (digitalRead(SMOKE_PIN) == HIGH); 
+
+  // Sensor is low when Gas is detected
+  smokeEMCY = (digitalRead(SMOKE_PIN) == LOW); 
   
-  temperatureFront = analogRead(TEMPERATURE_FRONT_PIN);
-  temperatureRear = analogRead(TEMPERATURE_REAR_PIN);
+  // Between 0 - 4095
+  temperatureFront = analogRead(TEMPERATURE_FRONT_PIN)*10;
+  temperatureRear = analogRead(TEMPERATURE_REAR_PIN)*10;
 
   /*
   - Turn the thermistor reading into a celsius temperature (will need callibration)
   - Use only integers
   - Assuming MCP970X Thermistor
     Vout = Tc * Ta + V0c
+    
 
     V0c: 400mV / 500mV
 
@@ -258,8 +262,8 @@ void CheckSensors(){
     Ta: The Temperature (C)
   */
   
-  int voltage0 = 156; // 500mv Converted to 0-1029 Scale
-  int temperature_Coef = 3; // 10mV Converted to 0-1029 Scale
+  int voltage0 = 6204; // 500mv Converted to 0-40950 Scale
+  int temperature_Coef = 124; // 10mV Converted to 0-40950 Scale
 
   temperatureFront = ( temperatureFront - voltage0 ) / temperature_Coef;
 
