@@ -181,9 +181,9 @@ void PrintData() {
  * @return nothing
  */
 void findRecoveredEnergy() {
-  if (power > 0) {
+  if (power < 0) {
     prev_sample_2 = false; 
-    power_sample = power; 
+    power_sample = -power; 
     if (prev_sample_1 == false) {
       prev_power_sample = power_sample;
       prev_sample_1 = true;
@@ -195,7 +195,7 @@ void findRecoveredEnergy() {
     recovered_energy += slice_area;
     prev_power_sample = new_power_sample;
   }
-  else if (power <0 ){
+  else if (power > 0 ){
     prev_sample_1 = false; 
     if (recovered_energy <= 0) {
       recovered_energy = 0;
@@ -203,7 +203,7 @@ void findRecoveredEnergy() {
       recovered_energy_can = 0;
       return;
     }
-    power_sample = -power;
+    power_sample = power;
     if (prev_sample_2 == false) {
       prev_power_sample = power_sample;
       prev_sample_2 = true;
@@ -242,7 +242,7 @@ void updateODentries(){
         state_of_charge = atoi(veParser.veData[i].veValue); // needs to be divided by 10 to get it in percentage. 995/10 = 99.5%.
        }
        else if (strcmp(veParser.veData[i].veName, "P") == 0){
-        power = atoi(veParser.veData[i].veValue);
+        power = -atoi(veParser.veData[i].veValue);
         power_can = power; 
         findRecoveredEnergy(); 
        }
