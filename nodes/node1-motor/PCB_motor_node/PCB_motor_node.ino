@@ -96,6 +96,10 @@ struct FloatPair floatPairs[numFloatPairs];
 bool new_autostop_instance = true;
 
 
+uint16_t motor_dac = 0;
+uint16_t brake_dac = 0;
+float over_speed_damping = 1;
+
 
 // =============================================================================
 // SETUP
@@ -223,7 +227,7 @@ void loop() {
  * @brief Stopped state — zero all outputs, reset integrator and put preferences to NVM.
  */
 void StoppedMode() {
-    WriteDAC(THROTTLE_CHANNEL, 0);
+    WriteDAC(THROTTLE_CHANNEL, uint16_t(motor_dac * over_speed_damping));
     WriteDAC(REGEN_CHANNEL, 0);
     integrator = 0.0f;
     PutPreferences(); // we need to add a params dirty od entry so we only update these when they change
@@ -237,7 +241,7 @@ void StoppedMode() {
  * Mode 1 = reverse, 2 = neutral (contactor off), 3 = forward.
  */
 void PreOpMode() {
-    WriteDAC(THROTTLE_CHANNEL, 0);
+    WriteDAC(THROTTLE_CHANNEL, uint16_t(motor_dac * over_speed_damping));
     WriteDAC(REGEN_CHANNEL, 0);
     digitalWrite(BRAKE_SWITCH, LOW);
 
@@ -321,17 +325,38 @@ void OperationalMode() {
 
     prev_challenge_mode = od_challenge_mode;
 
-    // Hard speed cap
-    if (speed_kmh > MAX_SPEED_KMH) {
-        WriteDAC(THROTTLE_CHANNEL, 0);
-        integrator = 0.0f;
-        // sendEMCY(1, MOTOR_ID, 0x00510);     // send minor emergency - TODO: DECIDE ON PROPER ERROR CODE
-        DualSerial.println("[OperationalMode] Speed cap exceeded — throttle cut.");
-        return;
-    }
+    // // Hard speed cap
+    // if (speed_kmh > MAX_SPEED_KMH) {
+    //     WriteDAC(THROTTLE_CHANNEL, uint16_t(motor_dac * over_speed_damping));
+    //     integrator = 0.0f;
+    //     // sendEMCY(1, MOTOR_ID, 0x00510);     // send minor emergency - TODO: DECIDE ON PROPER ERROR CODE
+    //     DualSerial.println("[OperationalMode] Speed cap exceeded — throttle cut.");
+    //     return;
+    // }
+
+    limit_speed(speed_kmh, MAX_SPEED_KMH);
 
 }
 
+void limit_speed(float current_speed, int max_speed){
+    
+    //accesses global variables, motor_dac and brake_dac
+    float damping_factor = 0.9;
+    if(current_speed > max_speed){
+        over_speed_damping = over_speed_damping * damping_factor;
+    } else {
+        over_speed_damping = over_speed_damping / damping_factor;
+    }
+    
+    if(over_speed_damping > 1){
+        over_speed_damping = 1;
+    }
+
+    if(over_speed_damping < 0.1){
+        over_speed_damping = 0.1;
+    }
+    return;
+}
 
 /**
  * @brief When exiting a challenge mode it will change these 
@@ -372,8 +397,8 @@ void OnChallengeModeEnter(uint8_t new_mode) {
  * @param speed_kmh Current measured speed in km/h.
  */
 void ThrottleControl(float speed_kmh) {
-    uint16_t motor_dac = 0;
-    uint16_t brake_dac = 0;
+    motor_dac = 0;
+    brake_dac = 0;
 
     // if (od_motor_command > 0 && od_regen_brake <= 0) {
     //     motor_dac = od_motor_command;   // full 10-bit range
@@ -393,7 +418,7 @@ void ThrottleControl(float speed_kmh) {
     // }
 
     // Write to Throttle and Regen DACs
-    WriteDAC(THROTTLE_CHANNEL, od_motor_command);
+    WriteDAC(THROTTLE_CHANNEL, uint16_t(od_motor_command*over_speed_damping));
     WriteDAC(REGEN_CHANNEL, od_regen_brake);
     if(od_regen_brake > 0){
         digitalWrite(BRAKE_SWITCH, HIGH);
@@ -422,8 +447,8 @@ void ThrottleControl(float speed_kmh) {
  * @param speed_kmh Current measured speed in km/h.
  */
 void SpeedControl(float speed_kmh) {
-    uint16_t motor_dac = 0;
-    uint16_t brake_dac = 0;
+    motor_dac = 0;
+    brake_dac = 0;
 
     if (od_regen_brake > REGEN_BRAKE_THRESHOLD) {
         motor_dac  = 0;
@@ -451,14 +476,14 @@ void SpeedControl(float speed_kmh) {
         //multiplying control by 1024;
         //I think PI params were caculated for 0 to 1 output signal not 0 to 1024
         //just multiplying by 100
-        control = control * 100;
+        control = control * 25;
         if (control > DAC_MAX) control = (float)DAC_MAX;
 
         motor_dac = (uint16_t)control;
         brake_dac = 0;
     }
 
-    WriteDAC(THROTTLE_CHANNEL, motor_dac);
+    WriteDAC(THROTTLE_CHANNEL, uint16_t(over_speed_damping * motor_dac));
     WriteDAC(REGEN_CHANNEL, brake_dac);
     if(brake_dac > 0){
         digitalWrite(BRAKE_SWITCH, HIGH);
@@ -492,8 +517,8 @@ void AutoStopChallenge(float speed_kmh, int32_t pulse_accum) {
 
 
 
-    uint16_t motor_dac = 0;
-    uint16_t brake_dac = 0;
+    motor_dac = 0;
+    brake_dac = 0;
 
 
     if (!entered_auto_stop && new_autostop_instance) {
@@ -515,7 +540,7 @@ void AutoStopChallenge(float speed_kmh, int32_t pulse_accum) {
 
     // --- Zone 2: Stopped ---
     if (speed_kmh <= 0.1f) {
-        WriteDAC(THROTTLE_CHANNEL, 0);
+        WriteDAC(THROTTLE_CHANNEL, uint16_t(motor_dac * over_speed_damping));
         WriteDAC(REGEN_CHANNEL, 0);
         digitalWrite(BRAKE_SWITCH, LOW);
         integrator = 0.0f;
@@ -530,7 +555,7 @@ void AutoStopChallenge(float speed_kmh, int32_t pulse_accum) {
     // --- Zone 3: 25m reached — full regen brake ---
     if (distance_m >= AUTO_STOP_DISTANCE_M) {
         integrator = 0.0f;
-        WriteDAC(THROTTLE_CHANNEL, 0);
+        WriteDAC(THROTTLE_CHANNEL, uint16_t(motor_dac * over_speed_damping));
         WriteDAC(REGEN_CHANNEL, DAC_MAX);
         digitalWrite(BRAKE_SWITCH, HIGH);
         DualSerial.print("[AutoStop] Coasting to stop — Distance: "); DualSerial.print(distance_m);
@@ -569,7 +594,7 @@ void TractionChallenge(float speed_kmh) {
     // float speed_setpoint = ((float)od_motor_command / 1023.0f) * MAX_SPEED_KMH;
 
     // if (speed_kmh > speed_setpoint + TRACTION_SLIP_MARGIN_KMH) {
-    //     WriteDAC(THROTTLE_CHANNEL, 0);
+    //     WriteDAC(THROTTLE_CHANNEL, uint16_t(motor_dac * over_speed_damping));
     //     WriteDAC(REGEN_CHANNEL, 0);
     //    //od_service_brake_mc = 0;
     //     integrator = 0.0f;
@@ -617,8 +642,8 @@ void EnergyRecoveryChallenge(float speed_kmh) {
     static uint32_t    energy_motor_start  = 0;
     static uint32_t    energy_recovered    = 0;
 
-    uint16_t motor_dac = 0;
-    uint16_t brake_dac = 0;
+    motor_dac = 0;
+    brake_dac = 0;
 
     switch (phase) {
 
@@ -645,7 +670,7 @@ void EnergyRecoveryChallenge(float speed_kmh) {
             brake_dac        = od_regen_brake;
            //od_service_brake_mc = 0;  // Suppress — keep energy in regen circuit
 
-            WriteDAC(THROTTLE_CHANNEL, motor_dac);
+            WriteDAC(THROTTLE_CHANNEL, uint16_t(motor_dac * over_speed_damping));
             WriteDAC(REGEN_CHANNEL, brake_dac);
             if(od_regen_brake > 0){
                 digitalWrite(BRAKE_SWITCH, HIGH);
@@ -660,7 +685,7 @@ void EnergyRecoveryChallenge(float speed_kmh) {
                 energy_brake_end  = od_recovered_energy;
                 energy_recovered  = energy_brake_end - energy_brake_start;
                //od_service_brake_mc = 1;
-                WriteDAC(THROTTLE_CHANNEL, 0);
+                WriteDAC(THROTTLE_CHANNEL, uint16_t(motor_dac * over_speed_damping));
                 WriteDAC(REGEN_CHANNEL, 0);
                 digitalWrite(BRAKE_SWITCH, LOW);
                 phase = PHASE_STOPPED_IDLE;
@@ -677,7 +702,7 @@ void EnergyRecoveryChallenge(float speed_kmh) {
         case PHASE_STOPPED_IDLE:
         // Stationary — holding service brake, waiting for first throttle input
         // ----------------------------------------------------------------
-            WriteDAC(THROTTLE_CHANNEL, 0);
+            WriteDAC(THROTTLE_CHANNEL, uint16_t(motor_dac * over_speed_damping));
             WriteDAC(REGEN_CHANNEL, 0);
             digitalWrite(BRAKE_SWITCH, LOW);
            //od_service_brake_mc = 1;
@@ -702,7 +727,7 @@ void EnergyRecoveryChallenge(float speed_kmh) {
                                  : 0;
 
             if (energy_used >= energy_recovered) {
-                WriteDAC(THROTTLE_CHANNEL, 0);
+                WriteDAC(THROTTLE_CHANNEL, uint16_t(motor_dac * over_speed_damping));
                 WriteDAC(REGEN_CHANNEL, 0);
                 digitalWrite(BRAKE_SWITCH, LOW);
                //od_service_brake_mc = 0;
@@ -727,7 +752,7 @@ void EnergyRecoveryChallenge(float speed_kmh) {
         // Throttle permanently cut — challenge complete
         // ----------------------------------------------------------------
             digitalWrite(ISOLATING_RELAY, HIGH);
-            WriteDAC(THROTTLE_CHANNEL, 0);
+            WriteDAC(THROTTLE_CHANNEL, uint16_t(motor_dac * over_speed_damping));
             WriteDAC(REGEN_CHANNEL, 0);
             digitalWrite(BRAKE_SWITCH, LOW);
            //od_service_brake_mc = 0;
