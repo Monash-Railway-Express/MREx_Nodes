@@ -195,15 +195,9 @@ void findRecoveredEnergy() {
     recovered_energy += slice_area;
     prev_power_sample = new_power_sample;
   }
-  else if (power > 0 ){
-    prev_sample_1 = false; 
-    if (recovered_energy <= 0) {
-      recovered_energy = 0;
-      prev_sample_2 = false;
-      recovered_energy_can = 0;
-      return;
-    }
-    power_sample = power;
+  else if (power > 0) {
+    prev_sample_1 = false;
+    power_sample = power;                          // removed early-return zero-clamp block
     if (prev_sample_2 == false) {
       prev_power_sample = power_sample;
       prev_sample_2 = true;
@@ -212,13 +206,8 @@ void findRecoveredEnergy() {
     }
     new_power_sample = power_sample;
     slice_area = ((prev_power_sample + new_power_sample) / 2) * 1;
-    if (slice_area >= recovered_energy) {
-      recovered_energy = 0;
-      prev_sample_2 = false;
-    } else {
-      recovered_energy -= slice_area;
-    }
-    prev_power_sample = new_power_sample;
+    recovered_energy -= slice_area;                // always subtract, no floor
+    prev_power_sample = new_power_sample;          // removed zero-clamp on slice_area >= recovered_energy
   }
   recovered_energy_can = recovered_energy;
 }
