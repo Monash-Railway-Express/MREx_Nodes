@@ -556,7 +556,7 @@ void AutoStopChallenge(float speed_kmh, int32_t pulse_accum) {
     // --- Zone 3: 25m reached — full regen brake ---
     if (distance_m >= AUTO_STOP_DISTANCE_M) {
         integrator = 0.0f;
-        WriteDAC(THROTTLE_CHANNEL, uint16_t(motor_dac * over_speed_damping));
+        WriteDAC(THROTTLE_CHANNEL, 0);
         WriteDAC(REGEN_CHANNEL, DAC_MAX);
         digitalWrite(BRAKE_SWITCH, HIGH);
         DualSerial.print("[AutoStop] Coasting to stop — Distance: "); DualSerial.print(distance_m);
