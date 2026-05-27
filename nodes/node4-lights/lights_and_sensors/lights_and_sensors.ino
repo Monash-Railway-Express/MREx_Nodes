@@ -105,7 +105,7 @@ void loop() {
   //User Code begin loop() ----------------------------------------------------
   unsigned long  currentMillis = millis();
 
-  CheckSensors(); // always check the sensors
+  //CheckSensors(); // always check the sensors
   
   // --- Stopped mode (This is default starting point) ---
   if (nodeOperatingMode == 0x02){ 
@@ -140,10 +140,10 @@ void loop() {
 void HandleDirStates()
 {
   //reads the motor direction from the controller.
-  dir_mode32 = executeSDORead(NODE_ID, 3, 0x6060, 0x00); 
+  //dir_mode32 = executeSDORead(NODE_ID, 3, 0x6060, 0x00); 
   //dirMode = 1;
   //executeSDOWrite(NODE_ID, 3, 0x6060, 0x00, sizeof(uint8_t), &dirMode);
-  dir_mode = (uint8_t)dir_mode32;
+  //dir_mode = (uint8_t)dir_mode32;
 
   //switches the drive state based on the motor direction
   //TODO: clarify codes and implement accordingly. Currently using 3 for fwd and 1 for rev.
