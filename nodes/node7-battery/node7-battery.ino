@@ -55,7 +55,7 @@ uint32_t current_can = 0;
 uint16_t voltage = 0; // voltage always positive 
 uint32_t power_can = 0; // Instantenous Power
 uint16_t state_of_charge = 0; // 0-100%. +/- 0.1%. If the SOC is 88.3% it is sent as 883 so 16 bits enough.
-uint32_t recovered_energy_can = 0;
+int recovered_energy_can = 0;
 
 // =============================================================================
 // Global Variables
