@@ -70,6 +70,21 @@ uint8_t NODE_ID = 3;
 #define LOGGER_ID   0x08
 #define LCD_ID      0x09
 
+/*
+location announcement counter values. 
+Location announcement counter is incremented via SDO every time train passes a marker.
+At these set values, the corresponding announcement will play
+Note: 2 and 3 are skipped as these are the traction challenge markers passed over when challenge starts
+*/
+#define LOC_ANN1_START 1
+#define LOC_ANN2_AUTOSTOP 4
+#define LOC_ANN3_COMFORT 5
+#define LOC_ANN4_COMFORT_END 6
+#define LOC_ANN5_HAVEN 7
+#define LOC_ANN6_TCN 8
+#define LOC_ANN7_TCN_END 9
+#define LOC_ANN8_END 10
+
 // Defining operating mode enum
 enum OperatingMode : uint8_t {
     MODE_STOPPED       = 0x02,

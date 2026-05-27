@@ -330,6 +330,7 @@ static void _HandleAutostop(void) {
 
 static void _SendPassing() {
     executeSDOWrite(NODE_ID, AUDIO_ID, 0x1051, 0x00, sizeof(od_location_counter), &od_location_counter);
+    executeSDOWrite(NODE_ID, DRIVER_ID, 0x1051, 0x00, sizeof(od_location_counter), &od_location_counter);
 }
 
 /*
@@ -343,6 +344,7 @@ static void _SendStandStill(){
 
     if(od_true_speed==0 && standstillFlag){
         executeSDOWrite(NODE_ID, AUDIO_ID, 0x1051, 0x00, sizeof(od_location_counter), &od_location_counter);
+        executeSDOWrite(NODE_ID, DRIVER_ID, 0x1051, 0x00, sizeof(od_location_counter), &od_location_counter);
         standstillFlag = LOW;
     }
 }
@@ -517,6 +519,8 @@ void setup() {
     // od_autostop_detection: written by this node; readable by others via SDO.
     registerODEntry(OD_INDEX_AUTOSTOP_DET, OD_SUBINDEX_AUTOSTOP_DET,
                     2, sizeof(od_autostop_detection), &od_autostop_detection);
+
+    registerODEntry(0x1051, 0x00, 2, sizeof(od_location_counter), &od_location_counter);
 
     // --- Set pin modes ---
     // Sensor pins are analog inputs. analogRead does not require pinMode but
