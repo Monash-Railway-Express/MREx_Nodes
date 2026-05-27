@@ -257,7 +257,7 @@ String getLocationText(uint8_t counter) {
 void updateNextion() {
 
   // ── SPEED — raw integer km/h, clamp to prevent overflow display
-  if (od_true_speed > 20) od_true_speed = 0;  // clamp — ignore corrupt CAN values above 20 km/h
+  if (od_true_speed > 15) od_true_speed = 0;  
   int speed = (int)od_true_speed;
   if (speed != prevSpeed) {
     sendText("t_speed", String(speed) + " km/h");
