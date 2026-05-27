@@ -256,12 +256,11 @@ String getLocationText(uint8_t counter) {
  */
 void updateNextion() {
 
-  // ── SPEED — raw integer km/h, clamp to prevent overflow display
-  if (od_true_speed > 15) od_true_speed = 0;    
-  int speed = (int)od_true_speed;
+  // ── SPEED — raw integer km/h, clamp for display only
+  int speed = (int)constrain(od_true_speed, 0, 15);
   if (speed != prevSpeed) {
     sendText("t_speed", String(speed) + " km/h");
-    sendProgressBar("j_speed", constrain(map(speed, 0, 15, 0, 100), 0, 100));
+    sendProgressBar("j_speed", map(speed, 0, 15, 0, 100));
     prevSpeed = speed;
   }
 
@@ -315,7 +314,8 @@ void updateNextion() {
 
   // ── AUTOSTOP STATUS ─────────────────────────────────────────
   static unsigned long lastAutostopCheck = 0;
-  uint32_t autostopDetected = 0;
+  static uint32_t autostopDetected = 0;  // static keeps value between calls
+  if (od_challenge_mode != 3) autostopDetected = 0;
   if (od_challenge_mode == 3 && millis() - lastAutostopCheck >= 1000) {
     autostopDetected = executeSDORead(NODE_ID, AUTOSTOP_ID, 0x1050, 0x00);
     lastAutostopCheck = millis();
@@ -659,7 +659,7 @@ void SendAllNMT(uint8_t operatingMode) {
   sendNMT(operatingMode, AUDIO_ID);
   sendNMT(operatingMode, AUTOSTOP_ID);
   sendNMT(operatingMode, BATTERY_ID);
-  sendNMT(operatingMode, LCD_ID);
+  //sendNMT(operatingMode, LCD_ID);
 }
 
 // ═══════════════════════════════════════════════════════════════
