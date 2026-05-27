@@ -229,6 +229,7 @@ void loop() {
 void StoppedMode() {
     WriteDAC(THROTTLE_CHANNEL, uint16_t(motor_dac * over_speed_damping));
     WriteDAC(REGEN_CHANNEL, 0);
+    digitalWrite(BRAKE_SWITCH, LOW);
     integrator = 0.0f;
     PutPreferences(); // we need to add a params dirty od entry so we only update these when they change
 }
