@@ -16,7 +16,6 @@ void HandleHorn();
 void HandleParking();
 void HandleDirection();
 void HandleChallenge();
-void HandleCondition();
 
 int DecodeNearest3(int raw);
 int DecodeNearest5(int raw);
@@ -43,6 +42,8 @@ void InitBuffer(ADCBuffer* buf, int pin);
 #define THROTTLE_PIN    GPIO_NUM_2
 
 #define HORN_PIN          GPIO_NUM_15
+#define EMCY_CLEAR_PIN    GPIO_NUM_15
+#define LOCATION_BUTTON_PIN    GPIO_NUM_15
 // #define BUTTON_2_PIN   GPIO_NUM_16  // commented out — GPIO16 used for Nextion RX
 #define BUTTON_2_PIN      GPIO_NUM_3   // temp reassignment — button unconnected
 #define SERVICE_BRAKE_PIN GPIO_NUM_6
@@ -50,7 +51,6 @@ void InitBuffer(ADCBuffer* buf, int pin);
 
 #define DIRECTION_MODE_PIN  GPIO_NUM_4
 #define CHALLENGE_MODE_PIN  GPIO_NUM_19
-#define CONDITION_MODE_PIN  GPIO_NUM_14
 #define OP_MODE_PIN         GPIO_NUM_5
 
 // Nextion UART pins

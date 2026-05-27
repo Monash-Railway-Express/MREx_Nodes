@@ -44,17 +44,14 @@ uint16_t od_motor_command = 0;
 // OD 0x6060:00 - Direction mode (1=back, 2=neutral, 3=forward).
 uint8_t od_direction_mode = 3;
 
-// OD 0x6061:00 - Traction condition (1–5, 5=slipperiest).
-uint8_t od_condition_mode = 0;
-
 // OD 0x6062:00 - Challenge mode (1=throttle, 2=speed, 3=autostop, 4=regen, 5=traction).
 uint8_t od_challenge_mode = 0;
 
 // OD 0x6065:00 - Horn toggle (1=active, 0=default).
 uint8_t od_horn_toggle = 0;
 
-// Free
-uint8_t od_button_2 = 0;
+// OD 0x1051
+uint8_t od_location_counter = 0;
 
 // OD 0x3012:02 - Service brake (1=not braking, 0=braking).
 uint8_t od_service_brake_dc = 0;
@@ -94,7 +91,6 @@ ADCBuffer throttleBuf  = {0};
 ADCBuffer brakeBuf     = {0};
 ADCBuffer dirBuf       = {0};
 ADCBuffer challengeBuf = {0};
-ADCBuffer conditionBuf = {0};
 ADCBuffer opModeBuf    = {0};
 
 // ═══════════════════════════════════════════════════════════════
@@ -446,13 +442,13 @@ void setup() {
   pinMode(BRAKE_PIN,         INPUT);
   pinMode(THROTTLE_PIN,      INPUT);
   pinMode(HORN_PIN,          INPUT_PULLUP);
-  pinMode(BUTTON_2_PIN,      INPUT_PULLUP);
+  pinMode(EMCY_CLEAR_PIN,      INPUT_PULLUP);
+  pinMode(LOCATION_BUTTON_PIN, INPUT_PULLUP);
   pinMode(SERVICE_BRAKE_PIN, INPUT_PULLUP);
   pinMode(SWITCH_2_PIN,      INPUT_PULLUP);
   pinMode(DIRECTION_MODE_PIN,INPUT);
   pinMode(OP_MODE_PIN,       INPUT);
   pinMode(CHALLENGE_MODE_PIN,INPUT);
-  pinMode(CONDITION_MODE_PIN,INPUT);
 
   // ADC attenuation
   analogSetPinAttenuation(BRAKE_PIN,          ADC_11db);
@@ -466,7 +462,6 @@ void setup() {
   InitBuffer(&brakeBuf,     BRAKE_PIN);
   InitBuffer(&dirBuf,       DIRECTION_MODE_PIN);
   InitBuffer(&challengeBuf, CHALLENGE_MODE_PIN);
-  InitBuffer(&conditionBuf, CONDITION_MODE_PIN);
   InitBuffer(&opModeBuf,    OP_MODE_PIN);
 
   // CAN init
@@ -481,10 +476,10 @@ void setup() {
   registerODEntry(0x606A, 0x00, 2, sizeof(od_motor_command),    &od_motor_command);
   registerODEntry(0x3012, 0x00, 2, sizeof(od_regen_brake),      &od_regen_brake);
   registerODEntry(0x6060, 0x00, 2, sizeof(od_direction_mode),   &od_direction_mode);
-  registerODEntry(0x6061, 0x00, 2, sizeof(od_condition_mode),   &od_condition_mode);
   registerODEntry(0x6062, 0x00, 2, sizeof(od_challenge_mode),   &od_challenge_mode);
   registerODEntry(0x6065, 0x00, 2, sizeof(od_horn_toggle),      &od_horn_toggle);
   registerODEntry(0x3012, 0x02, 2, sizeof(od_service_brake_dc), &od_service_brake_dc);
+  registerODEntry(0x, 0x02, 2, sizeof(od_service_brake_dc), &od_service_brake_dc);
 
   // Autostop detection is read directly from Node 6 via SDO read in updateNextion()
   // No local OD entry needed — Node 6 owns od_autostop_detection at 0x1050:00
@@ -499,6 +494,7 @@ void setup() {
   registerODEntry(0x2000, 0x04, 2, sizeof(od_recovered_energy), &od_recovered_energy);
   registerODEntry(0x1004, 0x00, 2, sizeof(od_temp_front),       &od_temp_front);
   registerODEntry(0x1004, 0x01, 2, sizeof(od_temp_rear),        &od_temp_rear);
+  registerODEntry(0x1051, 0x00, 2, sizeof(od_location_counter), &od_location_counter);
 
   // ── TPDO — driver controls transmit ────────────────────────
   configureTPDO(0, 0x180 + NODE_ID, 255, 100, 100);
@@ -552,7 +548,10 @@ void loop() {
   if (currentMillis - previousMillis >= interval) {
     previousMillis = currentMillis;
 
-    UpdateOpMode();
+    if(!checkMajorEMCY()){
+      UpdateOpMode();
+    }
+    
 
     switch (nodeOperatingMode) {
       case MODE_STOPPED:     StoppedMode();     break;
@@ -586,16 +585,17 @@ void PreOpMode() {
 void OperationalMode() {
   Serial.print("Op Mode");
   HandleChallenge();
-  HandleCondition();
   HandleParking();
   HandleHorn();
   HandleInputs();
+  HandleLocation();
 }
 
 void UpdateOpMode() {
   int newOpModeRaw = ReadStable3PosBuffered(&opModeBuf);
   uint8_t enumOpMode = opModes[newOpModeRaw];
-  if (nodeOperatingMode != enumOpMode) {
+  if ((nodeOperatingMode != enumOpMode)) {
+    if(nodeOperatingMode == MODE_STOPPED && enumOpMode == MODE_OPERATIONAL) return;
     nodeOperatingMode = enumOpMode;
     Serial.print(nodeOperatingMode);
     nodeOperatingMode = enumOpMode;
@@ -649,6 +649,24 @@ void HandleHorn() {
   }
 }
 
+void HandleLocation() {
+  Serial.print("   ||   Location Handle: ");
+  int newLocationToggle = !(digitalRead(LOCATION_BUTTON_PIN));
+  Serial.print(newLocationToggle);
+  if (od_location_counter != newLocationToggle) {
+    od_location_counter = od_location_counter + 1;
+    executeSDOWrite(NODE_ID, AUTOSTOP_ID, 0x1051, 0x00, sizeof(od_location_counter), &od_location_counter);
+}
+
+// void HandleEMCY() {
+//   Serial.print("   ||   EMCY Handle: ");
+//   int newEMCYToggle = !(digitalRead(EMCY_CLEAR_PIN));
+//   Serial.print(newEMCYToggle);
+//   if(newEMCYToggle){
+    
+//   }
+// }
+
 void HandleParking() {
   Serial.print("   ||   Parking Handle: ");
   int newServiceBrake = digitalRead(SERVICE_BRAKE_PIN);
@@ -681,17 +699,6 @@ void HandleChallenge() {
     executeSDOWrite(NODE_ID, MOTOR_ID,    0x6062, 0x00, sizeof(od_challenge_mode), &od_challenge_mode);
     executeSDOWrite(NODE_ID, AUTOSTOP_ID, 0x6062, 0x00, sizeof(od_challenge_mode), &od_challenge_mode);
     Serial.print("Sending Challenge: "); Serial.println(od_challenge_mode);
-  }
-}
-
-void HandleCondition() {
-  Serial.print("   ||   Condition Handle: ");
-  int newConditionMode = ReadStable5PosBuffered(&conditionBuf);
-  Serial.print(newConditionMode);
-  if (od_condition_mode != newConditionMode) {
-    od_condition_mode = newConditionMode;
-    executeSDOWrite(NODE_ID, MOTOR_ID, 0x6061, 0x00, sizeof(od_condition_mode), &od_condition_mode);
-    Serial.print("Sending Condition: "); Serial.println(od_condition_mode);
   }
 }
 
@@ -750,7 +757,6 @@ void InputTask(void* pvParameters) {
     UpdateADCBuffer(&dirBuf,       DIRECTION_MODE_PIN);
     UpdateADCBuffer(&opModeBuf,    OP_MODE_PIN);
     UpdateADCBuffer(&challengeBuf, CHALLENGE_MODE_PIN);
-    UpdateADCBuffer(&conditionBuf, CONDITION_MODE_PIN);
     vTaskDelay(delayTicks);
   }
 }
