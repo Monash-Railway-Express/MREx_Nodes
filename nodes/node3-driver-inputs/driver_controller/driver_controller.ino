@@ -166,15 +166,6 @@ void sendPage(int page) {
   nextionSerial.write(0xFF);
 }
 
-// ── Nextion colour constants ────────────────────────────────────
-#define NEX_GREEN  1339
-#define NEX_YELLOW 65504
-#define NEX_RED    63488
-#define NEX_WHITE  65535
-#define NEX_GREY   33808
-#define NEX_CYAN   1055
-#define NEX_DARK   10
-
 // ── Helper: set a pill active or inactive ──────────────────────
 void setPill(String component, bool active, int activeColour) {
   sendColour(component, "bco", active ? activeColour : NEX_DARK);
@@ -474,7 +465,7 @@ void setup() {
 
   // FreeRTOS tasks
   xTaskCreatePinnedToCore(CAN_Task,  "CAN Task",  4096, &NODE_ID, 3, NULL, 0);
-  xTaskCreatePinnedToCore(InputTask, "Input Task",4096, NULL,     2, NULL, 1);
+  xTaskCreatePinnedToCore(InputTask, "Input Task",4096, NULL,     2, NULL, 0);
 
   // ── OD registrations ───────────────────────────────────────
   // Local driver controls OD entries
@@ -611,7 +602,6 @@ void SendAllNMT(uint8_t operatingMode) {
   sendNMT(operatingMode, AUDIO_ID);
   sendNMT(operatingMode, AUTOSTOP_ID);
   sendNMT(operatingMode, BATTERY_ID);
-  sendNMT(operatingMode, LCD_ID);
 }
 
 // ═══════════════════════════════════════════════════════════════

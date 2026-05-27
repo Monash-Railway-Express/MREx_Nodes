@@ -70,6 +70,15 @@ uint8_t NODE_ID = 3;
 #define LOGGER_ID   0x08
 #define LCD_ID      0x09
 
+// ── Nextion colour constants ────────────────────────────────────
+#define NEX_GREEN  1339
+#define NEX_YELLOW 65504
+#define NEX_RED    63488
+#define NEX_WHITE  65535
+#define NEX_GREY   33808
+#define NEX_CYAN   1055
+#define NEX_DARK   10
+
 // Defining operating mode enum
 enum OperatingMode : uint8_t {
     MODE_STOPPED       = 0x02,
