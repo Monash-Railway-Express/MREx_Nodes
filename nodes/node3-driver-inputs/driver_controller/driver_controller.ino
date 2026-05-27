@@ -657,7 +657,7 @@ void HandleLocation() {
     od_location_counter = od_location_counter + 1;
     executeSDOWrite(NODE_ID, AUTOSTOP_ID, 0x1051, 0x00, sizeof(od_location_counter), &od_location_counter);
 }
-
+}
 // void HandleEMCY() {
 //   Serial.print("   ||   EMCY Handle: ");
 //   int newEMCYToggle = !(digitalRead(EMCY_CLEAR_PIN));
