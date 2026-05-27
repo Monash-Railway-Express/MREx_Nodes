@@ -235,10 +235,10 @@ int getOpModeColour(uint8_t mode) {
 void updateNextion() {
 
   // ── SPEED (x10 scaling — 179 = 17.9 km/h) ──────────────────
-  int speed = (int)(od_true_speed*10);
+  int speed = (int)(od_true_speed);
   int speedBar = map(od_true_speed, 0, 150, 0, 100); // 15.0 km/h max
   if (speed != prevSpeed) {
-    float speedF = od_true_speed / 10.0;
+    float speedF = od_true_speed;
     char buf[12];
     dtostrf(speedF, 4, 1, buf);
     sendText("t_speed", String(buf) + " km/h");
