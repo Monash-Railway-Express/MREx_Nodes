@@ -55,8 +55,8 @@ uint32_t current_can = 0;
 uint16_t voltage = 0; // voltage always positive 
 uint32_t power_can = 0; // Instantenous Power
 uint16_t state_of_charge = 0; // 0-100%. +/- 0.1%. If the SOC is 88.3% it is sent as 883 so 16 bits enough.
-int recovered_energy_can = 0;
-
+uint32_t recovered_energy_can = 0;
+int cumulative_energy = 0;
 // =============================================================================
 // Global Variables
 // =============================================================================
@@ -109,12 +109,12 @@ void setup() {
   registerODEntry(0x2000, 0x02, 2, sizeof(state_of_charge), &state_of_charge); 
   registerODEntry(0x2000, 0x03, 2, sizeof(power_can), &power_can);
   registerODEntry(0x2000, 0x04, 2, sizeof(recovered_energy_can), &recovered_energy_can);
-  
+  registerODEntry(0x2000, 0x05, 2, sizeof(cumulative_energy), &cumulative_energy);
   // --- Configure TPDOs and RPDOs ---
 
   configureTPDO(0, 0x180 + NODE_ID, 255, 100, 1000);  // TPDO 1, COB-ID, transType, inhibit, timer
   configureTPDO(1, 0x280 + NODE_ID, 255, 100, 1000);  // TPDO 2, COB-ID, transType, inhibit, timer
-  
+  configureTPDO(2, 0x380 + NODE_ID, 255, 100, 1000);  // TPDO 3
 
   // --- TPDO and RPDO entries ---
   
@@ -122,6 +122,10 @@ void setup() {
       {0x2000, 0x00, 32},    // current
       {0x2000, 0x01, 16},   // voltage
       {0x2000, 0x02, 16},   // state of charge   
+    };
+
+  PdoMapEntry tpdoEntries3[] = {
+      {0x2000, 0x05, 32},    // current
     };
 
   PdoMapEntry tpdoEntries2[] = {   
@@ -133,7 +137,7 @@ void setup() {
 
   mapTPDO(0, tpdoEntries1, 3); //TPDO 1, entries, num entries
   mapTPDO(1, tpdoEntries2, 2); //TPDO 2, entries, num entries
-  
+  mapTPDO(2, tpdoEntries3, 1); //
 }
 
 /**
@@ -193,11 +197,18 @@ void findRecoveredEnergy() {
     new_power_sample = power_sample;
     slice_area = ((prev_power_sample + new_power_sample) / 2) * 1;
     recovered_energy += slice_area;
+    cumulative_energy += slice_area;               // accumulate recovered energy
     prev_power_sample = new_power_sample;
   }
   else if (power > 0) {
     prev_sample_1 = false;
-    power_sample = power;                          // removed early-return zero-clamp block
+    if (recovered_energy <= 0) {
+      recovered_energy = 0;
+      prev_sample_2 = false;
+      recovered_energy_can = 0;
+      return;
+    }
+    power_sample = power;
     if (prev_sample_2 == false) {
       prev_power_sample = power_sample;
       prev_sample_2 = true;
@@ -206,12 +217,18 @@ void findRecoveredEnergy() {
     }
     new_power_sample = power_sample;
     slice_area = ((prev_power_sample + new_power_sample) / 2) * 1;
-    recovered_energy -= slice_area;                // always subtract, no floor
-    prev_power_sample = new_power_sample;          // removed zero-clamp on slice_area >= recovered_energy
+    if (slice_area >= recovered_energy) {
+      cumulative_energy -= recovered_energy;       // only subtract what was actually spent
+      recovered_energy = 0;
+      prev_sample_2 = false;
+    } else {
+      recovered_energy -= slice_area;
+      cumulative_energy -= slice_area;             // accumulate spent energy
+    }
+    prev_power_sample = new_power_sample;
   }
   recovered_energy_can = recovered_energy;
 }
-
 /**
  * @brief updates OD entries. OD entries are updated every second when new data is received into the buffer
  * @return nothing
