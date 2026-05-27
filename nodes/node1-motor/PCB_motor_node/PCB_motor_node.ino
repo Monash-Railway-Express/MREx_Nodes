@@ -67,6 +67,8 @@ uint8_t od_autostop_detection = 0;
 
 uint32_t od_current_power = 0;
 
+int cumulative_energy = 0;
+
 // =============================================================================
 // Global Variables
 // =============================================================================
@@ -149,6 +151,7 @@ void setup() {
     registerODEntry(0x2000, 0x03, 2, sizeof(od_current_power), &od_current_power);    // RPDO - 32bit
     registerODEntry(0x2000, 0x04, 2, sizeof(od_recovered_energy), &od_recovered_energy);    // RPDO - 32bit
     registerODEntry(0x1050, 0x00, 2, sizeof(od_autostop_detection), &od_autostop_detection);    // SDO - 8bit
+    registerODEntry(0x2000, 0x05, 2, sizeof(cumulative_energy), &cumulative_energy);   
     
     
     // When adding a new pair, ensure to update numFloatPairs
@@ -187,6 +190,12 @@ void setup() {
         {0x606A, 0x00, 16}   // od_motor_command
     };
     mapRPDO(0, rpdo_entries, 2);
+
+    configureRPDO(2, 0x380 + BATTERY_ID, 255, 0);
+    PdoMapEntry rpdo2_entries[] = {
+        {0x2000, 0x05, 32},  // cumulative_energy
+    };
+    mapRPDO(2, rpdo2_entries, 1);
 
     /**
     * TODO
@@ -638,10 +647,10 @@ void EnergyRecoveryChallenge(float speed_kmh) {
     };
 
     static EnergyPhase phase             = PHASE_WAITING_FOR_BRAKE;
-    static uint32_t    energy_brake_start  = 0;
-    static uint32_t    energy_brake_end    = 0;
-    static uint32_t    energy_motor_start  = 0;
-    static uint32_t    energy_recovered    = 0;
+    static int32_t   energy_brake_start  = 0;
+    static int32_t    energy_brake_end    = 0;
+    static int32_t    energy_motor_start  = 0;
+    static int32_t    energy_recovered    = 0;
 
     motor_dac = 0;
     brake_dac = 0;
@@ -656,7 +665,7 @@ void EnergyRecoveryChallenge(float speed_kmh) {
 
             // Transition to braking phase on first regen brake input
             if (od_regen_brake > REGEN_BRAKE_THRESHOLD) {
-                energy_brake_start = od_recovered_energy;
+                energy_brake_start = cumulative_energy;
                 phase              = PHASE_BRAKING;
                 DualSerial.print("[EnergyRecovery] Braking started — energy snapshot: ");
                 DualSerial.println(energy_brake_start);
@@ -683,7 +692,7 @@ void EnergyRecoveryChallenge(float speed_kmh) {
 
             // Transition to idle once train is stopped
             if (speed_kmh <= 0.1f) {
-                energy_brake_end  = od_recovered_energy;
+                energy_brake_end  = cumulative_energy;
                 energy_recovered  = energy_brake_end - energy_brake_start;
                //od_service_brake_mc = 1;
                 WriteDAC(THROTTLE_CHANNEL, uint16_t(motor_dac * over_speed_damping));
@@ -710,7 +719,7 @@ void EnergyRecoveryChallenge(float speed_kmh) {
 
             if (od_motor_command > 10) {
                 // First throttle received — snapshot energy at this moment
-                energy_motor_start = od_recovered_energy;
+                energy_motor_start = cumulative_energy;
                //od_service_brake_mc  = 0;
                 phase              = PHASE_MOTORING;
                 DualSerial.print("[EnergyRecovery] Throttle received — motor energy start: ");
@@ -723,8 +732,8 @@ void EnergyRecoveryChallenge(float speed_kmh) {
         // Motoring — allow throttle only while energy used < energy recovered
         // ----------------------------------------------------------------
         {
-            uint32_t energy_used = (energy_motor_start > od_recovered_energy)
-                                 ? (energy_motor_start - od_recovered_energy)
+            uint32_t energy_used = (energy_motor_start > cumulative_energy)
+                                 ? (energy_motor_start - cumulative_energy)
                                  : 0;
 
             if (energy_used >= energy_recovered) {
