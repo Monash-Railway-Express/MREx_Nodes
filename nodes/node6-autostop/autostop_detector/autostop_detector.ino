@@ -341,7 +341,7 @@ uint8_t _ChangeLocation(){
     static uint32_t lastMs      = 0;
     static uint32_t lastValidLoc = 0; //the last time a valid location was detected
     uint32_t nowMs = millis();
-    uint8_t newLocation = 0;
+    uint8_t newLocation = od_location_counter;
     if ((nowMs - lastMs) < SENSOR_POLL_MS) return od_location_counter;
     lastMs = nowMs;
 
