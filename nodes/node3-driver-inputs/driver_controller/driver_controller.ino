@@ -257,7 +257,7 @@ String getLocationText(uint8_t counter) {
 void updateNextion() {
 
   // ── SPEED — raw integer km/h, clamp to prevent overflow display
-  if (od_true_speed > 15) od_true_speed = 0;  
+  if (od_true_speed > 15) od_true_speed = 0;    
   int speed = (int)od_true_speed;
   if (speed != prevSpeed) {
     sendText("t_speed", String(speed) + " km/h");
@@ -314,10 +314,11 @@ void updateNextion() {
   }
 
   // ── AUTOSTOP STATUS ─────────────────────────────────────────
-  // Only reads from Node 6 when autostop challenge is active
+  static unsigned long lastAutostopCheck = 0;
   uint32_t autostopDetected = 0;
-  if (od_challenge_mode == 3) {
+  if (od_challenge_mode == 3 && millis() - lastAutostopCheck >= 1000) {
     autostopDetected = executeSDORead(NODE_ID, AUTOSTOP_ID, 0x1050, 0x00);
+    lastAutostopCheck = millis();
   }
   bool autostopActive = (autostopDetected == 1);
   if (autostopActive != prevAutostop) {
