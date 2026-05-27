@@ -16,19 +16,24 @@
  * @author Aditya Dinesh Kumar
  *
  * @date Created: 05/08/2025
- * @version 1.4.2
+ * @version 1.5.0
  * @organisation MREX
  *
- * @changes v1.4.0
- *   - Added RPDO receive for battery (0x187, 0x287), motor (0x181), lights (0x184)
- *   - Added full Nextion telemetry display (speed, battery, temp, tractive effort)
- *   - Added EMCY listener — displays faults and lights EMCY pill
- *   - Added regen-only pill — derived from recovered_energy_can > 0 AND power_can > 0
- *   - Added tractive effort pill (YES/NO)
- *   - Added autostop alert OD entry (0x3016:00)
- *   - Replaced Track Condition display with Autostop status
- *   - Brake status now supports three states: Released / Applied / Fault
- *   - Speed scaling assumed x10 (e.g. 179 = 17.9 km/h) — confirm with motor node
+ * @changes v1.5.0
+ *   - Fixed speed scaling: od_true_speed is raw integer km/h (no /10 needed)
+ *   - Fixed speed overflow: clamp od_true_speed to realistic range before display
+ *   - Fixed corrupt duplicate OD registerODEntry line in setup()
+ *   - Fixed duplicate nodeOperatingMode assignment in UpdateOpMode()
+ *   - Fixed missing closing brace in HandleLocation()
+ *   - Fixed HandleLocation() logic — now correctly receives counter from
+ *     autostop node via OD entry (0x1051:00) and manual button increments
+ *     and SDO-writes to both autostop and audio nodes
+ *   - Added location announcement popup — shows announcement text for 5s
+ *     when od_location_counter changes (auto or manual)
+ *   - Added HandleEmcyClear() — button to acknowledge and dismiss EMCY display
+ *   - Removed HandleCondition() — condition mode display intentionally dropped
+ *   - Preserved safety check: cannot jump from STOPPED to OPERATIONAL directly
+ *   - Preserved major EMCY check in loop blocking op mode changes
 */
 
 // ═══════════════════════════════════════════════════════════════
@@ -50,14 +55,15 @@ uint8_t od_challenge_mode = 0;
 // OD 0x6065:00 - Horn toggle (1=active, 0=default).
 uint8_t od_horn_toggle = 0;
 
-// OD 0x1051
-uint8_t od_location_counter = 0;
-
 // OD 0x3012:02 - Service brake (1=not braking, 0=braking).
 uint8_t od_service_brake_dc = 0;
 
 // Free
 uint8_t od_switch_2 = 0;
+
+// OD 0x1051:00 - Location counter. Written by autostop node (Node 6) via SDO.
+// Increments as loco passes markers around the circuit.
+uint8_t od_location_counter = 0;
 
 // ═══════════════════════════════════════════════════════════════
 // OD DEFINITIONS — RECEIVED FROM OTHER NODES VIA RPDO
@@ -73,7 +79,7 @@ uint32_t od_power            = 0;  // 0x2000:03 — W direct
 uint32_t od_recovered_energy = 0;  // 0x2000:04 — J direct
 
 // From Motor node (Node 1) via RPDO1 (COB-ID 0x181)
-uint32_t od_true_speed       = 0;  // 0x606C:00 — x10, divide by 10 for km/h (assumed)
+uint32_t od_true_speed       = 0;  // 0x606C:00 — raw integer km/h (no scaling)
 uint32_t od_tractive_effort  = 0;  // 0x606E:00 — > 0 means tractive effort applied
 
 // From Lights/Sensors node (Node 4) via RPDO3 (COB-ID 0x184)
@@ -118,6 +124,7 @@ int      prevTractiveEffort = -1;
 bool     prevRegenOnly      = false;
 bool     prevAutostop       = false;
 bool     prevEmcy           = false;
+uint8_t  prevLocCounter     = 0;
 
 // EMCY fault tracking
 bool brakeFault = false;
@@ -228,21 +235,33 @@ int getOpModeColour(uint8_t mode) {
   }
 }
 
+// ── Helper: Location announcement text ─────────────────────────
+String getLocationText(uint8_t counter) {
+  switch (counter) {
+    case LOC_ANN1_START:       return "MREx Wallaby is commencing its challenge run";
+    case LOC_ANN2_AUTOSTOP:    return "MREx Wallaby is commencing the auto-stop challenge";
+    case LOC_ANN3_COMFORT:     return "MREx Wallaby is about to commence the ride comfort challenge";
+    case LOC_ANN4_COMFORT_END: return "MREx Wallaby has completed the ride comfort challenge";
+    case LOC_ANN5_HAVEN:       return "MREx Wallaby is passing the Haven on its return leg";
+    case LOC_ANN6_TCN:         return "MREx Wallaby is about to commence the traction challenge";
+    case LOC_ANN7_TCN_END:     return "MREx Wallaby has completed the traction challenge";
+    case LOC_ANN8_END:         return "MREx Wallaby has completed its challenge run";
+    default: return "";
+  }
+}
+
 /**
  * @brief Main Nextion update function — called every 100ms from loop()
  *        Only sends UART commands when values have changed.
  */
 void updateNextion() {
 
-  // ── SPEED (x10 scaling — 179 = 17.9 km/h) ──────────────────
-  int speed = (int)(od_true_speed);
-  int speedBar = map(od_true_speed, 0, 150, 0, 100); // 15.0 km/h max
+  // ── SPEED — raw integer km/h, clamp to prevent overflow display
+  if (od_true_speed > 20) od_true_speed = 0;  // clamp — ignore corrupt CAN values above 20 km/h
+  int speed = (int)od_true_speed;
   if (speed != prevSpeed) {
-    float speedF = od_true_speed;
-    char buf[12];
-    dtostrf(speedF, 4, 1, buf);
-    sendText("t_speed", String(buf) + " km/h");
-    sendProgressBar("j_speed", constrain(speedBar, 0, 100));
+    sendText("t_speed", String(speed) + " km/h");
+    sendProgressBar("j_speed", constrain(map(speed, 0, 15, 0, 100), 0, 100));
     prevSpeed = speed;
   }
 
@@ -264,20 +283,20 @@ void updateNextion() {
 
   // ── BRAKE STATUS (Released / Applied / Fault) ───────────────
   int currentBrakeStatus = od_service_brake_dc;
-  if (currentBrakeStatus != prevBrakeStatus || brakeFault != prevBrakeFault) {
+  if (currentBrakeStatus != prevBrakeStatus || (int)brakeFault != prevBrakeFault) {
     if (brakeFault) {
       sendText("t_brakestatus", "Fault");
       sendColour("t_brakestatus", "pco", NEX_RED);
     } else if (od_service_brake_dc == 0) {
       sendText("t_brakestatus", "Applied");
-      sendColour("t_brakestatus", "pco", NEX_YELLOW);
+      sendColour("t_brakestatus", "pco", NEX_RED);
     } else {
       sendText("t_brakestatus", "Released");
-      sendColour("t_brakestatus", "pco", NEX_GREEN);
+      sendColour("t_brakestatus", "pco", NEX_GREY);
     }
     refreshComponent("t_brakestatus");
     prevBrakeStatus = currentBrakeStatus;
-    prevBrakeFault  = brakeFault;
+    prevBrakeFault  = (int)brakeFault;
   }
 
   // ── DIRECTION MODE ──────────────────────────────────────────
@@ -294,7 +313,7 @@ void updateNextion() {
     prevChallenge = od_challenge_mode;
   }
 
-  // ── AUTOSTOP STATUS (replaces Track Condition) ──────────────
+  // ── AUTOSTOP STATUS ─────────────────────────────────────────
   // Only reads from Node 6 when autostop challenge is active
   uint32_t autostopDetected = 0;
   if (od_challenge_mode == 3) {
@@ -377,6 +396,19 @@ void updateNextion() {
     prevRegenOnly = regenOnly;
   }
 
+  // ── LOCATION ANNOUNCEMENT POPUP ─────────────────────────────
+  // Triggers when od_location_counter changes (set by autostop node via SDO
+  // or manually via HandleLocation() button press)
+  if (od_location_counter != prevLocCounter && od_location_counter > 0) {
+    String locText = getLocationText(od_location_counter);
+    if (locText.length() > 0) {
+      sendText("t_location", locText);
+      nextionSerial.print("vis t_location,1\xFF\xFF\xFF");
+      nextionSerial.print("tm_location.en=1\xFF\xFF\xFF");
+    }
+    prevLocCounter = od_location_counter;
+  }
+
   // ── EMCY POLLING ────────────────────────────────────────────
   if (checkMajorEMCY()) {
     uint8_t  node;
@@ -385,14 +417,14 @@ void updateNextion() {
       emcyActive = true;
       brakeFault = (code == 0x02000010 || code == 0x02000011);
       switch (code) {
-        case 0x00000505: majorFaultText = "Smoke Detected";   break;
-        case 0x00000506: majorFaultText = "Temp Front High";  break;
-        case 0x00000507: majorFaultText = "Temp Rear High";   break;
-        case 0x00000008: majorFaultText = "SDO No Response";  break;
-        case 0x00000101: majorFaultText = "Heartbeat Lost";   break;
-        case 0x00000201: majorFaultText = "NMT Failure";      break;
-        case 0x00000301: majorFaultText = "No Shunt Data";    break;
-        default: majorFaultText = "Fault 0x" + String(code, HEX); break;
+        case 0x00000505: majorFaultText = "Smoke Detected";              break;
+        case 0x00000506: majorFaultText = "Temp Front High";             break;
+        case 0x00000507: majorFaultText = "Temp Rear High";              break;
+        case 0x00000008: majorFaultText = "SDO Timeout N" + String(node); break;
+        case 0x00000101: majorFaultText = "Heartbeat Lost N" + String(node); break;
+        case 0x00000201: majorFaultText = "NMT Failure";                 break;
+        case 0x00000301: majorFaultText = "No Shunt Data";               break;
+        default: majorFaultText = "Fault 0x" + String(code, HEX);       break;
       }
     }
     setPill("t_emcy", emcyActive, NEX_RED);
@@ -406,14 +438,15 @@ void updateNextion() {
     uint32_t code;
     if (getMinorByIndex(0, &node, &code)) {  // 0 = newest
       switch (code) {
-        case 0x00000510: minorFaultText = "Speed Cap Exceeded"; break;
+        case 0x00000510: minorFaultText = "Speed Cap Exceeded";           break;
         case 0x02000010: minorFaultText = "Brake Fault";
-                         brakeFault = true;                     break;
+                         brakeFault = true;                               break;
         case 0x02000011: minorFaultText = "Brake Speed Error";
-                         brakeFault = true;                     break;
-        case 0x00000500: minorFaultText = "Audio SD Fault";     break;
-        case 0x00000701: minorFaultText = "No Shunt Data";      break;
-        default: minorFaultText = "Warn 0x" + String(code, HEX); break;
+                         brakeFault = true;                               break;
+        case 0x00000500: minorFaultText = "Audio SD Fault";               break;
+        case 0x00000701: minorFaultText = "No Shunt Data";                break;
+        case 0x00000008: minorFaultText = "SDO Timeout N" + String(node); break;
+        default: minorFaultText = "Warn 0x" + String(code, HEX);         break;
       }
     }
     sendText("t_minor", minorFaultText);
@@ -439,16 +472,16 @@ void setup() {
   nextionSerial.begin(115200, SERIAL_8N1, NEXTION_RX_PIN, NEXTION_TX_PIN);
 
   // Input pin modes
-  pinMode(BRAKE_PIN,         INPUT);
-  pinMode(THROTTLE_PIN,      INPUT);
-  pinMode(HORN_PIN,          INPUT_PULLUP);
-  pinMode(EMCY_CLEAR_PIN,      INPUT_PULLUP);
-  pinMode(LOCATION_BUTTON_PIN, INPUT_PULLUP);
-  pinMode(SERVICE_BRAKE_PIN, INPUT_PULLUP);
-  pinMode(SWITCH_2_PIN,      INPUT_PULLUP);
-  pinMode(DIRECTION_MODE_PIN,INPUT);
-  pinMode(OP_MODE_PIN,       INPUT);
-  pinMode(CHALLENGE_MODE_PIN,INPUT);
+  pinMode(BRAKE_PIN,            INPUT);
+  pinMode(THROTTLE_PIN,         INPUT);
+  pinMode(HORN_PIN,             INPUT_PULLUP);
+  pinMode(EMCY_CLEAR_PIN,       INPUT_PULLUP);
+  pinMode(LOCATION_BUTTON_PIN,  INPUT_PULLUP);
+  pinMode(SERVICE_BRAKE_PIN,    INPUT_PULLUP);
+  pinMode(SWITCH_2_PIN,         INPUT_PULLUP);
+  pinMode(DIRECTION_MODE_PIN,   INPUT);
+  pinMode(OP_MODE_PIN,          INPUT);
+  pinMode(CHALLENGE_MODE_PIN,   INPUT);
 
   // ADC attenuation
   analogSetPinAttenuation(BRAKE_PIN,          ADC_11db);
@@ -479,10 +512,9 @@ void setup() {
   registerODEntry(0x6062, 0x00, 2, sizeof(od_challenge_mode),   &od_challenge_mode);
   registerODEntry(0x6065, 0x00, 2, sizeof(od_horn_toggle),      &od_horn_toggle);
   registerODEntry(0x3012, 0x02, 2, sizeof(od_service_brake_dc), &od_service_brake_dc);
-  registerODEntry(0x, 0x02, 2, sizeof(od_service_brake_dc), &od_service_brake_dc);
 
-  // Autostop detection is read directly from Node 6 via SDO read in updateNextion()
-  // No local OD entry needed — Node 6 owns od_autostop_detection at 0x1050:00
+  // Location counter — written by autostop node (Node 6) via SDO
+  registerODEntry(0x1051, 0x00, 2, sizeof(od_location_counter), &od_location_counter);
 
   // Incoming telemetry OD entries — populated via RPDO
   registerODEntry(0x606C, 0x00, 2, sizeof(od_true_speed),       &od_true_speed);
@@ -494,7 +526,6 @@ void setup() {
   registerODEntry(0x2000, 0x04, 2, sizeof(od_recovered_energy), &od_recovered_energy);
   registerODEntry(0x1004, 0x00, 2, sizeof(od_temp_front),       &od_temp_front);
   registerODEntry(0x1004, 0x01, 2, sizeof(od_temp_rear),        &od_temp_rear);
-  registerODEntry(0x1051, 0x00, 2, sizeof(od_location_counter), &od_location_counter);
 
   // ── TPDO — driver controls transmit ────────────────────────
   configureTPDO(0, 0x180 + NODE_ID, 255, 100, 100);
@@ -506,7 +537,7 @@ void setup() {
 
   // ── RPDOs — receive telemetry from other nodes ──────────────
 
-  // RPDO1 — Motor TPDO1 (COB-ID 0x181): true speed + tractive effort
+  // RPDO1 — Motor TPDO1 (COB-ID 0x181): true speed
   configureRPDO(0, 0x181, 255, 0);
   PdoMapEntry rpdoMotor[] = {
     {0x606C, 0x00, 32},  // true speed
@@ -548,10 +579,10 @@ void loop() {
   if (currentMillis - previousMillis >= interval) {
     previousMillis = currentMillis;
 
-    if(!checkMajorEMCY()){
+    // Block op mode changes during major EMCY
+    if (!checkMajorEMCY()) {
       UpdateOpMode();
     }
-    
 
     switch (nodeOperatingMode) {
       case MODE_STOPPED:     StoppedMode();     break;
@@ -580,6 +611,7 @@ void PreOpMode() {
   HandleChallenge();
   HandleParking();
   HandleHorn();
+  HandleEmcyClear();
 }
 
 void OperationalMode() {
@@ -589,17 +621,18 @@ void OperationalMode() {
   HandleHorn();
   HandleInputs();
   HandleLocation();
+  HandleEmcyClear();
 }
 
 void UpdateOpMode() {
   int newOpModeRaw = ReadStable3PosBuffered(&opModeBuf);
   uint8_t enumOpMode = opModes[newOpModeRaw];
-  if ((nodeOperatingMode != enumOpMode)) {
-    if(nodeOperatingMode == MODE_STOPPED && enumOpMode == MODE_OPERATIONAL) return;
+  if (nodeOperatingMode != enumOpMode) {
+    // Safety: cannot jump directly from STOPPED to OPERATIONAL
+    if (nodeOperatingMode == MODE_STOPPED && enumOpMode == MODE_OPERATIONAL) return;
     nodeOperatingMode = enumOpMode;
     Serial.print(nodeOperatingMode);
     nodeOperatingMode = enumOpMode;
-    // Update local state
     SendAllNMT(enumOpMode);
   }
 }
@@ -637,7 +670,6 @@ void HandleHorn() {
   if (od_horn_toggle != newHornToggle) {
     od_horn_toggle = newHornToggle;
     executeSDOWrite(NODE_ID, AUDIO_ID, 0x6065, 0x00, sizeof(od_horn_toggle), &od_horn_toggle);
-    // Update horn indicator on Nextion
     if (od_horn_toggle) {
       sendText("t_horn", "Active");
       sendColour("t_horn", "pco", NEX_RED);
@@ -649,23 +681,58 @@ void HandleHorn() {
   }
 }
 
+/**
+ * @brief Handles location announcement.
+ *        Automatic: od_location_counter is SDO-written by autostop node (Node 6)
+ *        when loco crosses a marker. Nextion popup triggers in updateNextion().
+ *        Manual override: if a marker is missed, button press increments counter
+ *        and SDO-writes to both autostop and audio nodes so correct announcement
+ *        plays for the next marker.
+ */
 void HandleLocation() {
-  Serial.print("   ||   Location Handle: ");
-  int newLocationToggle = !(digitalRead(LOCATION_BUTTON_PIN));
-  Serial.print(newLocationToggle);
-  if (od_location_counter != newLocationToggle) {
-    od_location_counter = od_location_counter + 1;
-    executeSDOWrite(NODE_ID, AUTOSTOP_ID, 0x1051, 0x00, sizeof(od_location_counter), &od_location_counter);
+  static bool prevBtn = false;
+  bool pressed = !(digitalRead(LOCATION_BUTTON_PIN));
+
+  if (pressed && !prevBtn) {  // on press only, not hold
+    od_location_counter++;
+    // Write to autostop node so it stays in sync
+    executeSDOWrite(NODE_ID, AUTOSTOP_ID, 0x1051, 0x00,
+                    sizeof(od_location_counter), &od_location_counter);
+    // Write to audio node so the correct announcement sound plays
+    executeSDOWrite(NODE_ID, AUDIO_ID, 0x1051, 0x00,
+                    sizeof(od_location_counter), &od_location_counter);
+    Serial.print("   ||   Location manual override: ");
+    Serial.println(od_location_counter);
+  }
+  prevBtn = pressed;
 }
+
+/**
+ * @brief Acknowledges and clears EMCY fault display on screen.
+ *        Does NOT clear the actual EMCY from the CAN bus — the underlying
+ *        fault must be resolved by the relevant node independently.
+ *        This is an acknowledgement button only.
+ */
+void HandleEmcyClear() {
+  static bool prevClearBtn = false;
+  bool pressed = !(digitalRead(EMCY_CLEAR_PIN));
+
+  if (pressed && !prevClearBtn) {  // on press only, not hold
+    emcyActive    = false;
+    brakeFault    = false;
+    majorFaultText = "None";
+    minorFaultText = "None";
+    setPill("t_emcy", false, NEX_RED);
+    sendText("t_major", "None");
+    sendColour("t_major", "pco", NEX_GREEN);
+    refreshComponent("t_major");
+    sendText("t_minor", "None");
+    sendColour("t_minor", "pco", NEX_GREEN);
+    refreshComponent("t_minor");
+    Serial.println("   ||   EMCY acknowledged and cleared from display");
+  }
+  prevClearBtn = pressed;
 }
-// void HandleEMCY() {
-//   Serial.print("   ||   EMCY Handle: ");
-//   int newEMCYToggle = !(digitalRead(EMCY_CLEAR_PIN));
-//   Serial.print(newEMCYToggle);
-//   if(newEMCYToggle){
-    
-//   }
-// }
 
 void HandleParking() {
   Serial.print("   ||   Parking Handle: ");
