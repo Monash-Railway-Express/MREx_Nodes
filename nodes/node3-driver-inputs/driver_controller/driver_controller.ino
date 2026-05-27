@@ -579,10 +579,7 @@ void loop() {
   if (currentMillis - previousMillis >= interval) {
     previousMillis = currentMillis;
 
-    // Block op mode changes during major EMCY
-    if (!checkMajorEMCY()) {
-      UpdateOpMode();
-    }
+    UpdateOpMode();
 
     switch (nodeOperatingMode) {
       case MODE_STOPPED:     StoppedMode();     break;
@@ -717,9 +714,10 @@ void HandleEmcyClear() {
   static bool prevClearBtn = false;
   bool pressed = !(digitalRead(EMCY_CLEAR_PIN));
 
-  if (pressed && !prevClearBtn) {  // on press only, not hold
-    emcyActive    = false;
-    brakeFault    = false;
+  if (pressed && !prevClearBtn) {
+    // Reset display
+    emcyActive     = false;
+    brakeFault     = false;
     majorFaultText = "None";
     minorFaultText = "None";
     setPill("t_emcy", false, NEX_RED);
@@ -729,9 +727,73 @@ void HandleEmcyClear() {
     sendText("t_minor", "None");
     sendColour("t_minor", "pco", NEX_GREEN);
     refreshComponent("t_minor");
-    Serial.println("   ||   EMCY acknowledged and cleared from display");
+
+    // Re-check buffer — if faults still exist, re-display immediately
+    // ── EMCY POLLING ────────────────────────────────────────────
+  uint8_t node;
+  uint32_t code;
+
+  // Always read buffer directly — not just on new arrivals
+  if (getMajorByIndex(0, &node, &code)) {
+    if (!emcyActive) {  // only update display if state changed
+      emcyActive = true;
+      brakeFault = (code == 0x02000010 || code == 0x02000011);
+      switch (code) {
+        case 0x00000505: majorFaultText = "Smoke Detected";               break;
+        case 0x00000506: majorFaultText = "Temp Front High";              break;
+        case 0x00000507: majorFaultText = "Temp Rear High";               break;
+        case 0x00000008: majorFaultText = "SDO Timeout N" + String(node); break;
+        case 0x00000101: majorFaultText = "Heartbeat Lost N" + String(node); break;
+        case 0x00000201: majorFaultText = "NMT Failure";                  break;
+        case 0x00000301: majorFaultText = "No Shunt Data";                break;
+        default: majorFaultText = "Fault 0x" + String(code, HEX);        break;
+      }
+      setPill("t_emcy", true, NEX_RED);
+      sendText("t_major", majorFaultText);
+      sendColour("t_major", "pco", NEX_RED);
+      refreshComponent("t_major");
+    }
+  } else {
+    // Buffer empty — clear if previously active
+    if (emcyActive) {
+      emcyActive = false;
+      majorFaultText = "None";
+      setPill("t_emcy", false, NEX_RED);
+      sendText("t_major", "None");
+      sendColour("t_major", "pco", NEX_GREEN);
+      refreshComponent("t_major");
+    }
   }
-  prevClearBtn = pressed;
+
+  if (getMinorByIndex(0, &node, &code)) {
+    String newMinor;
+    switch (code) {
+      case 0x00000510: newMinor = "Speed Cap Exceeded";            break;
+      case 0x02000010: newMinor = "Brake Fault";
+                      brakeFault = true;                          break;
+      case 0x02000011: newMinor = "Brake Speed Error";
+                      brakeFault = true;                          break;
+      case 0x00000500: newMinor = "Audio SD Fault";                break;
+      case 0x00000701: newMinor = "No Shunt Data";                 break;
+      case 0x00000005: newMinor = "SDO Tx Failed N" + String(node); break;
+      case 0x00000008: newMinor = "SDO Timeout N" + String(node);  break;
+      default: newMinor = "Warn 0x" + String(code, HEX);          break;
+    }
+    if (newMinor != minorFaultText) {
+      minorFaultText = newMinor;
+      sendText("t_minor", minorFaultText);
+      sendColour("t_minor", "pco", NEX_YELLOW);
+      refreshComponent("t_minor");
+    }
+  } else {
+    if (minorFaultText != "None") {
+      minorFaultText = "None";
+      sendText("t_minor", "None");
+      sendColour("t_minor", "pco", NEX_GREEN);
+      refreshComponent("t_minor");
+    }
+  }
+  }
 }
 
 void HandleParking() {
