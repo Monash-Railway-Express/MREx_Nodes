@@ -42,20 +42,20 @@ void InitBuffer(ADCBuffer* buf, int pin);
 #define THROTTLE_PIN    GPIO_NUM_2
 
 #define HORN_PIN          GPIO_NUM_15
-#define EMCY_CLEAR_PIN    GPIO_NUM_15
-#define LOCATION_BUTTON_PIN    GPIO_NUM_15
+#define EMCY_CLEAR_PIN    GPIO_NUM_16
+#define LOCATION_BUTTON_PIN    GPIO_NUM_12
 // #define BUTTON_2_PIN   GPIO_NUM_16  // commented out — GPIO16 used for Nextion RX
-#define BUTTON_2_PIN      GPIO_NUM_3   // temp reassignment — button unconnected
-#define SERVICE_BRAKE_PIN GPIO_NUM_6
+#define BUTTON_2_PIN      GPIO_NUM_13   // temp reassignment — button unconnected
+#define SERVICE_BRAKE_PIN GPIO_NUM_36
 #define SWITCH_2_PIN      37
 
-#define DIRECTION_MODE_PIN  GPIO_NUM_4
-#define CHALLENGE_MODE_PIN  GPIO_NUM_19
-#define OP_MODE_PIN         GPIO_NUM_5
+#define DIRECTION_MODE_PIN  GPIO_NUM_6
+#define CHALLENGE_MODE_PIN  GPIO_NUM_3
+#define OP_MODE_PIN         GPIO_NUM_4
 
 // Nextion UART pins
-#define NEXTION_TX_PIN  GPIO_NUM_7
-#define NEXTION_RX_PIN  GPIO_NUM_16
+#define NEXTION_TX_PIN  GPIO_NUM_18
+#define NEXTION_RX_PIN  GPIO_NUM_17
 
 uint8_t NODE_ID = 3;
 
