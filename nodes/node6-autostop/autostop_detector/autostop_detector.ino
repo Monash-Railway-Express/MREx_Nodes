@@ -332,9 +332,18 @@ static void _SendPassing() {
     executeSDOWrite(NODE_ID, AUDIO_ID, 0x1051, 0x00, sizeof(od_location_counter), &od_location_counter);
 }
 
+/*
+@brief function to call a standstill announcement to be sent. Sets a flag when called, and only sends location announcement  when loco stops
+*/
 static void _SendStandStill(){
-    if(od_true_speed==0){
+    static bool standstillFlag = LOW; //flag for when a standstill announcement is triggered (eg. ride comfort start)
+    if(!standstillFlag){
+      standstillFlag = HIGH;
+    }
+
+    if(od_true_speed==0 && standstillFlag){
         executeSDOWrite(NODE_ID, AUDIO_ID, 0x1051, 0x00, sizeof(od_location_counter), &od_location_counter);
+        standstillFlag = LOW;
     }
 }
 
