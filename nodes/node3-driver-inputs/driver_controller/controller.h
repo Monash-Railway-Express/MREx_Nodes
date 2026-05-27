@@ -35,8 +35,8 @@ void UpdateADCBuffer(ADCBuffer* buf, int pin);
 void InitBuffer(ADCBuffer* buf, int pin);
 
 // Defining Pins
-#define TX_GPIO_NUM GPIO_NUM_40
-#define RX_GPIO_NUM GPIO_NUM_41
+#define TX_GPIO_NUM GPIO_NUM_41
+#define RX_GPIO_NUM GPIO_NUM_40
 
 #define BRAKE_PIN       GPIO_NUM_1
 #define THROTTLE_PIN    GPIO_NUM_2
