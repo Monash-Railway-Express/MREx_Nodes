@@ -342,7 +342,7 @@ void OperationalMode() {
 void limit_speed(float current_speed, int max_speed){
     
     //accesses global variables, motor_dac and brake_dac
-    float damping_factor = 0.9;
+    float damping_factor = 0.99;
     if(current_speed > max_speed){
         over_speed_damping = over_speed_damping * damping_factor;
     } else {
