@@ -524,22 +524,20 @@ void SpeedControl(float speed_kmh) {
  * @param pulse_accum Total accumulated pulse count from OperationalMode().
  */
 void AutoStopChallenge(float speed_kmh, int32_t pulse_accum) {
-
-
+    static uint16_t throttle_snapshot = 0; 
 
     motor_dac = 0;
     brake_dac = 0;
 
-
     if (!entered_auto_stop && new_autostop_instance) {
         if (od_autostop_detection == 0) {
-            // Waiting for lineside marker — normal throttle control
             ThrottleControl(speed_kmh);
             return;
         }
 
-        pulse_start                = pulse_accum;
-        entered_auto_stop          = true;
+        pulse_start       = pulse_accum;
+        throttle_snapshot = od_motor_command;
+        entered_auto_stop = true;
         DualSerial.println("[AutoStop] Challenge started");
     }
 
@@ -548,9 +546,10 @@ void AutoStopChallenge(float speed_kmh, int32_t pulse_accum) {
     float distance_m = ((float)pulses_since_start / PULSES_PER_REV) * WHEEL_CIRCUMFERENCE_M;
 
 
+
     // --- Zone 2: Stopped ---
     if (speed_kmh <= 0.1f) {
-        WriteDAC(THROTTLE_CHANNEL, uint16_t(motor_dac * over_speed_damping));
+        WriteDAC(THROTTLE_CHANNEL, 0);
         WriteDAC(REGEN_CHANNEL, 0);
         digitalWrite(BRAKE_SWITCH, LOW);
         integrator = 0.0f;
@@ -577,7 +576,7 @@ void AutoStopChallenge(float speed_kmh, int32_t pulse_accum) {
     // --- Zone 1: Throttle taper (under 25m, still moving) ---
     float distance_fraction = 1.0f - (distance_m / AUTO_STOP_DISTANCE_M);
     if (distance_fraction < 0.0f) distance_fraction = 0.0f;
-    motor_dac = (uint16_t)(od_motor_command * distance_fraction);
+    motor_dac = (uint16_t)(throttle_snapshot * distance_fraction);
     WriteDAC(THROTTLE_CHANNEL, motor_dac);
     WriteDAC(REGEN_CHANNEL, 0);
     digitalWrite(BRAKE_SWITCH, LOW);
@@ -596,7 +595,7 @@ void AutoStopChallenge(float speed_kmh, int32_t pulse_accum) {
  *
  * @param speed_kmh Current measured speed in km/h.
  *
- * TODO(Sean): Tune TRACTION_SLIP_MARGIN_KMH once hardware testing is complete.
+ * 
  */
 void TractionChallenge(float speed_kmh) {
     // const float TRACTION_SLIP_MARGIN_KMH = 2.0f;
