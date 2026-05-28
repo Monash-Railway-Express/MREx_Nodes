@@ -105,7 +105,7 @@ void loop() {
   //User Code begin loop() ----------------------------------------------------
   unsigned long  currentMillis = millis();
 
-  CheckSensors(); // always check the sensors
+  //CheckSensors(); // always check the sensors
   
   // --- Stopped mode (This is default starting point) ---
   if (nodeOperatingMode == 0x02){ 
@@ -288,17 +288,17 @@ void CheckSensors(){
   
   if (smokeEMCY){
     Serial.println("Smoke Detected in the Locomotive!");
-    sendEMCY(0, NODE_ID, 0x00505);
+    sendEMCY(1, NODE_ID, 0x00505);
   }
 
   if (heatFrontEMCY) {
     Serial.println("Tempetaure inside Locomotive Front is Too High!");
-    sendEMCY(0, NODE_ID, 0x00506);
+    sendEMCY(1, NODE_ID, 0x00506);
   }
 
     if (heatRearEMCY) {
     Serial.println("Tempetaure inside Locomotive Rear is Too High!");
-    sendEMCY(0, NODE_ID, 0x00507);
+    sendEMCY(1, NODE_ID, 0x00507);
   }
 
 }
