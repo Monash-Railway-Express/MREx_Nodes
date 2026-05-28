@@ -381,7 +381,12 @@ uint8_t _ChangeLocation(){
 
         if (sensorConfirmCount >= AUTOSTOP_CONFIRM_COUNT) {
             if((nowMs - lastValidLoc) >= LOC_ANN_CD){
-              newLocation =  od_location_counter + 1;
+              if(od_location_counter < LOC_ANN_MAX_COUNT){
+                newLocation =  od_location_counter + 1;
+              }else{
+                newLocation = 0;
+              }
+              
               lastValidLoc = nowMs;
               Serial.println("Sensor TRIGGERED — marker confirmed, location updated" );
             }
