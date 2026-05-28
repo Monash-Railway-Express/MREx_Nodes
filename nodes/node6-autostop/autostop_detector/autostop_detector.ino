@@ -40,8 +40,15 @@
  */
 
 #include <CAN_MREx.h>
+#include <Preferences.h>
+
 
 // User code begin: -------------------------------------------------------
+
+//Defining Preferences object to store current location for location announcement
+//docs: https://docs.espressif.com/projects/arduino-esp32/en/latest/tutorials/preferences.html
+Preferences locAnnouncePrefs;
+
 
 // --- Node ID ---
 // Must NOT be const — CAN_MREx v1.13.0 requires a mutable pointer for the
@@ -63,8 +70,9 @@ uint8_t NODE_ID = 6;
 #define TX_GPIO_NUM GPIO_NUM_14
 #define RX_GPIO_NUM GPIO_NUM_13
 
-// --- Location Announce Cooldown ---
+// --- Location Announce Stuff ---
 #define LOC_ANN_CD 5000 //cooldown between location annoucement changes 5s
+#define LOC_ANN_MAX_COUNT 10
 
 //Private functions
 uint8_t _ChangeLocation();
@@ -529,6 +537,17 @@ void setup() {
     pinMode(SENSOR_B_PIN, INPUT);
 
     //TO DO - set up PDO
+
+
+    //initialise Preferences object
+    locAnnouncePrefs.begin("myPrefs", false);
+    bool doesLocationValueExist = locAnnouncePrefs.isKey("Location");
+
+    if(!doesLocationValueExist){
+      locAnnouncePrefs.putUChar("Location", 0);
+    }else{
+      od_location_counter = locAnnouncePrefs.getUChar("Location");
+    }
 
     // User code Setup end --------------------------------------------------
 }
