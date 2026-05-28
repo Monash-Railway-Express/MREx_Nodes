@@ -105,7 +105,7 @@ void loop() {
   //User Code begin loop() ----------------------------------------------------
   unsigned long  currentMillis = millis();
 
-  //CheckSensors(); // always check the sensors
+  CheckSensors(); // always check the sensors
   
   // --- Stopped mode (This is default starting point) ---
   if (nodeOperatingMode == 0x02){ 
@@ -274,12 +274,14 @@ void CheckSensors(){
 
 
   //Debugging
+  /*
   Serial.println("Temperature:");
   Serial.print("  Rear: ");
   Serial.println(temperatureRear);
   Serial.print("  Front: ");
   Serial.println(temperatureFront);
-
+  */
+  
   heatFrontEMCY = temperatureFront > allowableTemperature;
   heatRearEMCY = temperatureRear > allowableTemperature;
   Serial.println();
