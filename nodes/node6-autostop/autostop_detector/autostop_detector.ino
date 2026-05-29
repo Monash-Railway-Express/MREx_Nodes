@@ -103,7 +103,9 @@ static const uint8_t AUTOSTOP_CONFIRM_COUNT   = 3;
 
 // Challenge mode value for autostop (matches od_challenge_mode on Node 3):
 // 1=throttle, 2=speed, 3=autostop, 4=regen, 5=traction
-static const uint8_t AUTOSTOP_CHALLENGE_VALUE = 3;
+#define AUTOSTOP_CHALLENGE_VALUE = 3;
+#define TRACTION_CHALLENGE_VALUE 5
+#define REGEN_CHALLENGE_VALUE 4
 
 // --- Destination node IDs ---
 static const uint8_t DEST_NODE_MOTOR = 1;  // Motor — receives detection alert SDO
@@ -535,6 +537,14 @@ void setup() {
                     2, sizeof(od_autostop_detection), &od_autostop_detection);
 
     registerODEntry(0x1051, 0x00, 2, sizeof(od_location_counter), &od_location_counter);
+
+    registerODEntry(0x606C, 0x00, 2, sizeof(od_true_speed), &od_true_speed);
+    //map speed rpdo
+    configureRPDO(0, 0x181, 255, 0);
+    PdoMapEntry rpdo_entries[] = {
+        {0x606C, 0x00, 32}  // od_true_speed
+    };
+    mapRPDO(0, rpdo_entries, 1);
 
     // --- Set pin modes ---
     // Sensor pins are analog inputs. analogRead does not require pinMode but
