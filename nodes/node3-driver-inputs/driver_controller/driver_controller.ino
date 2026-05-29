@@ -256,13 +256,15 @@ String getLocationText(uint8_t counter) {
  */
 void updateNextion() {
 
-  // ── SPEED — raw integer km/h, clamp to prevent overflow display
-  if (od_true_speed > 20) od_true_speed = 0;  // clamp — ignore corrupt CAN values above 20 km/h
-  float speed = (float)od_true_speed;
-  if (speed != prevSpeed) {
-    sendText("t_speed", String(speed) + " km/h");
-    sendProgressBar("j_speed", constrain(map(speed, 0, 15, 0, 100), 0, 100));
-    prevSpeed = speed;
+  // ── SPEED — x10 scaled, clamp for display only
+  float speedF = constrain((float)od_true_speed / 10.0, 0.0, 15.0);
+  int speedInt = (int)(speedF * 10);  // for cache comparison
+  if (speedInt != prevSpeed) {
+    char buf[10];
+    dtostrf(speedF, 4, 1, buf);
+    sendText("t_speed", String(buf) + " km/h");
+    sendProgressBar("j_speed", map(od_true_speed, 0, 150, 0, 100));
+    prevSpeed = speedInt;
   }
 
   // ── THROTTLE ────────────────────────────────────────────────
@@ -635,7 +637,7 @@ void UpdateOpMode() {
 }
 
 void SendAllNMT(uint8_t operatingMode) {
-  sendNMT(operatingMode, MOTOR_ID);
+  sendNMT(operatingMode, MOTOR_ID); 
   sendNMT(operatingMode, BRAKES_ID);
   sendNMT(operatingMode, LIGHTS_ID);
   sendNMT(operatingMode, AUDIO_ID);
@@ -689,16 +691,16 @@ void HandleLocation() {
   static bool prevBtn = false;
   bool pressed = !(digitalRead(LOCATION_BUTTON_PIN));
 
-  if (pressed && !prevBtn) {  // on press only, not hold
-    od_location_counter++;
-    // Write to autostop node so it stays in sync
+  if (pressed && !prevBtn) {
+    // Reset location counter to 0 on autostop node only
+    od_location_counter = 0;
     executeSDOWrite(NODE_ID, AUTOSTOP_ID, 0x1051, 0x00,
                     sizeof(od_location_counter), &od_location_counter);
-    // Write to audio node so the correct announcement sound plays
-    executeSDOWrite(NODE_ID, AUDIO_ID, 0x1051, 0x00,
-                    sizeof(od_location_counter), &od_location_counter);
-    Serial.print("   ||   Location manual override: ");
-    Serial.println(od_location_counter);
+    // Show reset confirmation on screen
+    sendText("t_location", "Location Counter Reset");
+    nextionSerial.print("vis t_location,1\xFF\xFF\xFF");
+    nextionSerial.print("tm_location.en=1\xFF\xFF\xFF");
+    Serial.println("   ||   Location counter reset to 0");
   }
   prevBtn = pressed;
 }
