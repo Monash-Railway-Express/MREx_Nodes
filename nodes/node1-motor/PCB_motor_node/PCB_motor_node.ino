@@ -37,7 +37,7 @@
 
 
 // OD 0x606C:00 – Actual vehicle speed in km/h (0–UINT32_MAX). RW. Mapped to TPDO0.
-uint32_t od_true_speed = 0;
+int32_t od_true_speed = 0;
 
 // OD 0x3012:00 – Regen brake request (0–1023). RW. Mapped to RPDO0.
 uint16_t od_regen_brake = 0;
@@ -72,6 +72,8 @@ int cumulative_energy = 0;
 // =============================================================================
 // Global Variables
 // =============================================================================
+
+bool reset_energy_recovery = false; // this is to reset the energy recovery challenge
 
 bool    entered_auto_stop = false;
 int32_t pulse_start       = 0;
@@ -292,7 +294,7 @@ void OperationalMode() {
 
     float speed_kmh = ReadSpeedKMH(previous_millis);        // clears counter here
     previous_millis = current_millis;
-    od_true_speed   = (uint32_t)speed_kmh;
+    od_true_speed   = speed_kmh;
 
 
     // Detect mode transitions
@@ -351,7 +353,7 @@ void OperationalMode() {
 void limit_speed(float current_speed, int max_speed){
     
     //accesses global variables, motor_dac and brake_dac
-    float damping_factor = 0.99;
+    float damping_factor = 0.999;
     if(current_speed > max_speed){
         over_speed_damping = over_speed_damping * damping_factor;
     } else {
@@ -378,6 +380,7 @@ void OnChallengeModeExit(uint8_t old_mode) {
     }
     if (old_mode == CHALLENGE_ENERGY_RECOVERY) {
         digitalWrite(ISOLATING_RELAY, LOW);
+        reset_energy_recovery = true;
         SetServiceBrake(false);   // release
     }
 }
@@ -486,7 +489,7 @@ void SpeedControl(float speed_kmh) {
         //multiplying control by 1024;
         //I think PI params were caculated for 0 to 1 output signal not 0 to 1024
         //just multiplying by 100
-        control = control * 25;
+        control = control * 15;
         if (control > DAC_MAX) control = (float)DAC_MAX;
 
         motor_dac = (uint16_t)control;
@@ -525,9 +528,6 @@ void SpeedControl(float speed_kmh) {
  */
 void AutoStopChallenge(float speed_kmh, int32_t pulse_accum) {
     static uint16_t throttle_snapshot = 0; 
-
-    motor_dac = 0;
-    brake_dac = 0;
 
     if (!entered_auto_stop && new_autostop_instance) {
         if (od_autostop_detection == 0) {
@@ -650,6 +650,16 @@ void EnergyRecoveryChallenge(float speed_kmh) {
     static int32_t    energy_brake_end    = 0;
     static int32_t    energy_motor_start  = 0;
     static int32_t    energy_recovered    = 0;
+
+    if (reset_energy_recovery) {
+        phase             = PHASE_WAITING_FOR_BRAKE;
+        energy_brake_start = 0;
+        energy_brake_end   = 0;
+        energy_motor_start = 0;
+        energy_recovered   = 0;
+        reset_energy_recovery = false;
+        DualSerial.println("[EnergyRecovery] State reset.");
+    }
 
     motor_dac = 0;
     brake_dac = 0;
@@ -877,7 +887,7 @@ void SetupPCNT() {
 void SetServiceBrake(bool engaged) {
     od_service_brake_mc = engaged ? 0 : 1;   // 0 = braking, 1 = not braking
     uint8_t value = od_service_brake_mc;
-    executeSDOWrite(NODE_ID, 2, 0x3012, 0x01, sizeof(value), &value);
+    //executeSDOWrite(NODE_ID, 2, 0x3012, 0x01, sizeof(value), &value);
     // ^ check your CAN_MREx signature — adjust args to match
 }
 
