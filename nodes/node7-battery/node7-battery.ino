@@ -284,13 +284,21 @@ void loop(){
       break;
 
     // in operational mode, 
-    case MODE_OPERATIONAL:
-      if (nodeOperatingMode == 0x01){ 
-        if (veParser.isDataAvailable()) { // Update OD entries every s. A new block is received every second.
-          updateODentries();   
-        }
-      }
-      break;
+case MODE_OPERATIONAL:
+  if (nodeOperatingMode == 0x01){ 
+    if (veParser.isDataAvailable()) {
+      updateODentries();
+      printf("--- OD Entries ---\n");
+      printf("current_can:          %ld mA\n",  (int32_t)current_can);
+      printf("voltage:              %u mV\n",   voltage);
+      printf("state_of_charge:      %.1f %%\n", state_of_charge / 10.0);
+      printf("power_can:            %ld W\n",   (int32_t)power_can);
+      printf("recovered_energy_can: %lu J\n",   recovered_energy_can);
+      printf("cumulative_energy:    %d J\n",    cumulative_energy);
+      printf("------------------\n");
+    }
+  }
+  break;
 
     default: break;
   }
