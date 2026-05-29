@@ -424,6 +424,7 @@ static void _HandleLocationAnnoucement() {
         od_location_counter = newLocation;
         Serial.print("At location: " );
         Serial.println(od_location_counter);
+        locAnnouncePrefs.putUChar("Location", od_location_counter);
         switch (od_location_counter) {
             case 1: _SendPassing()   ; break; //Point 1
             //Have traction markers here in circuit
