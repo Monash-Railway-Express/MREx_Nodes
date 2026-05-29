@@ -103,7 +103,7 @@ static const uint8_t AUTOSTOP_CONFIRM_COUNT   = 3;
 
 // Challenge mode value for autostop (matches od_challenge_mode on Node 3):
 // 1=throttle, 2=speed, 3=autostop, 4=regen, 5=traction
-#define AUTOSTOP_CHALLENGE_VALUE = 3;
+#define AUTOSTOP_CHALLENGE_VALUE 3
 #define TRACTION_CHALLENGE_VALUE 5
 #define REGEN_CHALLENGE_VALUE 4
 
@@ -352,7 +352,7 @@ static void _SendStandStill(){
       standstillFlag = HIGH;
     }
 
-    if(od_true_speed==0 && standstillFlag){
+    if(od_true_speed<=0 && standstillFlag){
         executeSDOWrite(NODE_ID, AUDIO_ID, 0x1051, 0x00, sizeof(od_location_counter), &od_location_counter);
         executeSDOWrite(NODE_ID, DRIVER_ID, 0x1051, 0x00, sizeof(od_location_counter), &od_location_counter);
         standstillFlag = LOW;
@@ -418,6 +418,8 @@ uint8_t _ChangeLocation(){
     8 - Before Head Shunt (Stand Still)
  */
 static void _HandleLocationAnnoucement() {
+    Serial.print("True speed: ");
+    Serial.println(od_true_speed);
     //Check the location counter and update 
     uint8_t newLocation = _ChangeLocation();
     
