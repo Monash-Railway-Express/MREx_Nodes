@@ -37,7 +37,7 @@
 
 
 // OD 0x606C:00 – Actual vehicle speed in km/h (0–UINT32_MAX). RW. Mapped to TPDO0.
-int32_t od_true_speed = 0;
+uint32_t od_true_speed = 0;
 
 // OD 0x3012:00 – Regen brake request (0–1023). RW. Mapped to RPDO0.
 uint16_t od_regen_brake = 0;
@@ -294,7 +294,7 @@ void OperationalMode() {
 
     float speed_kmh = ReadSpeedKMH(previous_millis);        // clears counter here
     previous_millis = current_millis;
-    od_true_speed   = speed_kmh;
+    od_true_speed   = (uint32_t)speed_kmh;
 
 
     // Detect mode transitions
@@ -741,9 +741,7 @@ void EnergyRecoveryChallenge(float speed_kmh) {
         // Motoring — allow throttle only while energy used < energy recovered
         // ----------------------------------------------------------------
         {
-            uint32_t energy_used = (energy_motor_start > cumulative_energy)
-                                 ? (energy_motor_start - cumulative_energy)
-                                 : 0;
+            int32_t energy_used = energy_motor_start - cumulative_energy;
 
             if (energy_used >= energy_recovered) {
                 WriteDAC(THROTTLE_CHANNEL, uint16_t(motor_dac * over_speed_damping));
@@ -771,7 +769,7 @@ void EnergyRecoveryChallenge(float speed_kmh) {
         // Throttle permanently cut — challenge complete
         // ----------------------------------------------------------------
             digitalWrite(ISOLATING_RELAY, HIGH);
-            WriteDAC(THROTTLE_CHANNEL, uint16_t(motor_dac * over_speed_damping));
+            WriteDAC(THROTTLE_CHANNEL, 0);
             WriteDAC(REGEN_CHANNEL, 0);
             digitalWrite(BRAKE_SWITCH, LOW);
            //od_service_brake_mc = 0;
