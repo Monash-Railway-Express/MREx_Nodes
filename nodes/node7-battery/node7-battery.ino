@@ -249,6 +249,7 @@ void updateODentries(){
        }
        else if (strcmp(veParser.veData[i].veName, "P") == 0){
         power = -atoi(veParser.veData[i].veValue);
+        power = power - 55;
         power_can = power; 
         findRecoveredEnergy(); 
        }
