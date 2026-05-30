@@ -52,7 +52,7 @@ uint8_t NODE_ID = 1;
 
 // --- GPIO Pins ---
 #define REVERSING_SWITCH_MC  GPIO_NUM_5
-#define BRAKE_SWITCH         GPIO_NUM_6
+#define BRAKE_SWITCH         GPIO_NUM_10
 #define FORWARD_SWITCH       GPIO_NUM_4 
 #define MOTOR1_GREEN_LED     GPIO_NUM_7
 #define MOTOR2_GREEN_LED     GPIO_NUM_15
