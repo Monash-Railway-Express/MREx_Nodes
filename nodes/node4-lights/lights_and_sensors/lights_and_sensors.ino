@@ -36,6 +36,13 @@ uint32_t dir_mode32; // Will these eventually be ODs?
 uint8_t dir_mode;
 uint8_t drive_state = OFF;
 
+bool smokeLock = false;
+bool heatFrontLock = false;
+bool heatRearLock = false;
+unsigned long errorSTime = 0;
+unsigned long errorTFTime = 0;
+unsigned long errorTRTime = 0;
+
 // User code end ---------------------------------------------------------
 
 /**
@@ -74,6 +81,7 @@ void setup() {
       {0x1004, 0x01, 16}    // Example: index 0x2001, subindex 0, 8 bits
     };
   mapTPDO(0, tpdoEntries, 2);
+   
 
   // --- Register RPDOs ---
 
@@ -104,12 +112,12 @@ void setup() {
 void loop() {
   //User Code begin loop() ----------------------------------------------------
   unsigned long  currentMillis = millis();
+  //CheckSensors();
 
-  //CheckSensors(); // always check the sensors
-  
   // --- Stopped mode (This is default starting point) ---
   if (nodeOperatingMode == 0x02){ 
     //handleCAN(NODE_ID);
+    
     drive_state = OFF;
   }
 
@@ -232,13 +240,13 @@ void HandleOpMode()
  */
 void CheckSensors(){
 
-  bool smokeEMCY;
-  bool heatFrontEMCY;
-  bool heatRearEMCY;
+  bool smokeEMCY = false;
+  bool heatFrontEMCY = false;
+  bool heatRearEMCY = false;
 
-  uint16_t temperatureFront;
-  uint16_t temperatureRear;
-  uint16_t allowableTemperature = 70;
+  int32_t temperatureFront;
+  int32_t temperatureRear;
+  int32_t allowableTemperature = 70;
 
 
   // Sensor is low when Gas is detected
@@ -274,31 +282,73 @@ void CheckSensors(){
 
 
   //Debugging
-  /*
+
   Serial.println("Temperature:");
   Serial.print("  Rear: ");
   Serial.println(temperatureRear);
   Serial.print("  Front: ");
   Serial.println(temperatureFront);
-  */
+
   
   heatFrontEMCY = temperatureFront > allowableTemperature;
   heatRearEMCY = temperatureRear > allowableTemperature;
   Serial.println();
   
   if (smokeEMCY){
-    Serial.println("Smoke Detected in the Locomotive!");
-    sendEMCY(1, NODE_ID, 0x00505);
+
+    if(smokeLock == false){
+      errorSTime = millis();
+      smokeLock = true;
+    }
+
+    unsigned long currentTime = millis();
+
+    if (currentTime - errorSTime >= 5000){
+      Serial.println("Smoke Detected in the Locomotive!");
+      sendEMCY(0, NODE_ID, 0x00505);
+      smokeLock = false;
+    }
+  }
+  else{
+    smokeLock = false;
   }
 
   if (heatFrontEMCY) {
-    Serial.println("Tempetaure inside Locomotive Front is Too High!");
-    sendEMCY(1, NODE_ID, 0x00506);
+    
+    if(heatFrontLock == false){
+      errorTFTime = millis();
+      heatFrontLock = true;
+    }
+
+    unsigned long currentTime = millis();
+
+    if (currentTime - errorTFTime >= 5000){
+      Serial.println("Tempetaure inside Locomotive Front is Too High!");
+      sendEMCY(0, NODE_ID, 0x00506);
+      heatFrontLock = false;
+    }
+  }
+  else{
+    heatFrontLock = false;
   }
 
-    if (heatRearEMCY) {
-    Serial.println("Tempetaure inside Locomotive Rear is Too High!");
-    sendEMCY(1, NODE_ID, 0x00507);
+  if (heatRearEMCY) {
+
+    if(heatRearLock == false){
+      errorTRTime = millis();
+      heatRearLock = true;
+    }
+
+    unsigned long currentTime = millis();
+
+    if (currentTime - errorTRTime >= 5000){
+      Serial.println("Tempetaure inside Locomotive Rear is Too High!");
+      sendEMCY(0, NODE_ID, 0x00507);
+      heatRearLock = false;
+    }
+  }
+  else{
+    heatRearLock = false;
   }
 
 }
