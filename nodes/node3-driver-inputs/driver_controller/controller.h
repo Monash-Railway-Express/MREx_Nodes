@@ -84,6 +84,14 @@ Note: 2 and 3 are skipped as these are the traction challenge markers passed ove
 #define LOC_ANN6_TCN 8
 #define LOC_ANN7_TCN_END 9
 #define LOC_ANN8_END 10
+// ── Nextion colour constants ────────────────────────────────────
+#define NEX_GREEN  1339
+#define NEX_YELLOW 65504
+#define NEX_RED    63488
+#define NEX_WHITE  65535
+#define NEX_GREY   33808
+#define NEX_CYAN   1055
+#define NEX_DARK   10
 
 // Defining operating mode enum
 enum OperatingMode : uint8_t {
