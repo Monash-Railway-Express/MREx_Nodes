@@ -56,7 +56,7 @@ uint16_t voltage = 0; // voltage always positive
 uint32_t power_can = 0; // Instantenous Power
 uint16_t state_of_charge = 0; // 0-100%. +/- 0.1%. If the SOC is 88.3% it is sent as 883 so 16 bits enough.
 uint32_t recovered_energy_can = 0;
-int cumulative_energy = 0;
+int32_t cumulative_energy = 0;
 // =============================================================================
 // Global Variables
 // =============================================================================
@@ -67,7 +67,7 @@ uint32_t prev_power_sample = 0;
 uint32_t new_power_sample = 0;
 uint32_t power_sample = 0;
 int32_t slice_area = 0;
-
+uint32_t od_true_speed = 0;
 bool prev_sample_1 = false; // flag that is set to true after the first power sample after regen starts is received
 bool prev_sample_2 = false; // flag that is set to true after the first power sample after loco starts up again is received4
 unsigned long currentMillis = 0;
@@ -110,6 +110,7 @@ void setup() {
   registerODEntry(0x2000, 0x03, 2, sizeof(power_can), &power_can);
   registerODEntry(0x2000, 0x04, 2, sizeof(recovered_energy_can), &recovered_energy_can);
   registerODEntry(0x2000, 0x05, 2, sizeof(cumulative_energy), &cumulative_energy);
+  registerODEntry(0x606C, 0x00, 2, sizeof(od_true_speed), &od_true_speed);
   // --- Configure TPDOs and RPDOs ---
 
   configureTPDO(0, 0x180 + NODE_ID, 255, 100, 1000);  // TPDO 1, COB-ID, transType, inhibit, timer
@@ -138,6 +139,14 @@ void setup() {
   mapTPDO(0, tpdoEntries1, 3); //TPDO 1, entries, num entries
   mapTPDO(1, tpdoEntries2, 2); //TPDO 2, entries, num entries
   mapTPDO(2, tpdoEntries3, 1); //
+
+
+  configureRPDO(0, 0x181, 255, 0);
+  PdoMapEntry rpdo1[] = {
+    {0x606C, 0x00, 32},  // true speed
+  };
+  mapRPDO(0, rpdo1, 1);
+
 }
 
 /**
@@ -200,7 +209,7 @@ void findRecoveredEnergy() {
     cumulative_energy += slice_area;               // accumulate recovered energy
     prev_power_sample = new_power_sample;
   }
-  else if (power > 0) {
+  else if (power > 0 && od_true_speed > 0.5 && od_true_speed < 30) {
     prev_sample_1 = false;
     if (recovered_energy <= 0) {
       recovered_energy = 0;
@@ -227,7 +236,7 @@ void findRecoveredEnergy() {
     }
     prev_power_sample = new_power_sample;
   }
-  recovered_energy_can = recovered_energy;
+  recovered_energy_can = (uint32_t)recovered_energy;
 }
 /**
  * @brief updates OD entries. OD entries are updated every second when new data is received into the buffer
