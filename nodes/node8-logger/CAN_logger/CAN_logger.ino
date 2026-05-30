@@ -5,8 +5,8 @@
  * Organisation:    MREX
  * Author:          Chiara Gillam, Nhan Nguyen
  * Date Created:    12/10/2025
- * Last Modified:   25/04/2026
- * Version:         2.1.0
+ * Last Modified:   05/05/2026
+ * Version:         2.1.1
  *
  */
 
@@ -17,8 +17,9 @@
 
 
 
-const uint8_t NODE_ID = 8;  // Change this to set your device's node ID
 
+#include "../../../shared/MREx.h"
+const uint8_t NODE_ID = LOGGER_ID;  // Change this to set your device's node ID
 #include <SPI.h>
 #include <SD.h>
 #include <Wire.h>
@@ -37,6 +38,7 @@ const uint8_t NODE_ID = 8;  // Change this to set your device's node ID
 const char* URL = "10.0.0.8";
 const char* FILEPATH = "/files";
 AsyncEventSource events("/events");
+AsyncEventSource emcy("/emcy");
 
 // RTC
 DFRobot_DS3231M rtc;
@@ -234,6 +236,7 @@ void setup() {
   });
 
   server.addHandler(&events);
+  server.addHandler(&emcy);
   
   DualSerial.println("Webserver started.");
   DualSerial.print("SSID: ");
@@ -254,6 +257,27 @@ void loop() {
   twai_message_t message;
   if (twai_receive(&message, pdMS_TO_TICKS(10)) == ESP_OK) {
     rtc.getNowTime();
+
+    twai_message_t rxMsg = message;
+    uint32_t canID = rxMsg.identifier;
+    const uint8_t nodeID = NODE_ID;
+    if (canID >= 0x081 && canID <= 0x0FF) { // Emergency messages (always processed)
+      handleEMCY(rxMsg, nodeID);
+    }
+
+    if (checkMajorEMCY()) {
+      uint8_t *node;
+      uint32_t *code;
+      getMajorByIndex(0, node, code);
+      emcy.send(("Major" + String(*node) + " " + String(*code, HEX)).c_str());
+    }
+
+    if (checkMinorEMCY()) {
+      uint8_t *node;
+      uint32_t *code;
+      getMinorByIndex(0, node, code);
+      emcy.send(("Minor" + String(*node) + " " + String(*code, HEX)).c_str());
+    }
 
     CANFrame frame;
     frame.timestamp = String(rtc.year()) + "-" +

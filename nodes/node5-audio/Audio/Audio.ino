@@ -44,22 +44,18 @@ To reorder them, you have to delete and recopy them in the sequence you want.
 File names mean nothing.)
 IMPORTANT: 
 USE 16 bit .wav files for horn. Using MP3 adds small silences at start and end of clip, making looping sound choppy.
-1.) Startup Feedback Sound (Yarra Trams information chime)
-2.) Comeng Horn Middle
-3.) Comeng Horn End
 */
 #include <CAN_MREx.h> // inlcudes all CAN MREX files
 #include "Arduino.h"
 #include "DFRobotDFPlayerMini.h"
 #include <HardwareSerial.h>
-
+#include <map>
 
 
 
 // User code begin: ------------------------------------------------------
 // --- CAN MREx initialisation ---
 uint8_t nodeID = 5;  // Node 5 - Audio
-
 // --- Pin Definitions ---
 #define TX_GPIO_NUM GPIO_NUM_36 // Set GPIO pin for CAN Transmit
 #define RX_GPIO_NUM GPIO_NUM_35 // Set GPIO pins for CAN Receive
@@ -69,23 +65,75 @@ uint8_t nodeID = 5;  // Node 5 - Audio
 
 // --- OD definitions ---
 uint8_t od_horn = 0;
+uint8_t od_loc_counter = 0;
 
 //DFPlayer Setup
 #define DFBUSY 13 //used to check if DFPlayer is playing tracks or not. Connect to BUSY pin on DFPlayer. If High, its free.
 
-//sounds definition
+/*
+Sound index definition
+Note: These are the sounds in the order that they are copied to the SD card.
+To change any sound, it is better to move all audio files out of SD card and recopy them in this order
+*/
 #define STARTUP_FB_SOUND 1
 #define HORN_LOOP_SOUND 2
 #define HORN_END_SOUND 3
+//location announcement sound numbers
+#define LOC_ANN1_START_SOUND 4
+#define LOC_ANN2_AUTOSTOP_SOUND 5
+#define LOC_ANN3_COMFORT_SOUND 6
+#define LOC_ANN4_COMFORT_END_SOUND 7
+#define LOC_ANN5_HAVEN_SOUND 8
+#define LOC_ANN6_TCN_SOUND 9
+#define LOC_ANN7_TCN_END_SOUND 10
+#define LOC_ANN8_END_SOUND 11
+
+/*
+location announcement counter values. 
+Location announcement counter is incremented via SDO every time train passes a marker.
+At these set values, the corresponding announcement will play
+Note: 2 and 3 are skipped as these are the traction challenge markers passed over when challenge starts
+*/
+#define LOC_ANN1_START 1
+#define LOC_ANN2_AUTOSTOP 4
+#define LOC_ANN3_COMFORT 5
+#define LOC_ANN4_COMFORT_END 6
+#define LOC_ANN5_HAVEN 7
+#define LOC_ANN6_TCN 8
+#define LOC_ANN7_TCN_END 9
+#define LOC_ANN8_END 10
+
+
+/*
+Location announcement data. 
+First number is the "location counter" sent from autostop node
+Second number is the index for the mp3 module for the associated announcement
+*/
+std::map<uint8_t, int> locationAnnounceSoundMap = { {LOC_ANN1_START,      LOC_ANN1_START_SOUND},
+                                                    {LOC_ANN2_AUTOSTOP,   LOC_ANN2_AUTOSTOP_SOUND},
+                                                    {LOC_ANN3_COMFORT,    LOC_ANN3_COMFORT_SOUND},
+                                                    {LOC_ANN4_COMFORT_END,LOC_ANN4_COMFORT_END_SOUND},
+                                                    {LOC_ANN5_HAVEN,      LOC_ANN5_HAVEN_SOUND},
+                                                    {LOC_ANN6_TCN,        LOC_ANN6_TCN_SOUND},
+                                                    {LOC_ANN7_TCN_END,    LOC_ANN7_TCN_END_SOUND},
+                                                    {LOC_ANN8_END,        LOC_ANN8_END_SOUND}};
 
 HardwareSerial player_serial(1); //initialise UART 1 of ESP as the serial for the DFPlayer module
 DFRobotDFPlayerMini myDFPlayer;
 
 
 //user variables
-
+// --- Operating Modes ---
+enum OperatingMode : uint8_t {
+    MODE_STOPPED        = 0x02,
+    MODE_PREOP          = 0x80,
+    MODE_OPERATIONAL    = 0x01
+};
 //function prototypes
 void printDetail(uint8_t type, int value);
+void StoppedMode();
+void PreOpMode();
+void OperationalMode();
 void HandleHorn();
 
 
@@ -119,7 +167,7 @@ void setup() {
   // User code Setup Begin: -------------------------------------------------
   // --- Register OD entries ---
   registerODEntry(0x6065, 0x00, 1, sizeof(od_horn), &od_horn);
-
+  registerODEntry(0x1051, 0x00, 1, sizeof(od_loc_counter), &od_loc_counter);
   // --- Register TPDOs ---
   
 
@@ -127,15 +175,11 @@ void setup() {
 
 
   // --- DFPlayer Setup ---
-  player_serial.begin(9600, SERIAL_8N1, /*rx =*/17, /*tx =*/16);
+  player_serial.begin(9600, SERIAL_8N1, /*rx =*/18, /*tx =*/17);
   Serial.println();
   Serial.println(F("Initializing DFPlayer ... (May take 3~5 seconds)"));
   
-  /*TODO(AP)
-  * -Figure out why DFPlayer -> ESP reply doesn't come through (most likely PCB issue with 1k ohm resistor absent)
-  * -Reset "isACK = true" when issue resolved (allows DFPlayer to return error and status messages like SD Card insert/remove/unable to play etc.)
-  */
-  if (!myDFPlayer.begin(player_serial, /*isACK = */false, /*doReset = */true)) {  //Use serial to communicate with mp3.
+  if (!myDFPlayer.begin(player_serial, /*isACK = */true, /*doReset = */true)) {  //Use serial to communicate with mp3.
     Serial.println(F("Unable to begin:"));
     Serial.println(F("1.Please recheck the connection!"));
     Serial.println(F("2.Please insert the SD card!"));
@@ -153,7 +197,7 @@ void setup() {
   pinMode(DFBUSY, INPUT);
   pinMode(STATUS_LED, OUTPUT);
   pinMode(PREOP_LED, OUTPUT);
-//digitalWrite(STATUS_LED, HIGH);
+  digitalWrite(STATUS_LED, HIGH);
   // User code Setup end ------------------------------------------------------
 
 
@@ -162,36 +206,34 @@ void setup() {
 
 void loop() {
   //User Code begin loop() ----------------------------------------------------
-  // --- Stopped mode (This is default starting point) ---
-  if (nodeOperatingMode == 0x02){ 
-    handleCAN(nodeID);
-    digitalWrite(STATUS_LED, LOW);
-    digitalWrite(PREOP_LED, LOW);
-  }
-
-  // --- Pre operational state (This is where you can do checks and make sure that everything is okay) ---
-  if (nodeOperatingMode == 0x80){ 
-    digitalWrite(STATUS_LED, LOW);
-    digitalWrite(PREOP_LED, HIGH);
-    if (myDFPlayer.available()) {
-      printDetail(myDFPlayer.readType(), myDFPlayer.read()); //Print the detail message from DFPlayer to handle different errors and states.
+  // completing operation mode functionality
+    switch (nodeOperatingMode) {
+        case MODE_STOPPED:     StoppedMode();     break;
+        case MODE_PREOP:       PreOpMode();       break;
+        case MODE_OPERATIONAL: OperationalMode(); break;
+        default:               StoppedMode();     break;  // fail-safe
     }
-    
-  }
-
-  // --- Operational state (Normal operating mode) ---
-  if (nodeOperatingMode == 0x01){ 
-    digitalWrite(STATUS_LED, HIGH);
-    HandleHorn();
-    if (myDFPlayer.available()) {
-      //printDetail(myDFPlayer.readType(), myDFPlayer.read()); //Print the detail message from DFPlayer to handle different errors and states.
-    }
-  }
 
   //User code end loop() --------------------------------------------------------
 }
 
+void StoppedMode(){
+  digitalWrite(STATUS_LED, LOW);
+  digitalWrite(PREOP_LED, LOW);
+}
 
+void PreOpMode(){
+  digitalWrite(STATUS_LED, LOW);
+  digitalWrite(PREOP_LED, HIGH);
+  HandleHorn();
+}
+
+void OperationalMode(){
+  digitalWrite(STATUS_LED, HIGH);
+  digitalWrite(PREOP_LED, LOW);
+  HandleHorn();
+  HandleAutoStop();
+}
 /*
 * @brief Handles logic for playing the horn. 
 *
@@ -212,7 +254,7 @@ void HandleHorn() {
       if(hornStatePrev)
       {
         //play the looping segment of the horn
-        myDFPlayer.loop(2);
+        myDFPlayer.loop(HORN_LOOP_SOUND);
         hornStateMNo = 2;
       }
       
@@ -224,12 +266,57 @@ void HandleHorn() {
       //2--->1
       if(!hornStatePrev)
       {
-        myDFPlayer.play(1);
+        myDFPlayer.play(HORN_END_SOUND);
         hornStateMNo = 1;
       }
       
       break;
   } 
+
+}
+
+/*
+* @brief Detects change to autostop counter. Every change, play a sound related to current marker
+*
+* @return Nothing
+*/
+void HandleAutoStop(){
+  static uint8_t prevCounter = 0; //state variable used for tracking changes to the autostop counter
+
+
+  //play sound every time location counter updates
+  if(prevCounter != od_loc_counter){
+    prevCounter = od_loc_counter;
+    myDFPlayer.play(locationAnnounceSoundMap[od_loc_counter]);   
+    // switch (od_loc_counter) {
+    //     case LOC_ANN1_START:     
+    //       myDFPlayer.play(LOC_ANN1_START_SOUND);     
+    //       break;
+    //     case LOC_ANN2_AUTOSTOP:       
+    //       myDFPlayer.play(LOC_ANN2_AUTOSTOP_SOUND);            
+    //       break;
+    //     case LOC_ANN3_COMFORT: 
+    //       myDFPlayer.play(LOC_ANN3_COMFORT_SOUND);     
+    //       break;
+    //     case LOC_ANN4_COMFORT_END: 
+    //       myDFPlayer.play(LOC_ANN4_COMFORT_END_SOUND);     
+    //       break;
+    //     case LOC_ANN5_HAVEN: 
+    //       myDFPlayer.play(LOC_ANN5_HAVEN_SOUND);     
+    //       break;
+    //     case LOC_ANN6_TCN: 
+    //       myDFPlayer.play(LOC_ANN6_TCN_SOUND);     
+    //       break;
+    //     case LOC_ANN7_TCN_END: 
+    //       myDFPlayer.play(LOC_ANN7_TCN_END_SOUND);     
+    //       break;
+    //     case LOC_ANN8_END: 
+    //       myDFPlayer.play(LOC_ANN8_END_SOUND);     
+    //       break;
+    //     default:                  
+    //       break;  // fail-safe
+    //}  
+  }
 
 }
 

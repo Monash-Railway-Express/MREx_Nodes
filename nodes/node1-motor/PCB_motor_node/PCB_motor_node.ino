@@ -883,10 +883,10 @@ void SetupPCNT() {
  * @brief Sets od_service_brake_mc variable as brakes engaged or unengaged
  */
 void SetServiceBrake(bool engaged) {
-    od_service_brake_mc = engaged ? 0 : 1;   // 0 = braking, 1 = not braking
-    uint8_t value = od_service_brake_mc;
-    //executeSDOWrite(NODE_ID, 2, 0x3012, 0x01, sizeof(value), &value);
-    // ^ check your CAN_MREx signature — adjust args to match
+    // od_service_brake_mc = engaged ? 0 : 1;   // 0 = braking, 1 = not braking
+    // uint8_t value = od_service_brake_mc;
+    // executeSDOWrite(NODE_ID, 2, 0x3012, 0x01, sizeof(value), &value);
+    // // ^ check your CAN_MREx signature — adjust args to match
 }
 
 /**

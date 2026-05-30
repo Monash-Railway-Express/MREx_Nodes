@@ -105,7 +105,7 @@ void loop() {
   //User Code begin loop() ----------------------------------------------------
   unsigned long  currentMillis = millis();
 
-  // CheckSensors(); // always check the sensors
+  //CheckSensors(); // always check the sensors
   
   // --- Stopped mode (This is default starting point) ---
   if (nodeOperatingMode == 0x02){ 
@@ -140,10 +140,10 @@ void loop() {
 void HandleDirStates()
 {
   //reads the motor direction from the controller.
-  dir_mode32 = executeSDORead(NODE_ID, 3, 0x6060, 0x00); 
+  //dir_mode32 = executeSDORead(NODE_ID, 3, 0x6060, 0x00); 
   //dirMode = 1;
   //executeSDOWrite(NODE_ID, 3, 0x6060, 0x00, sizeof(uint8_t), &dirMode);
-  dir_mode = (uint8_t)dir_mode32;
+  //dir_mode = (uint8_t)dir_mode32;
 
   //switches the drive state based on the motor direction
   //TODO: clarify codes and implement accordingly. Currently using 3 for fwd and 1 for rev.
@@ -240,16 +240,20 @@ void CheckSensors(){
   uint16_t temperatureRear;
   uint16_t allowableTemperature = 70;
 
-  smokeEMCY = (digitalRead(SMOKE_PIN) == HIGH); 
+
+  // Sensor is low when Gas is detected
+  smokeEMCY = (digitalRead(SMOKE_PIN) == LOW); 
   
-  temperatureFront = analogRead(TEMPERATURE_FRONT_PIN);
-  temperatureRear = analogRead(TEMPERATURE_REAR_PIN);
+  // Between 0 - 4095
+  temperatureFront = analogRead(TEMPERATURE_FRONT_PIN)*10;
+  temperatureRear = analogRead(TEMPERATURE_REAR_PIN)*10;
 
   /*
   - Turn the thermistor reading into a celsius temperature (will need callibration)
   - Use only integers
   - Assuming MCP970X Thermistor
     Vout = Tc * Ta + V0c
+    
 
     V0c: 400mV / 500mV
 
@@ -258,8 +262,8 @@ void CheckSensors(){
     Ta: The Temperature (C)
   */
   
-  int voltage0 = 156; // 500mv Converted to 0-1029 Scale
-  int temperature_Coef = 3; // 10mV Converted to 0-1029 Scale
+  int voltage0 = 6204; // 500mv Converted to 0-40950 Scale
+  int temperature_Coef = 124; // 10mV Converted to 0-40950 Scale
 
   temperatureFront = ( temperatureFront - voltage0 ) / temperature_Coef;
 
@@ -270,29 +274,31 @@ void CheckSensors(){
 
 
   //Debugging
+  /*
   Serial.println("Temperature:");
   Serial.print("  Rear: ");
   Serial.println(temperatureRear);
   Serial.print("  Front: ");
   Serial.println(temperatureFront);
-
+  */
+  
   heatFrontEMCY = temperatureFront > allowableTemperature;
   heatRearEMCY = temperatureRear > allowableTemperature;
   Serial.println();
   
   if (smokeEMCY){
     Serial.println("Smoke Detected in the Locomotive!");
-    sendEMCY(0, NODE_ID, 0x00505);
+    sendEMCY(1, NODE_ID, 0x00505);
   }
 
   if (heatFrontEMCY) {
     Serial.println("Tempetaure inside Locomotive Front is Too High!");
-    sendEMCY(0, NODE_ID, 0x00506);
+    sendEMCY(1, NODE_ID, 0x00506);
   }
 
     if (heatRearEMCY) {
     Serial.println("Tempetaure inside Locomotive Rear is Too High!");
-    sendEMCY(0, NODE_ID, 0x00507);
+    sendEMCY(1, NODE_ID, 0x00507);
   }
 
 }
