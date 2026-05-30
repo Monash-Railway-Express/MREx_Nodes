@@ -494,8 +494,8 @@ void setup() {
   initCANMREX(TX_GPIO_NUM, RX_GPIO_NUM, NODE_ID);
 
   // FreeRTOS tasks
-  xTaskCreatePinnedToCore(CAN_Task,  "CAN Task",  4096, &NODE_ID, 3, NULL, 0);
-  xTaskCreatePinnedToCore(InputTask, "Input Task",4096, NULL,     2, NULL, 0);
+  xTaskCreatePinnedToCore(CAN_Task,  "CAN Task",  6144, &NODE_ID, 3, NULL, 0);
+  xTaskCreatePinnedToCore(InputTask, "Input Task",6144, NULL,     2, NULL, 0);
 
   // ── OD registrations ───────────────────────────────────────
   // Local driver controls OD entries
