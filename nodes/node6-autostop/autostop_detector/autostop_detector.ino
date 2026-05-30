@@ -71,7 +71,7 @@ uint8_t NODE_ID = 6;
 #define RX_GPIO_NUM GPIO_NUM_13
 
 // --- Location Announce Stuff ---
-#define LOC_ANN_CD 5000 //cooldown between location annoucement changes 5s
+#define LOC_ANN_CD 500 //cooldown between location annoucement changes 5s
 #define LOC_ANN_MAX_COUNT 10
 
 //Private functions
