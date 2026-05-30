@@ -71,8 +71,9 @@ uint8_t NODE_ID = 6;
 #define RX_GPIO_NUM GPIO_NUM_13
 
 // --- Location Announce Stuff ---
-#define LOC_ANN_CD 500 //cooldown between location annoucement changes 5s
+#define LOC_ANN_CD 1000 //cooldown between location annoucement changes 5s
 #define LOC_ANN_MAX_COUNT 10
+bool standstillFlag = LOW; //flag for when a standstill announcement is triggered (eg. ride comfort start)
 
 //Private functions
 uint8_t _ChangeLocation();
@@ -347,15 +348,8 @@ static void _SendPassing() {
 @brief function to call a standstill announcement to be sent. Sets a flag when called, and only sends location announcement  when loco stops
 */
 static void _SendStandStill(){
-    static bool standstillFlag = LOW; //flag for when a standstill announcement is triggered (eg. ride comfort start)
     if(!standstillFlag){
       standstillFlag = HIGH;
-    }
-
-    if(od_true_speed<=0 && standstillFlag){
-        executeSDOWrite(NODE_ID, AUDIO_ID, 0x1051, 0x00, sizeof(od_location_counter), &od_location_counter);
-        executeSDOWrite(NODE_ID, DRIVER_ID, 0x1051, 0x00, sizeof(od_location_counter), &od_location_counter);
-        standstillFlag = LOW;
     }
 }
 
@@ -418,11 +412,15 @@ uint8_t _ChangeLocation(){
     8 - Before Head Shunt (Stand Still)
  */
 static void _HandleLocationAnnoucement() {
-    Serial.print("True speed: ");
-    Serial.println(od_true_speed);
     //Check the location counter and update 
     uint8_t newLocation = _ChangeLocation();
     
+    
+    if(od_true_speed<=0 && standstillFlag){
+        executeSDOWrite(NODE_ID, AUDIO_ID, 0x1051, 0x00, sizeof(od_location_counter), &od_location_counter);
+        executeSDOWrite(NODE_ID, DRIVER_ID, 0x1051, 0x00, sizeof(od_location_counter), &od_location_counter);
+        standstillFlag = LOW;
+    }
 
     if(newLocation != od_location_counter){
         od_location_counter = newLocation;
