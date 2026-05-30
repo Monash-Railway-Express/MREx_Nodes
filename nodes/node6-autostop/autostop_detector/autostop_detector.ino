@@ -30,17 +30,25 @@
  *
  * @author Patrick McCarthy
  * @author Audrey Tasevski
+ * @author Aung Hpone Thant
  *
- * @date 11/05/2026
+ * @date 27/05/2026
  *
- * @version 1.1.0
+ * @version 1.1.1
  *
  * @organisation MREX
  */
 
 #include <CAN_MREx.h>
+#include <Preferences.h>
+
 
 // User code begin: -------------------------------------------------------
+
+//Defining Preferences object to store current location for location announcement
+//docs: https://docs.espressif.com/projects/arduino-esp32/en/latest/tutorials/preferences.html
+Preferences locAnnouncePrefs;
+
 
 // --- Node ID ---
 // Must NOT be const — CAN_MREx v1.13.0 requires a mutable pointer for the
@@ -61,6 +69,10 @@ uint8_t NODE_ID = 6;
 // --- CAN transceiver pins ---
 #define TX_GPIO_NUM GPIO_NUM_14
 #define RX_GPIO_NUM GPIO_NUM_13
+
+// --- Location Announce Stuff ---
+#define LOC_ANN_CD 500 //cooldown between location annoucement changes 5s
+#define LOC_ANN_MAX_COUNT 10
 
 //Private functions
 uint8_t _ChangeLocation();
@@ -91,7 +103,9 @@ static const uint8_t AUTOSTOP_CONFIRM_COUNT   = 3;
 
 // Challenge mode value for autostop (matches od_challenge_mode on Node 3):
 // 1=throttle, 2=speed, 3=autostop, 4=regen, 5=traction
-static const uint8_t AUTOSTOP_CHALLENGE_VALUE = 3;
+#define AUTOSTOP_CHALLENGE_VALUE 3
+#define TRACTION_CHALLENGE_VALUE 5
+#define REGEN_CHALLENGE_VALUE 4
 
 // --- Destination node IDs ---
 static const uint8_t DEST_NODE_MOTOR = 1;  // Motor — receives detection alert SDO
@@ -326,18 +340,30 @@ static void _HandleAutostop(void) {
 
 static void _SendPassing() {
     executeSDOWrite(NODE_ID, AUDIO_ID, 0x1051, 0x00, sizeof(od_location_counter), &od_location_counter);
+    executeSDOWrite(NODE_ID, DRIVER_ID, 0x1051, 0x00, sizeof(od_location_counter), &od_location_counter);
 }
 
+/*
+@brief function to call a standstill announcement to be sent. Sets a flag when called, and only sends location announcement  when loco stops
+*/
 static void _SendStandStill(){
-    if(od_true_speed==0){
+    static bool standstillFlag = LOW; //flag for when a standstill announcement is triggered (eg. ride comfort start)
+    if(!standstillFlag){
+      standstillFlag = HIGH;
+    }
+
+    if(od_true_speed<=0 && standstillFlag){
         executeSDOWrite(NODE_ID, AUDIO_ID, 0x1051, 0x00, sizeof(od_location_counter), &od_location_counter);
+        executeSDOWrite(NODE_ID, DRIVER_ID, 0x1051, 0x00, sizeof(od_location_counter), &od_location_counter);
+        standstillFlag = LOW;
     }
 }
 
 uint8_t _ChangeLocation(){
     static uint32_t lastMs      = 0;
+    static uint32_t lastValidLoc = 0; //the last time a valid location was detected
     uint32_t nowMs = millis();
-    uint8_t newLocation = 0;
+    uint8_t newLocation = od_location_counter;
     if ((nowMs - lastMs) < SENSOR_POLL_MS) return od_location_counter;
     lastMs = nowMs;
 
@@ -356,10 +382,22 @@ uint8_t _ChangeLocation(){
 
 
         if (sensorConfirmCount >= AUTOSTOP_CONFIRM_COUNT) {
-            newLocation =  od_location_counter + 1;
+            if((nowMs - lastValidLoc) >= LOC_ANN_CD){
+              if(od_location_counter < LOC_ANN_MAX_COUNT){
+                newLocation =  od_location_counter + 1;
+              }else{
+                newLocation = 0;
+              }
+              
+              lastValidLoc = nowMs;
+              Serial.println("Sensor TRIGGERED — marker confirmed, location updated" );
+            }
+           
 
-        Serial.println("Sensor TRIGGERED — marker confirmed, location updated" );
+        
         }
+    }else {
+        sensorConfirmCount = 0;
     }
 
     return newLocation;
@@ -380,6 +418,8 @@ uint8_t _ChangeLocation(){
     8 - Before Head Shunt (Stand Still)
  */
 static void _HandleLocationAnnoucement() {
+    Serial.print("True speed: ");
+    Serial.println(od_true_speed);
     //Check the location counter and update 
     uint8_t newLocation = _ChangeLocation();
     
@@ -388,6 +428,7 @@ static void _HandleLocationAnnoucement() {
         od_location_counter = newLocation;
         Serial.print("At location: " );
         Serial.println(od_location_counter);
+        locAnnouncePrefs.putUChar("Location", od_location_counter);
         switch (od_location_counter) {
             case 1: _SendPassing()   ; break; //Point 1
             //Have traction markers here in circuit
@@ -497,6 +538,16 @@ void setup() {
     registerODEntry(OD_INDEX_AUTOSTOP_DET, OD_SUBINDEX_AUTOSTOP_DET,
                     2, sizeof(od_autostop_detection), &od_autostop_detection);
 
+    registerODEntry(0x1051, 0x00, 2, sizeof(od_location_counter), &od_location_counter);
+
+    registerODEntry(0x606C, 0x00, 2, sizeof(od_true_speed), &od_true_speed);
+    //map speed rpdo
+    configureRPDO(0, 0x181, 255, 0);
+    PdoMapEntry rpdo_entries[] = {
+        {0x606C, 0x00, 32}  // od_true_speed
+    };
+    mapRPDO(0, rpdo_entries, 1);
+
     // --- Set pin modes ---
     // Sensor pins are analog inputs. analogRead does not require pinMode but
     // INPUT is set explicitly to prevent accidental driving of the pins.
@@ -504,6 +555,17 @@ void setup() {
     pinMode(SENSOR_B_PIN, INPUT);
 
     //TO DO - set up PDO
+
+
+    //initialise Preferences object
+    locAnnouncePrefs.begin("myPrefs", false);
+    bool doesLocationValueExist = locAnnouncePrefs.isKey("Location");
+
+    if(!doesLocationValueExist){
+      locAnnouncePrefs.putUChar("Location", 0);
+    }else{
+      od_location_counter = locAnnouncePrefs.getUChar("Location");
+    }
 
     // User code Setup end --------------------------------------------------
 }

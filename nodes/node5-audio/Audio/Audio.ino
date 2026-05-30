@@ -44,9 +44,6 @@ To reorder them, you have to delete and recopy them in the sequence you want.
 File names mean nothing.)
 IMPORTANT: 
 USE 16 bit .wav files for horn. Using MP3 adds small silences at start and end of clip, making looping sound choppy.
-1.) Startup Feedback Sound (Yarra Trams information chime)
-2.) Comeng Horn Middle
-3.) Comeng Horn End
 */
 #include <CAN_MREx.h> // inlcudes all CAN MREX files
 #include "Arduino.h"
@@ -73,7 +70,11 @@ uint8_t od_loc_counter = 0;
 //DFPlayer Setup
 #define DFBUSY 13 //used to check if DFPlayer is playing tracks or not. Connect to BUSY pin on DFPlayer. If High, its free.
 
-//sounds definition
+/*
+Sound index definition
+Note: These are the sounds in the order that they are copied to the SD card.
+To change any sound, it is better to move all audio files out of SD card and recopy them in this order
+*/
 #define STARTUP_FB_SOUND 1
 #define HORN_LOOP_SOUND 2
 #define HORN_END_SOUND 3
@@ -87,17 +88,11 @@ uint8_t od_loc_counter = 0;
 #define LOC_ANN7_TCN_END_SOUND 10
 #define LOC_ANN8_END_SOUND 11
 
-//location announcement counter values
 /*
-1 - Past station Box (Passing)
-// Have 2 traction markers here
-2 - Autostop activation (Passing)
-3 - Ready for Ride comfort (Stand still)
-4 - Completing Ride comfort (Stand Still)
-5 - Haven on return (Passing)
-6 - Ready for traction (Stand Still)
-7 - Completion traction (Passing)
-8 - Before Head Shunt (Stand Still)
+location announcement counter values. 
+Location announcement counter is incremented via SDO every time train passes a marker.
+At these set values, the corresponding announcement will play
+Note: 2 and 3 are skipped as these are the traction challenge markers passed over when challenge starts
 */
 #define LOC_ANN1_START 1
 #define LOC_ANN2_AUTOSTOP 4
@@ -114,14 +109,14 @@ Location announcement data.
 First number is the "location counter" sent from autostop node
 Second number is the index for the mp3 module for the associated announcement
 */
-std::map<uint8_t, int> locationAnnounceSoundMap = {{1,4},
-                                        {4,5},
-                                        {5,6},
-                                        {6,7},
-                                        {7,8},
-                                        {8,9},
-                                        {9,10},
-                                        {10,11}};
+std::map<uint8_t, int> locationAnnounceSoundMap = { {LOC_ANN1_START,      LOC_ANN1_START_SOUND},
+                                                    {LOC_ANN2_AUTOSTOP,   LOC_ANN2_AUTOSTOP_SOUND},
+                                                    {LOC_ANN3_COMFORT,    LOC_ANN3_COMFORT_SOUND},
+                                                    {LOC_ANN4_COMFORT_END,LOC_ANN4_COMFORT_END_SOUND},
+                                                    {LOC_ANN5_HAVEN,      LOC_ANN5_HAVEN_SOUND},
+                                                    {LOC_ANN6_TCN,        LOC_ANN6_TCN_SOUND},
+                                                    {LOC_ANN7_TCN_END,    LOC_ANN7_TCN_END_SOUND},
+                                                    {LOC_ANN8_END,        LOC_ANN8_END_SOUND}};
 
 HardwareSerial player_serial(1); //initialise UART 1 of ESP as the serial for the DFPlayer module
 DFRobotDFPlayerMini myDFPlayer;
@@ -195,7 +190,7 @@ void setup() {
   }
   delay(500);
   Serial.println(F("Audio system online."));
-  myDFPlayer.volume(20);  //Set volume value. From 0 to 30
+  myDFPlayer.volume(30);  //Set volume value. From 0 to 30
   delay(500);
   myDFPlayer.play(STARTUP_FB_SOUND);
   // --- Set pin modes ---
@@ -218,21 +213,6 @@ void loop() {
         case MODE_OPERATIONAL: OperationalMode(); break;
         default:               StoppedMode();     break;  // fail-safe
     }
-  // --- Stopped mode (This is default starting point) ---
-  if (nodeOperatingMode == 0x02){ 
-    
-  }
-
-  // --- Pre operational state (This is where you can do checks and make sure that everything is okay) ---
-  if (nodeOperatingMode == 0x80){ 
-    
-    
-  }
-
-  // --- Operational state (Normal operating mode) ---
-  if (nodeOperatingMode == 0x01){ 
-
-  }
 
   //User code end loop() --------------------------------------------------------
 }
