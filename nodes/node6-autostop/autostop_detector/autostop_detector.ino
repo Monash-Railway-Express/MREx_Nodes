@@ -100,7 +100,7 @@ static const uint32_t SENSOR_POLL_MS = 20;   // Sensor read interval
 // autostop triggers. Prevents transient reflections or EMI from causing a
 // false stop. At 20 ms interval: 3 reads = minimum 60 ms of continuous
 // detection required.
-static const uint8_t AUTOSTOP_CONFIRM_COUNT   = 3;
+static const uint8_t AUTOSTOP_CONFIRM_COUNT   = 2;
 
 // Challenge mode value for autostop (matches od_challenge_mode on Node 3):
 // 1=throttle, 2=speed, 3=autostop, 4=regen, 5=traction
@@ -293,6 +293,7 @@ static void _WarnIfDetectedWrongMode(void) {
  */
 static void _HandleAutostop(void) {
     static uint32_t lastSensorMs = 0;
+    static uint32_t lastSDOWrite = 0;
     uint32_t nowMs = millis();
 
     // Latch holds until Node 3 writes a new od_challenge_mode != 3.
@@ -326,13 +327,15 @@ static void _HandleAutostop(void) {
             // SDO write od_autostop_detection to Node 3 so it knows the
             // marker was detected. Node 3 must register 0x1050:00 as a
             // writable uint8_t OD entry to receive this.
-            executeSDOWrite(NODE_ID, DEST_NODE_MOTOR,
-                            OD_INDEX_AUTOSTOP_DET, OD_SUBINDEX_AUTOSTOP_DET,
-                            sizeof(od_autostop_detection), &od_autostop_detection);
-
-            // _SendDetectionAlert();
-            // sendEMCY(1, NODE_ID, EMCY_AUTOSTOP_TRIGGERED);
-            Serial.println("[Autostop] TRIGGERED — marker confirmed, detection sent to Node 1 - Motor.");
+            if((nowMs-lastSDOWrite)>500){
+                executeSDOWrite(NODE_ID, DEST_NODE_MOTOR,
+                                OD_INDEX_AUTOSTOP_DET, OD_SUBINDEX_AUTOSTOP_DET,
+                                sizeof(od_autostop_detection), &od_autostop_detection);
+                lastSDOWrite = millis();
+                // _SendDetectionAlert();
+                // sendEMCY(1, NODE_ID, EMCY_AUTOSTOP_TRIGGERED);
+                Serial.println("[Autostop] TRIGGERED — marker confirmed, detection sent to Node 1 - Motor.");
+            }
         }
     } else {
         sensorConfirmCount = 0;
@@ -341,6 +344,7 @@ static void _HandleAutostop(void) {
 
 static void _SendPassing() {
     executeSDOWrite(NODE_ID, AUDIO_ID, 0x1051, 0x00, sizeof(od_location_counter), &od_location_counter);
+    delay(10);
     executeSDOWrite(NODE_ID, DRIVER_ID, 0x1051, 0x00, sizeof(od_location_counter), &od_location_counter);
 }
 
