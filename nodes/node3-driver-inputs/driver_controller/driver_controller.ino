@@ -79,7 +79,7 @@ uint32_t od_power            = 0;  // 0x2000:03 — W direct
 uint32_t od_recovered_energy = 0;  // 0x2000:04 — J direct
 
 // From Motor node (Node 1) via RPDO1 (COB-ID 0x181)
-float od_true_speed       = 0;  // 0x606C:00 — raw integer km/h (no scaling)
+uint32_t od_true_speed       = 0;  // 0x606C:00 — raw integer km/h (no scaling)
 uint32_t od_tractive_effort  = 0;  // 0x606E:00 — > 0 means tractive effort applied
 
 // From Lights/Sensors node (Node 4) via RPDO3 (COB-ID 0x184)
@@ -248,13 +248,13 @@ String getLocationText(uint8_t counter) {
 void updateNextion() {
 
   // ── SPEED — x10 scaled, clamp for display only
-  float speedF = constrain((float)od_true_speed / 10.0, 0.0, 15.0);
-  int speedInt = (int)(speedF * 10);  // for cache comparison
+  float speedF = constrain(float(od_true_speed)/10, 0.0, 15.0);
+  int speedInt = (int)(speedF);  // for cache comparison
   if (speedInt != prevSpeed) {
     char buf[10];
     dtostrf(speedF, 4, 1, buf);
     sendText("t_speed", String(buf) + " km/h");
-    sendProgressBar("j_speed", map(od_true_speed, 0, 150, 0, 100));
+    sendProgressBar("j_speed", map(speedInt/10, 0, 150, 0, 100));
     prevSpeed = speedInt;
   }
 
@@ -293,7 +293,7 @@ void updateNextion() {
   }
 
   // ── DIRECTION MODE ──────────────────────────────────────────
-  if (od_direction_mode != prevDirection) {
+  if (od_direction_mode != 5) {
     sendText("t_direction", getDirectionText(od_direction_mode));
     sendColour("t_direction", "pco", getDirectionColour(od_direction_mode));
     refreshComponent("t_direction");
@@ -803,7 +803,7 @@ void HandleDirection() {
   Serial.print("   ||   Direction Handle: ");
   int newDirectionMode = ReadStable3PosBuffered(&dirBuf);
   Serial.print(newDirectionMode);
-  if ((od_direction_mode != newDirectionMode) && (newDirectionMode > 0)) {
+  if ((od_direction_mode != 5) && (newDirectionMode > 0)) {
     od_direction_mode = newDirectionMode;
     executeSDOWrite(NODE_ID, MOTOR_ID,  0x6060, 0x00, sizeof(od_direction_mode), &od_direction_mode);
     executeSDOWrite(NODE_ID, LIGHTS_ID, 0x6060, 0x00, sizeof(od_direction_mode), &od_direction_mode);

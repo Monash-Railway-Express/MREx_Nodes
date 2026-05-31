@@ -294,7 +294,7 @@ void OperationalMode() {
 
     float speed_kmh = ReadSpeedKMH(previous_millis);        // clears counter here
     previous_millis = current_millis;
-    od_true_speed   = (uint32_t)speed_kmh;
+    od_true_speed   = (uint32_t)(speed_kmh*10);
 
 
     // Detect mode transitions
