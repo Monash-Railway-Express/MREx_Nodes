@@ -293,7 +293,7 @@ void updateNextion() {
   }
 
   // ── DIRECTION MODE ──────────────────────────────────────────
-  if (od_direction_mode != 5) {
+  if (od_direction_mode != prevDirection) {
     sendText("t_direction", getDirectionText(od_direction_mode));
     sendColour("t_direction", "pco", getDirectionColour(od_direction_mode));
     refreshComponent("t_direction");
@@ -803,7 +803,7 @@ void HandleDirection() {
   Serial.print("   ||   Direction Handle: ");
   int newDirectionMode = ReadStable3PosBuffered(&dirBuf);
   Serial.print(newDirectionMode);
-  if ((od_direction_mode != 5) && (newDirectionMode > 0)) {
+  if ((od_direction_mode != newDirectionMode) && (newDirectionMode > 0)) {
     od_direction_mode = newDirectionMode;
     executeSDOWrite(NODE_ID, MOTOR_ID,  0x6060, 0x00, sizeof(od_direction_mode), &od_direction_mode);
     executeSDOWrite(NODE_ID, LIGHTS_ID, 0x6060, 0x00, sizeof(od_direction_mode), &od_direction_mode);
