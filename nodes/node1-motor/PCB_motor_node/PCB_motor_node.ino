@@ -674,7 +674,7 @@ void EnergyRecoveryChallenge(float speed_kmh) {
 
             // Transition to braking phase on first regen brake input
             if (od_regen_brake > REGEN_BRAKE_THRESHOLD) {
-                energy_brake_start = cumulative_energy;
+                energy_brake_start = od_recovered_energy;
                 phase              = PHASE_BRAKING;
                 DualSerial.print("[EnergyRecovery] Braking started — energy snapshot: ");
                 DualSerial.println(energy_brake_start);
@@ -689,7 +689,7 @@ void EnergyRecoveryChallenge(float speed_kmh) {
             brake_dac        = od_regen_brake;
            //od_service_brake_mc = 0;  // Suppress — keep energy in regen circuit
 
-            WriteDAC(THROTTLE_CHANNEL, uint16_t(motor_dac * over_speed_damping));
+            WriteDAC(THROTTLE_CHANNEL, 0);
             WriteDAC(REGEN_CHANNEL, brake_dac);
             if(od_regen_brake > 0){
                 digitalWrite(BRAKE_SWITCH, HIGH);
@@ -701,7 +701,7 @@ void EnergyRecoveryChallenge(float speed_kmh) {
 
             // Transition to idle once train is stopped
             if (speed_kmh <= 0.1f) {
-                energy_brake_end  = cumulative_energy;
+                energy_brake_end  = od_recovered_energy;
                 energy_recovered  = energy_brake_end - energy_brake_start;
                //od_service_brake_mc = 1;
                 WriteDAC(THROTTLE_CHANNEL, uint16_t(motor_dac * over_speed_damping));
@@ -728,7 +728,7 @@ void EnergyRecoveryChallenge(float speed_kmh) {
 
             if (od_motor_command > 10) {
                 // First throttle received — snapshot energy at this moment
-                energy_motor_start = cumulative_energy;
+                energy_motor_start = od_recovered_energy;
                //od_service_brake_mc  = 0;
                 phase              = PHASE_MOTORING;
                 DualSerial.print("[EnergyRecovery] Throttle received — motor energy start: ");
@@ -741,7 +741,7 @@ void EnergyRecoveryChallenge(float speed_kmh) {
         // Motoring — allow throttle only while energy used < energy recovered
         // ----------------------------------------------------------------
         {
-            int32_t energy_used = energy_motor_start - cumulative_energy;
+            int32_t energy_used = energy_motor_start - od_recovered_energy;
 
             if (energy_used >= energy_recovered) {
                 WriteDAC(THROTTLE_CHANNEL, uint16_t(motor_dac * over_speed_damping));
