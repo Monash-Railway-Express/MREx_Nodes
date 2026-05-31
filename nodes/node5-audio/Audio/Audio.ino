@@ -233,6 +233,7 @@ void OperationalMode(){
   digitalWrite(PREOP_LED, LOW);
   HandleHorn();
   HandleAutoStop();
+  Serial.println("Loop run");
 }
 /*
 * @brief Handles logic for playing the horn. 
@@ -255,6 +256,7 @@ void HandleHorn() {
       {
         //play the looping segment of the horn
         myDFPlayer.loop(HORN_LOOP_SOUND);
+        Serial.println("Horn looping");
         hornStateMNo = 2;
       }
       
@@ -266,7 +268,8 @@ void HandleHorn() {
       //2--->1
       if(!hornStatePrev)
       {
-        myDFPlayer.play(HORN_END_SOUND);
+        myDFPlayer.stop();
+        Serial.println("Horn end");
         hornStateMNo = 1;
       }
       
@@ -287,35 +290,9 @@ void HandleAutoStop(){
   //play sound every time location counter updates
   if(prevCounter != od_loc_counter){
     prevCounter = od_loc_counter;
-    myDFPlayer.play(locationAnnounceSoundMap[od_loc_counter]);   
-    // switch (od_loc_counter) {
-    //     case LOC_ANN1_START:     
-    //       myDFPlayer.play(LOC_ANN1_START_SOUND);     
-    //       break;
-    //     case LOC_ANN2_AUTOSTOP:       
-    //       myDFPlayer.play(LOC_ANN2_AUTOSTOP_SOUND);            
-    //       break;
-    //     case LOC_ANN3_COMFORT: 
-    //       myDFPlayer.play(LOC_ANN3_COMFORT_SOUND);     
-    //       break;
-    //     case LOC_ANN4_COMFORT_END: 
-    //       myDFPlayer.play(LOC_ANN4_COMFORT_END_SOUND);     
-    //       break;
-    //     case LOC_ANN5_HAVEN: 
-    //       myDFPlayer.play(LOC_ANN5_HAVEN_SOUND);     
-    //       break;
-    //     case LOC_ANN6_TCN: 
-    //       myDFPlayer.play(LOC_ANN6_TCN_SOUND);     
-    //       break;
-    //     case LOC_ANN7_TCN_END: 
-    //       myDFPlayer.play(LOC_ANN7_TCN_END_SOUND);     
-    //       break;
-    //     case LOC_ANN8_END: 
-    //       myDFPlayer.play(LOC_ANN8_END_SOUND);     
-    //       break;
-    //     default:                  
-    //       break;  // fail-safe
-    //}  
+    myDFPlayer.play(locationAnnounceSoundMap[od_loc_counter]);  
+    Serial.print("Played location");
+    Serial.println(od_loc_counter);
   }
 
 }
