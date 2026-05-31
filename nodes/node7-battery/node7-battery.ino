@@ -209,7 +209,7 @@ void findRecoveredEnergy() {
     cumulative_energy += slice_area;               // accumulate recovered energy
     prev_power_sample = new_power_sample;
   }
-  else if (power > 0 && od_true_speed > 0.5 && od_true_speed < 30) {
+  else if (power > 0 && (od_true_speed/10) > 0.5 && (od_true_speed/10) < 30) {
     prev_sample_1 = false;
     if (recovered_energy <= 0) {
       recovered_energy = 0;
