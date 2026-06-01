@@ -3,10 +3,10 @@
  *
  * File:            CAN_logger.ino
  * Organisation:    MREX
- * Author:          Chiara Gillam
+ * Author:          Chiara Gillam, Nhan Nguyen
  * Date Created:    12/10/2025
- * Last Modified:   12/10/2025
- * Version:         1.10.1
+ * Last Modified:   05/05/2026
+ * Version:         2.1.1
  *
  */
 
@@ -17,34 +17,28 @@
 
 
 
+
+#include "../../../shared/MREx.h"
+const uint8_t NODE_ID = LOGGER_ID;  // Change this to set your device's node ID
 #include <SPI.h>
 #include <SD.h>
 #include <Wire.h>
 #include "driver/twai.h"
 #include "DFRobot_DS3231M.h" // https://github.com/DFRobot/DFRobot_DS3231M
-#include <WiFi.h>
-#include <ESPAsyncWebServer.h> // ESP Async WebServer by ESP32Async
-#include <AsyncTCP.h> // Async TCP by ESP32Async
 #include "FS.h"
 #include <ArduinoJson.h> // ArduinoJson by Benoit Blanchon
-#include "wshtml.h"
 #include <CAN_MREx.h>
-
-const uint8_t nodeID = 8;  // Change this to set your device's node ID
+#include "../../../shared/DualSerial/DualSerial.cpp"
+#include "wshtml.h"
 
 // --- Pin Definitions ---
 #define TX_GPIO_NUM GPIO_NUM_5 // Set GPIO pin for CAN Transmit
 #define RX_GPIO_NUM GPIO_NUM_4 // Set GPIO pins for CAN Receive
 
-const char* SSID = "MREx CAN Logger";
-const char* PASSWORD = "YesWeCAN";
-const char* URL = "10.0.0.1";
-IPAddress LOCAL(10, 0, 0, 1);
-IPAddress GATEWAY(10, 0, 0, 1);
-IPAddress SUBNET(255, 255, 255, 0);
+const char* URL = "10.0.0.8";
 const char* FILEPATH = "/files";
-AsyncWebServer server(80);
-AsyncWebSocket ws("/ws");
+AsyncEventSource events("/events");
+AsyncEventSource emcy("/emcy");
 
 // RTC
 DFRobot_DS3231M rtc;
@@ -53,6 +47,10 @@ DFRobot_DS3231M rtc;
 const int SD_CS = 26;
 File logFile;
 String logFilename;
+String dirList;
+const char*dirListC;
+String indexHtml = "";
+const char* indexHtmlC;
 
 // Ring buffer config
 const int BUFFER_SIZE = 32;
@@ -104,23 +102,23 @@ int getParameterIdx(String key) {
 }
 
 void setup() {
-  Serial.begin(115200);
+  DualSerial.begin(115200);
   Wire.begin();
 
   // RTC init
   while(rtc.begin() != true){
-    Serial.println("Failed to init chip, please check if the chip connection is fine. ");
+    DualSerial.println("Failed to init chip, please check if the chip connection is fine. ");
     delay(1000);
   }
 
     // SD init
   while (!SD.begin(SD_CS)) {
-    Serial.println("SD init failed");
+    DualSerial.println("SD init failed");
   }
-  Serial.print(SD.usedBytes());
-  Serial.print(" bytes out of ");
-  Serial.println(SD.totalBytes());
-  Serial.println(" used on SD card.");
+  DualSerial.print(SD.usedBytes());
+  DualSerial.print(" bytes out of ");
+  DualSerial.println(SD.totalBytes());
+  DualSerial.println(" used on SD card.");
 
   // File name init
   int testNumber = 0;
@@ -141,41 +139,46 @@ void setup() {
   if (logFile) {
     logFile.println("Timestamp,ID,DLC,Data0,Data1,Data2,Data3,Data4,Data5,Data6,Data7");
   } else {
-    Serial.println("Failed to open log file");
+    DualSerial.println("Failed to open log file");
     while (1);
   }
+
+  // dirList = listDir(SD, "/", 1000);
+  // dirListC = dirList.c_str();
+
+  // indexHtml += "<!DOCTYPE html><html lang=\"en\"><head><title>MREx CAN Logger</title><head><body>";
+  // indexHtml += "<h1>Hello from the MREx CAN logger.</h1><p>Live feed: <a href=\"http://10.0.0.1/feed\">http://10.0.0.1/feed</a> (WebSocket: ws://10.0.0.1/ws)</p><h2>Directory listing</h2><ul>";
+  // indexHtml += dirList;
+  // indexHtml += "</ul></body></html>";
+  indexHtmlC = indexHtml.c_str();
   
   //Initialize CANMREX protocol
-  initCANMREX(TX_GPIO_NUM, RX_GPIO_NUM, nodeID); // this or below
-
-  // // CAN init
-  // twai_general_config_t g_config = TWAI_GENERAL_CONFIG_DEFAULT(GPIO_NUM_5, GPIO_NUM_4, TWAI_MODE_NORMAL);
-  // twai_timing_config_t t_config = TWAI_TIMING_CONFIG_500KBITS();
-  // twai_filter_config_t f_config = TWAI_FILTER_CONFIG_ACCEPT_ALL();
-
-  // if (twai_driver_install(&g_config, &t_config, &f_config) != ESP_OK ||
-  //     twai_start() != ESP_OK) {
-  //   Serial.println("CAN init failed");
-  //   while (1);
-  // }
+  initCANMREX(TX_GPIO_NUM, RX_GPIO_NUM, NODE_ID); // this or manual, not both
   
-  Serial.println("CAN logging started");
-  
-  WiFi.mode(WIFI_AP);
-  WiFi.softAP(SSID, PASSWORD);
-  WiFi.softAPConfig(LOCAL, GATEWAY, SUBNET);
-  delay(100);
+  DualSerial.println("CAN logging started");
 
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
-    String response = "<!DOCTYPE html><html lang=\"en\"><head><title>MREx CAN Logger</title><head><body>";
-    response += "<h1>Hello from the MREx CAN logger.</h1><p>Live feed: <a href=\"http://10.0.0.1/feed\">http://10.0.0.1/feed</a> (WebSocket: ws://10.0.0.1/ws)</p><h2>Directory listing</h2><ul>";
-    response += listDir(SD, "/", 1000);
-    response += "</ul></body></html>";
-    request->send(200, "text/html", response);
+    request->sendChunked("text/html", [](uint8_t *buffer, size_t maxLen, size_t index) -> size_t {
+      if (indexHtml.length() <= index) {
+        return 0;
+      }
+
+      const size_t chunkSize = min((size_t)32768, min(maxLen, indexHtml.length()-index));
+      memcpy(buffer, indexHtmlC+index, chunkSize);
+      return chunkSize;
+    });
   });
 
   server.on(AsyncURIMatcher::exact(FILEPATH), HTTP_GET, [](AsyncWebServerRequest *request) {
-    request->send(200, "text/plain", listDir(SD, "/", 1000));
+    request->sendChunked("text/plain", [](uint8_t *buffer, size_t maxLen, size_t index) -> size_t {
+      if (dirList.length() <= index) {
+        return 0;
+      }
+
+      const size_t chunkSize = min((size_t)32768, min(maxLen, dirList.length()-index));
+      memcpy(buffer, dirListC+index, chunkSize);
+      return chunkSize;
+    });
   });
 
   server.on("/feed", HTTP_GET, [](AsyncWebServerRequest *request) {
@@ -189,10 +192,10 @@ void setup() {
     for (int i = 0; i < num_parameters; i++) {
       struct Parameter parameter = parameters[i];
       if (parameter.sign) {
-        int32_t value = executeSDORead(nodeID, parameter.targetNode, parameter.index, parameter.subindex);
+        int32_t value = executeSDORead(NODE_ID, parameter.targetNode, parameter.index, parameter.subindex);
         muntDoc[parameter.key] = value;
       } else {
-        uint32_t value = executeSDORead(nodeID, parameter.targetNode, parameter.index, parameter.subindex);
+        uint32_t value = executeSDORead(NODE_ID, parameter.targetNode, parameter.index, parameter.subindex);
         muntDoc[parameter.key] = value;
       }
     }
@@ -217,10 +220,10 @@ void setup() {
             responseArray.add(key);
             if (parameter.sign) {
               int32_t requestValue = pair.value(); // implicit cast
-              executeSDOWrite(nodeID, parameter.targetNode, parameter.index, parameter.subindex, parameter.size, &requestValue);
+              executeSDOWrite(NODE_ID, parameter.targetNode, parameter.index, parameter.subindex, parameter.size, &requestValue);
             } else {
               uint32_t requestValue = pair.value(); // implicit cast
-              executeSDOWrite(nodeID, parameter.targetNode, parameter.index, parameter.subindex, parameter.size, &requestValue);
+              executeSDOWrite(NODE_ID, parameter.targetNode, parameter.index, parameter.subindex, parameter.size, &requestValue);
             }
           }
         }
@@ -232,42 +235,49 @@ void setup() {
     request->send(202, "application/json", response);
   });
 
-  ws.onEvent([](AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type,
-                void *arg, uint8_t *data, size_t len) {
-    if (type == WS_EVT_CONNECT) {
-      Serial.printf("Client connected: %u\n", client->id());
-    } else if (type == WS_EVT_DISCONNECT) {
-      Serial.printf("Client disconnected: %u\n", client->id());
-    } else if (type == WS_EVT_DATA) {
-      Serial.printf("Received data from client %u\n", client->id());
-      data[len] = 0;
-      Serial.println((char *) data);
-    }
-  });
-
-  server.addHandler(&ws);
-  server.begin();
+  server.addHandler(&events);
+  server.addHandler(&emcy);
   
-  Serial.println("Webserver started.");
-  Serial.print("SSID: ");
-  Serial.println(SSID);
-  Serial.print("Password: ");
-  Serial.println(PASSWORD);
-  Serial.print("HTTP: https://");
-  Serial.println(URL);
-  Serial.print("WebSocket: ws://");
-  Serial.print(URL);
-  Serial.println("/ws");
-  Serial.print("MUNT: https://");
-  Serial.print(URL);
-  Serial.println("/munt");
+  DualSerial.println("Webserver started.");
+  DualSerial.print("SSID: ");
+  DualSerial.println(DualSerial.SSID);
+  DualSerial.print("Password: ");
+  DualSerial.println(DualSerial.PASSPHRASE);
+  DualSerial.print("HTTP: http://");
+  DualSerial.println(URL);
+  DualSerial.print("SSE: http://");
+  DualSerial.print(URL);
+  DualSerial.println("/events");
+  DualSerial.print("MUNT: http://");
+  DualSerial.print(URL);
+  DualSerial.println("/munt");
 }
 
 void loop() {
-  // handleCAN(nodeID); // causes unnecessary logging delays
   twai_message_t message;
   if (twai_receive(&message, pdMS_TO_TICKS(10)) == ESP_OK) {
     rtc.getNowTime();
+
+    twai_message_t rxMsg = message;
+    uint32_t canID = rxMsg.identifier;
+    const uint8_t nodeID = NODE_ID;
+    if (canID >= 0x081 && canID <= 0x0FF) { // Emergency messages (always processed)
+      handleEMCY(rxMsg, nodeID);
+    }
+
+    if (checkMajorEMCY()) {
+      uint8_t *node;
+      uint32_t *code;
+      getMajorByIndex(0, node, code);
+      emcy.send(("Major" + String(*node) + " " + String(*code, HEX)).c_str());
+    }
+
+    if (checkMinorEMCY()) {
+      uint8_t *node;
+      uint32_t *code;
+      getMinorByIndex(0, node, code);
+      emcy.send(("Minor" + String(*node) + " " + String(*code, HEX)).c_str());
+    }
 
     CANFrame frame;
     frame.timestamp = String(rtc.year()) + "-" +
@@ -298,29 +308,6 @@ void loop() {
   if (millis() - lastFlush > 500 && bufferIndex > 0) {
     flushBuffer();
   }
-
-//   // Simulate a CAN frame every second
-//   static unsigned long lastSend = 0;
-//   if (millis() - lastSend > 1000) {
-//     lastSend = millis();
-
-//     // Create JSON message
-//     DynamicJsonDocument doc(128);
-//     doc["ts"] = millis();
-//     doc["id"] = "0x123";
-//     JsonArray data = doc.createNestedArray("data");
-//     data.add(0x01);
-//     data.add(0x02);
-//     data.add(0x03);
-//     data.add(0x04);
-
-//     String json;
-//     serializeJson(doc, json);
-
-//     // Send to all connected clients
-//     ws.textAll(json);
-//     Serial.println("Sent: " + json);
-//   }
 }
 
 void flushBuffer() {
@@ -344,7 +331,7 @@ void flushBuffer() {
       }
     }
     logFile.println(row);
-    ws.textAll(row);
+    events.send(row.c_str());
   }
   logFile.flush();
   bufferIndex = 0;
@@ -381,7 +368,9 @@ String listDir(fs::FS &fs, String dirname, uint8_t levels) {
       listing += path;
       listing += "\">";
       listing += path;
-      listing += "</a></li>";
+      listing += "</a> ";
+      listing += file.size();
+      listing += "</li>";
     }
     file = root.openNextFile();
   }
