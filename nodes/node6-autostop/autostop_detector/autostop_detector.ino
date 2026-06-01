@@ -366,6 +366,35 @@ static void _SendStandStill(){
 uint8_t _ChangeLocation(){
     static uint32_t lastMs      = 0;
     static uint32_t lastValidLoc = 0; //the last time a valid location was detected
+    static uint8_t prev_challenge_mode = 0;
+
+    static bool autostopArmed;
+    static bool tractionArmed;
+
+    //change detection
+    //set flag for autostop and traction announcement start.
+    if(prev_challenge_mode != od_challenge_mode){
+      prev_challenge_mode = od_challenge_mode;
+      switch(od_challenge_mode){
+        Serial.print("CHALLENGE VALUE:");
+        Serial.println(od_challenge_mode);
+        case AUTOSTOP_CHALLENGE_VALUE:
+        autostopArmed = HIGH;
+        tractionArmed = LOW;
+        break;
+        
+        case TRACTION_CHALLENGE_VALUE:
+        autostopArmed = LOW;
+        tractionArmed = HIGH;
+        break;
+
+        default:
+        autostopArmed = LOW;
+        tractionArmed = LOW;
+        break;
+      }
+    }
+    
     uint32_t nowMs = millis();
     uint8_t newLocation = od_location_counter;
     if ((nowMs - lastMs) < SENSOR_POLL_MS) return od_location_counter;
@@ -388,19 +417,14 @@ uint8_t _ChangeLocation(){
         if (sensorConfirmCount >= AUTOSTOP_CONFIRM_COUNT) {
             if((nowMs - lastValidLoc) >= LOC_ANN_CD){
               if(od_location_counter < LOC_ANN_MAX_COUNT){
-                switch(od_challenge_mode){
-                  case AUTOSTOP_CHALLENGE_VALUE:
+                if(autostopArmed){
                   newLocation = LOC_ANN2_AUTOSTOP;
-                  break;
-                  
-                  case TRACTION_CHALLENGE_VALUE:
+                }else if(tractionArmed){
                   newLocation = LOC_ANN6_TCN;
-                  break;
-
-                  default:
-                  newLocation =  od_location_counter + 1;
-                  break;
+                }else{
+                  newLocation = od_location_counter + 1;
                 }
+                
               }else{
                 newLocation = 0;
               }
