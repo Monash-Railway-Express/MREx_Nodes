@@ -42,6 +42,7 @@ bool heatRearLock = false;
 unsigned long errorSTime = 0;
 unsigned long errorTFTime = 0;
 unsigned long errorTRTime = 0;
+unsigned long next_sensor_time = 0; 
 
 // User code end ---------------------------------------------------------
 
@@ -112,7 +113,13 @@ void setup() {
 void loop() {
   //User Code begin loop() ----------------------------------------------------
   unsigned long  currentMillis = millis();
-  //CheckSensors();
+  
+  if (currentMillis >= next_sensor_time)
+    {
+      //CheckSensors();
+      next_sensor_time = currentMillis + 200;
+    }
+
 
   // --- Stopped mode (This is default starting point) ---
   if (nodeOperatingMode == 0x02){ 
