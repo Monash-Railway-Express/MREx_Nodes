@@ -71,8 +71,18 @@ uint8_t NODE_ID = 6;
 #define RX_GPIO_NUM GPIO_NUM_13
 
 // --- Location Announce Stuff ---
+#define LOC_ANN1_START 1
+#define LOC_ANN2_AUTOSTOP 4
+#define LOC_ANN3_COMFORT 5
+#define LOC_ANN4_COMFORT_END 6
+#define LOC_ANN5_HAVEN 7
+#define LOC_ANN6_TCN 8
+#define LOC_ANN7_TCN_END 9
+#define LOC_ANN8_END 10
+
 #define LOC_ANN_CD 1000 //cooldown between location annoucement changes 5s
 #define LOC_ANN_MAX_COUNT 10
+bool overrideIncrement = LOW; //this is set when a challenge mode (eg. Autostop, Energy Recovery, Traction) is selected, to override the normal incrementing
 bool standstillFlag = LOW; //flag for when a standstill announcement is triggered (eg. ride comfort start)
 
 //Private functions
@@ -360,6 +370,35 @@ static void _SendStandStill(){
 uint8_t _ChangeLocation(){
     static uint32_t lastMs      = 0;
     static uint32_t lastValidLoc = 0; //the last time a valid location was detected
+    static uint8_t prev_challenge_mode = 0;
+
+    static bool autostopArmed;
+    static bool tractionArmed;
+
+    //change detection
+    //set flag for autostop and traction announcement start.
+    if(prev_challenge_mode != od_challenge_mode){
+      prev_challenge_mode = od_challenge_mode;
+      switch(od_challenge_mode){
+        Serial.print("CHALLENGE VALUE:");
+        Serial.println(od_challenge_mode);
+        case AUTOSTOP_CHALLENGE_VALUE:
+        autostopArmed = HIGH;
+        tractionArmed = LOW;
+        break;
+        
+        case TRACTION_CHALLENGE_VALUE:
+        autostopArmed = LOW;
+        tractionArmed = HIGH;
+        break;
+
+        default:
+        autostopArmed = LOW;
+        tractionArmed = LOW;
+        break;
+      }
+    }
+    
     uint32_t nowMs = millis();
     uint8_t newLocation = od_location_counter;
     if ((nowMs - lastMs) < SENSOR_POLL_MS) return od_location_counter;
@@ -382,7 +421,14 @@ uint8_t _ChangeLocation(){
         if (sensorConfirmCount >= AUTOSTOP_CONFIRM_COUNT) {
             if((nowMs - lastValidLoc) >= LOC_ANN_CD){
               if(od_location_counter < LOC_ANN_MAX_COUNT){
-                newLocation =  od_location_counter + 1;
+                if(autostopArmed){
+                  newLocation = LOC_ANN2_AUTOSTOP;
+                }else if(tractionArmed){
+                  newLocation = LOC_ANN6_TCN;
+                }else{
+                  newLocation = od_location_counter + 1;
+                }
+                
               }else{
                 newLocation = 0;
               }
@@ -420,6 +466,7 @@ static void _HandleLocationAnnoucement() {
     uint8_t newLocation = _ChangeLocation();
     
     
+    
     if(od_true_speed<=0 && standstillFlag){
         executeSDOWrite(NODE_ID, AUDIO_ID, 0x1051, 0x00, sizeof(od_location_counter), &od_location_counter);
         executeSDOWrite(NODE_ID, DRIVER_ID, 0x1051, 0x00, sizeof(od_location_counter), &od_location_counter);
@@ -432,15 +479,15 @@ static void _HandleLocationAnnoucement() {
         Serial.println(od_location_counter);
         locAnnouncePrefs.putUChar("Location", od_location_counter);
         switch (od_location_counter) {
-            case 1: _SendPassing()   ; break; //Point 1
+            case LOC_ANN1_START: _SendPassing()   ; break; //Point 1
             //Have traction markers here in circuit
-            case 4: _SendPassing()   ; break; //Point 2
-            case 5: _SendStandStill(); break; //Point 3
-            case 6: _SendStandStill(); break; //Point 4
-            case 7: _SendPassing()   ; break; //Point 5
-            case 8: _SendStandStill(); break; //Point 6
-            case 9: _SendPassing()   ; break;
-            case 10:_SendStandStill(); break;
+            case LOC_ANN2_AUTOSTOP: _SendPassing()   ; break; //Point 2
+            case LOC_ANN3_COMFORT: _SendStandStill(); break; //Point 3
+            case LOC_ANN4_COMFORT_END: _SendStandStill(); break; //Point 4
+            case LOC_ANN5_HAVEN: _SendPassing()   ; break; //Point 5
+            case LOC_ANN6_TCN: _SendStandStill(); break; //Point 6
+            case LOC_ANN7_TCN_END: _SendPassing()   ; break;
+            case LOC_ANN8_END:_SendStandStill(); break;
             default: break;  // fail-safe
         }   
     }
