@@ -55,8 +55,8 @@ uint8_t od_challenge_mode = 0;
 // OD 0x6065:00 - Horn toggle (1=active, 0=default).
 uint8_t od_horn_toggle = 0;
 
-// OD 0x3012:02 - Service brake (1=not braking, 0=braking).
-uint8_t od_service_brake_dc = 0;
+// OD 0x3012:02 - Service brake (0=not braking, 1=braking).
+uint8_t od_service_brake_dc = 1;
 
 // Free
 uint8_t od_switch_2 = 0;
@@ -280,7 +280,7 @@ void updateNextion() {
     if (brakeFault) {
       sendText("t_brakestatus", "Fault");
       sendColour("t_brakestatus", "pco", NEX_RED);
-    } else if (od_service_brake_dc == 0) {
+    } else if (od_service_brake_dc == 1) {
       sendText("t_brakestatus", "Applied");
       sendColour("t_brakestatus", "pco", NEX_RED);
     } else {
@@ -643,7 +643,7 @@ void SendAllNMT(uint8_t operatingMode) {
 void HandleInputs() {
   uint16_t motorCommand = 1023 - GetAverage(&throttleBuf);
   od_regen_brake = 1023 - GetAverage(&brakeBuf);
-  if (od_service_brake_dc) {
+  if (!od_service_brake_dc) {
     od_motor_command = motorCommand;
   } else {
     od_motor_command = 0;
@@ -719,72 +719,6 @@ void HandleEmcyClear() {
     sendText("t_minor", "None");
     sendColour("t_minor", "pco", NEX_GREEN);
     refreshComponent("t_minor");
-
-    // Re-check buffer — if faults still exist, re-display immediately
-    // ── EMCY POLLING ────────────────────────────────────────────
-  uint8_t node;
-  uint32_t code;
-
-  // Always read buffer directly — not just on new arrivals
-  if (getMajorByIndex(0, &node, &code)) {
-    if (!emcyActive) {  // only update display if state changed
-      emcyActive = true;
-      brakeFault = (code == 0x02000010 || code == 0x02000011);
-      switch (code) {
-        case 0x00000505: majorFaultText = "Smoke Detected";               break;
-        case 0x00000506: majorFaultText = "Temp Front High";              break;
-        case 0x00000507: majorFaultText = "Temp Rear High";               break;
-        case 0x00000008: majorFaultText = "SDO Timeout N" + String(node); break;
-        case 0x00000101: majorFaultText = "Heartbeat Lost N" + String(node); break;
-        case 0x00000201: majorFaultText = "NMT Failure";                  break;
-        case 0x00000301: majorFaultText = "No Shunt Data";                break;
-        default: majorFaultText = "Fault 0x" + String(code, HEX);        break;
-      }
-      setPill("t_emcy", true, NEX_RED);
-      sendText("t_major", majorFaultText);
-      sendColour("t_major", "pco", NEX_RED);
-      refreshComponent("t_major");
-    }
-  } else {
-    // Buffer empty — clear if previously active
-    if (emcyActive) {
-      emcyActive = false;
-      majorFaultText = "None";
-      setPill("t_emcy", false, NEX_RED);
-      sendText("t_major", "None");
-      sendColour("t_major", "pco", NEX_GREEN);
-      refreshComponent("t_major");
-    }
-  }
-
-  if (getMinorByIndex(0, &node, &code)) {
-    String newMinor;
-    switch (code) {
-      case 0x00000510: newMinor = "Speed Cap Exceeded";            break;
-      case 0x02000010: newMinor = "Brake Fault";
-                      brakeFault = true;                          break;
-      case 0x02000011: newMinor = "Brake Speed Error";
-                      brakeFault = true;                          break;
-      case 0x00000500: newMinor = "Audio SD Fault";                break;
-      case 0x00000701: newMinor = "No Shunt Data";                 break;
-      case 0x00000005: newMinor = "SDO Tx Failed N" + String(node); break;
-      case 0x00000008: newMinor = "SDO Timeout N" + String(node);  break;
-      default: newMinor = "Warn 0x" + String(code, HEX);          break;
-    }
-    if (newMinor != minorFaultText) {
-      minorFaultText = newMinor;
-      sendText("t_minor", minorFaultText);
-      sendColour("t_minor", "pco", NEX_YELLOW);
-      refreshComponent("t_minor");
-    }
-  } else {
-    if (minorFaultText != "None") {
-      minorFaultText = "None";
-      sendText("t_minor", "None");
-      sendColour("t_minor", "pco", NEX_GREEN);
-      refreshComponent("t_minor");
-    }
-  }
   }
 }
 

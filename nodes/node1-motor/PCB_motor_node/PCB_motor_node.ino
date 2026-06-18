@@ -42,7 +42,7 @@ uint32_t od_true_speed = 0;
 // OD 0x3012:00 – Regen brake request (0–1023). RW. Mapped to RPDO0.
 uint16_t od_regen_brake = 0;
 
-// OD 0x3012:01 – Service brake active flag (0 = "Braking", 1 = "Not Braking"). RW. Mapped to SDO.
+// OD 0x3012:01 – Service brake active flag (1 = "Braking", 0 = "Not Braking"). RW. Mapped to SDO.
 uint8_t od_service_brake_mc = 0;
 
 // OD 0x606A:00 – Raw motor command (0–255). RW. Mapped to RPDO0.
@@ -337,15 +337,6 @@ void OperationalMode() {
 
     prev_challenge_mode = od_challenge_mode;
 
-    // // Hard speed cap
-    // if (speed_kmh > MAX_SPEED_KMH) {
-    //     WriteDAC(THROTTLE_CHANNEL, uint16_t(motor_dac * over_speed_damping));
-    //     integrator = 0.0f;
-    //     // sendEMCY(1, MOTOR_ID, 0x00510);     // send minor emergency - TODO: DECIDE ON PROPER ERROR CODE
-    //     DualSerial.println("[OperationalMode] Speed cap exceeded — throttle cut.");
-    //     return;
-    // }
-
     limit_speed(speed_kmh, MAX_SPEED_KMH);
 
 }
@@ -357,7 +348,7 @@ void limit_speed(float current_speed, float max_speed){
     if(current_speed > max_speed){
         over_speed_damping = over_speed_damping * damping_factor;
     } else {
-        over_speed_damping = over_speed_damping / damping_factor;
+        over_speed_damping = over_speed_damping / (damping_factor*damping_factor); // divide ~0.998
     }
     
     if(over_speed_damping > 1){
@@ -717,7 +708,7 @@ void SetupPCNT() {
  * @brief Sets od_service_brake_mc variable as brakes engaged or unengaged
  */
 void SetServiceBrake(bool engaged) {
-    od_service_brake_mc = engaged ? 0 : 1;   // 0 = braking, 1 = not braking
+    od_service_brake_mc = engaged ? 1 : 0;   // 1 = braking, 0 = not braking
     executeSDOWrite(NODE_ID, BRAKES_ID, 0x3012, 0x01, sizeof(od_service_brake_mc), &od_service_brake_mc);
     // // ^ check your CAN_MREx signature — adjust args to match
 }

@@ -17,7 +17,7 @@ uint8_t lastOut = 255 ;// remembers what the brake output was last time
 
 
 // OD 0x3012:02 – Service brake request from motor node (1 = no brake, 0 = apply)
-uint8_t od_service_brake_dc = 0;
+uint8_t od_service_brake_dc = 1;
 
 // OD 0x3012:01 – Service brake request from motor node (1 = no brake, 0 = apply)
 uint8_t od_service_brake_mc = 0;
@@ -100,11 +100,11 @@ void loop() {
 
     // Service brake requested
     if (od_service_brake_dc || od_service_brake_mc) {
-      out = HIGH;
+      out = LOW;
       pixel.setPixelColor(0, pixel.Color(50, 0, 0));  // Red
     }
     else {
-      out = LOW;
+      out = HIGH;
       pixel.setPixelColor(0, pixel.Color(0, 50, 0));  // Green
     }
   }
