@@ -601,23 +601,23 @@ void TractionChallenge(float speed_kmh) {
 
 
 /**
- * @brief Energy recovery challenge — measure regen energy then limit motoring to recovered amount.
+ * @brief Energy recovery challenge — limit motoring to recovered energy.
  *
  * @details
- * Phase 1: Waits for regen brake input. On first brake, snapshots od_recovered_energy
- *          as energy_brake_start. Applies regen braking, suppressing service brake.
- * Phase 2: Train comes to stop. Snapshots od_recovered_energy as energy_brake_end.
- *          Recovered energy = energy_brake_end - energy_brake_start.
- *          Holds stationary, waiting for throttle input.
- * Phase 3: On first throttle input, snapshots od_recovered_energy as energy_motor_start.
- *          Allows motoring only while energy used < energy recovered.
- *          Cuts throttle once budget is exhausted.
- * Non-blocking — uses static state variables across calls.
+ * Mode to apply to waiting and driving phase only following regeneration phase.
  *
  * @param speed_kmh Current measured speed in km/h.
  */
 void EnergyRecoveryChallenge(float speed_kmh) {
     digitalWrite(ISOLATING_RELAY, HIGH);
+
+    if (od_recovered_energy > 0) {
+        ThrottleControl(speed_kmh);
+    } else {
+        WriteDAC(THROTTLE_CHANNEL, 0);
+        WriteDAC(REGEN_CHANNEL, 0);
+        digitalWrite(REGEN_BRAKE_SWITCH, REGEN_OFF);
+    }
 }
 
 
