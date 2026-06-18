@@ -609,6 +609,7 @@ void PreOpMode() {
   HandleChallenge();
   HandleParking();
   HandleHorn();
+  HandleLocation();
   HandleEmcyClear();
 }
 
