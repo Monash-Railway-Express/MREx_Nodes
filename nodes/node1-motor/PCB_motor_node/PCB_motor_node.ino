@@ -62,7 +62,7 @@ uint8_t prev_challenge_mode = 0;
 // OD 0x2000:04 – Recovered energy from battery node (Wh). Read-only. Mapped to RPDO1.
 uint32_t od_recovered_energy = 0;
 
-// OD 0x1050:00 - Autostop lineside marker detection. unsigned 0 or 1, edge=detected
+// OD 0x1050:00 - Autostop lineside marker detection. 0-not detected, 1-detected
 uint8_t od_autostop_detection = 0;
 
 uint32_t od_power = 0;
@@ -444,6 +444,8 @@ void SpeedControl(float speed_kmh) {
     motor_dac = 0;
     brake_dac = 0;
 
+    float speed_setpoint = ((float)od_motor_command / (float)DAC_MAX) * MAX_SPEED_KMH;
+
     if (od_regen_brake > REGEN_BRAKE_THRESHOLD) {
         motor_dac  = 0;
         brake_dac  = od_regen_brake;
@@ -451,7 +453,6 @@ void SpeedControl(float speed_kmh) {
     } else {
         // Scale od_motor_command (0–1023) to speed setpoint (0–MAX_SPEED_KMH)
         // float speed_setpoint = ((float)od_motor_command / 1023.0f) * MAX_SPEED_KMH;
-        float speed_setpoint = ((float)od_motor_command / (float)DAC_MAX) * MAX_SPEED_KMH;
         float error = speed_setpoint - speed_kmh;
 
         // CONSTANT TRACTION MODE 1
@@ -470,22 +471,22 @@ void SpeedControl(float speed_kmh) {
         //multiplying control by 1024;
         //I think PI params were caculated for 0 to 1 output signal not 0 to 1024
         //just multiplying by 100
-        control = control * 15;
+        control = control * 25;
         if (control > DAC_MAX) control = (float)DAC_MAX;
 
         motor_dac = (uint16_t)control;
         brake_dac = 0;
     }
 
-    WriteDAC(THROTTLE_CHANNEL, uint16_t(over_speed_damping * motor_dac));
+    WriteDAC(THROTTLE_CHANNEL, motor_dac);
     WriteDAC(REGEN_CHANNEL, brake_dac);
     if(brake_dac > 0){
-        digitalWrite(REGEN_BRAKE_SWITCH, HIGH);
+        digitalWrite(REGEN_BRAKE_SWITCH, REGEN_ON);
     } else {
-        digitalWrite(REGEN_BRAKE_SWITCH, LOW);
+        digitalWrite(REGEN_BRAKE_SWITCH, REGEN_OFF);
     }
     
-    DualSerial.print("[SpeedControl] Setpoint: "); DualSerial.print(((float)od_motor_command / 1023.0f) * MAX_SPEED_KMH);
+    DualSerial.print("[SpeedControl] Setpoint: "); DualSerial.print(speed_setpoint);
     DualSerial.print(" | Speed: ");                DualSerial.print(speed_kmh);
     DualSerial.print(" | Motor DAC: ");            DualSerial.print(motor_dac);
     DualSerial.print(" | Brake DAC: ");            DualSerial.println(brake_dac);
@@ -516,6 +517,7 @@ void AutoStopChallenge(float speed_kmh, int32_t pulse_accum) {
             return;
         }
 
+        // Autostop marker detected od_autostop_detection == 1
         pulse_start       = pulse_accum;
         throttle_snapshot = od_motor_command;
         entered_auto_stop = true;
@@ -523,48 +525,48 @@ void AutoStopChallenge(float speed_kmh, int32_t pulse_accum) {
     }
 
     if (entered_auto_stop) {
-    int32_t pulses_since_start = pulse_accum - pulse_start;
-    float distance_m = ((float)pulses_since_start / PULSES_PER_REV) * WHEEL_CIRCUMFERENCE_M;
+        int32_t pulses_since_start = pulse_accum - pulse_start;
+        float distance_m = ((float)pulses_since_start / PULSES_PER_REV) * WHEEL_CIRCUMFERENCE_M;
 
 
 
-    // --- Zone 2: Stopped ---
-    if (speed_kmh <= 0.1f) {
-        WriteDAC(THROTTLE_CHANNEL, 0);
+        // --- Zone 2: Stopped ---
+        if (speed_kmh <= 0.1f) {
+            WriteDAC(THROTTLE_CHANNEL, 0);
+            WriteDAC(REGEN_CHANNEL, 0);
+            digitalWrite(REGEN_BRAKE_SWITCH, REGEN_OFF);
+            integrator = 0.0f;
+            SetServiceBrake(true);
+            od_autostop_detection = 0;
+            entered_auto_stop     = false;
+            new_autostop_instance = false;
+            DualSerial.println("[AutoStop] Stopped — service brake applied.");
+            return;
+        }
+
+        // --- Zone 3: 25m reached — full regen brake ---
+        if (distance_m >= AUTO_STOP_DISTANCE_M) {
+            integrator = 0.0f;
+            WriteDAC(THROTTLE_CHANNEL, 0);
+            WriteDAC(REGEN_CHANNEL, DAC_MAX);
+            digitalWrite(REGEN_BRAKE_SWITCH, REGEN_ON);
+            DualSerial.print("[AutoStop] Regen braking to stop — Distance: "); DualSerial.print(distance_m);
+            DualSerial.print("m | Speed: "); DualSerial.print(speed_kmh);
+            DualSerial.print(" | Brake DAC: "); DualSerial.println(DAC_MAX);
+            return;
+        }
+
+        // --- Zone 1: Throttle taper (under 25m, still moving) ---
+        float distance_fraction = 1.0f - (distance_m / AUTO_STOP_DISTANCE_M); // distance remaining
+        if (distance_fraction < 0.0f) distance_fraction = 0.0f;
+        motor_dac = (uint16_t)(throttle_snapshot * distance_fraction);
+        WriteDAC(THROTTLE_CHANNEL, motor_dac);
         WriteDAC(REGEN_CHANNEL, 0);
-        digitalWrite(REGEN_BRAKE_SWITCH, LOW);
-        integrator = 0.0f;
-        SetServiceBrake(true);
-        od_autostop_detection = 0;
-        entered_auto_stop     = false;
-        new_autostop_instance = false;
-        DualSerial.println("[AutoStop] Stopped — service brake applied.");
-        return;
-    }
-
-    // --- Zone 3: 25m reached — full regen brake ---
-    if (distance_m >= AUTO_STOP_DISTANCE_M) {
-        integrator = 0.0f;
-        WriteDAC(THROTTLE_CHANNEL, 0);
-        WriteDAC(REGEN_CHANNEL, DAC_MAX);
-        digitalWrite(REGEN_BRAKE_SWITCH, HIGH);
-        DualSerial.print("[AutoStop] Coasting to stop — Distance: "); DualSerial.print(distance_m);
-        DualSerial.print("m | Speed: "); DualSerial.print(speed_kmh);
-        DualSerial.print(" | Brake DAC: "); DualSerial.println(DAC_MAX);
-        return;
-    }
-
-    // --- Zone 1: Throttle taper (under 25m, still moving) ---
-    float distance_fraction = 1.0f - (distance_m / AUTO_STOP_DISTANCE_M);
-    if (distance_fraction < 0.0f) distance_fraction = 0.0f;
-    motor_dac = (uint16_t)(throttle_snapshot * distance_fraction);
-    WriteDAC(THROTTLE_CHANNEL, motor_dac);
-    WriteDAC(REGEN_CHANNEL, 0);
-    digitalWrite(REGEN_BRAKE_SWITCH, LOW);
-    DualSerial.print("[AutoStop] Tapering — Distance: "); DualSerial.print(distance_m);
-    DualSerial.print(" | Fraction: ");                    DualSerial.print(distance_fraction);
-    DualSerial.print(" | Motor DAC: ");                   DualSerial.print(motor_dac);
-    DualSerial.print(" | Speed: ");                       DualSerial.println(speed_kmh);
+        digitalWrite(REGEN_BRAKE_SWITCH, REGEN_OFF);
+        DualSerial.print("[AutoStop] Tapering — Distance: "); DualSerial.print(distance_m);
+        DualSerial.print("m | Fraction: ");                    DualSerial.print(distance_fraction);
+        DualSerial.print(" | Motor DAC: ");                   DualSerial.print(motor_dac);
+        DualSerial.print(" | Speed: ");                       DualSerial.println(speed_kmh);
     }
 }
 /**
@@ -864,9 +866,8 @@ void SetupPCNT() {
  * @brief Sets od_service_brake_mc variable as brakes engaged or unengaged
  */
 void SetServiceBrake(bool engaged) {
-    // od_service_brake_mc = engaged ? 0 : 1;   // 0 = braking, 1 = not braking
-    // uint8_t value = od_service_brake_mc;
-    // executeSDOWrite(NODE_ID, 2, 0x3012, 0x01, sizeof(value), &value);
+    od_service_brake_mc = engaged ? 0 : 1;   // 0 = braking, 1 = not braking
+    executeSDOWrite(NODE_ID, BRAKES_ID, 0x3012, 0x01, sizeof(od_service_brake_mc), &od_service_brake_mc);
     // // ^ check your CAN_MREx signature — adjust args to match
 }
 
