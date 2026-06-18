@@ -112,7 +112,7 @@ int      prevBrake          = -1;
 int      prevDirection      = -1;
 int      prevChallenge      = -1;
 int      prevBrakeStatus    = -1;
-int      prevBrakeFault     = 0;
+bool     prevBrakeFault     = 0;
 uint8_t  prevOpMode         = 255;
 uint32_t prevVoltage        = 0;
 uint32_t prevCurrent        = 0;
@@ -128,6 +128,8 @@ uint8_t  prevLocCounter     = 0;
 
 // EMCY fault tracking
 bool brakeFault = false;
+bool fireyFault = false;
+unsigned long fireyStart = 0;
 bool emcyActive = false;
 String majorFaultText = "None";
 String minorFaultText = "None";
@@ -278,7 +280,7 @@ void updateNextion() {
 
   // ── BRAKE STATUS (Released / Applied / Fault) ───────────────
   int currentBrakeStatus = od_service_brake_dc;
-  if (currentBrakeStatus != prevBrakeStatus || (int)brakeFault != prevBrakeFault) {
+  if (currentBrakeStatus != prevBrakeStatus || brakeFault != prevBrakeFault) {
     if (brakeFault) {
       sendText("t_brakestatus", "Fault");
       sendColour("t_brakestatus", "pco", NEX_RED);
@@ -291,7 +293,7 @@ void updateNextion() {
     }
     refreshComponent("t_brakestatus");
     prevBrakeStatus = currentBrakeStatus;
-    prevBrakeFault  = (int)brakeFault;
+    prevBrakeFault  = brakeFault;
   }
 
   // ── DIRECTION MODE ──────────────────────────────────────────
@@ -411,6 +413,10 @@ void updateNextion() {
     if (getMajorByIndex(0, &node, &code)) {  // 0 = newest
       emcyActive = true;
       brakeFault = (code == 0x02000010 || code == 0x02000011);
+      fireyFault = fireyFault || (0x00000505 <= code && code <= 0x00000507);
+      if (fireyFault) {
+        fireyStart = millis();
+      }
       switch (code) {
         case 0x00000505: majorFaultText = "Smoke Detected";              break;
         case 0x00000506: majorFaultText = "Temp Front High";             break;
@@ -643,10 +649,9 @@ void SendAllNMT(uint8_t operatingMode) {
 // ═══════════════════════════════════════════════════════════════
 
 void HandleInputs() {
-  uint16_t motorCommand = 1023 - GetAverage(&throttleBuf);
   od_regen_brake = 1023 - GetAverage(&brakeBuf);
   if (!od_service_brake_dc) {
-    od_motor_command = motorCommand;
+    od_motor_command = 1023 - GetAverage(&throttleBuf);
   } else {
     od_motor_command = 0;
   }
@@ -658,6 +663,25 @@ void HandleHorn() {
   Serial.print("   ||   Horn Handle: ");
   int newHornToggle = !(digitalRead(HORN_PIN));
   Serial.print(newHornToggle);
+
+  if (fireyFault) {
+    unsigned long fireyTime = millis() - fireyStart;
+    if (fireyTime < 1000) {
+      newHornToggle = true;
+    } else if (fireyTime < 2000) {
+      newHornToggle = false;
+    } else if (fireyTime < 3000) {
+      newHornToggle = true;
+    } else if (fireyTime < 4000) {
+      newHornToggle = false;
+    } else if (fireyTime < 5000) {
+      newHornToggle = true;
+    } else {
+      newHornToggle = false;
+      fireyFault = false;
+    }
+  }
+
   if (od_horn_toggle != newHornToggle) {
     od_horn_toggle = newHornToggle;
     executeSDOWrite(NODE_ID, AUDIO_ID, 0x6065, 0x00, sizeof(od_horn_toggle), &od_horn_toggle);
