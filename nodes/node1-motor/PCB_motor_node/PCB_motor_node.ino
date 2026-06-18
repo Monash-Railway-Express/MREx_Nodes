@@ -65,9 +65,9 @@ uint32_t od_recovered_energy = 0;
 // OD 0x1050:00 - Autostop lineside marker detection. unsigned 0 or 1, edge=detected
 uint8_t od_autostop_detection = 0;
 
-uint32_t od_current_power = 0;
+uint32_t od_power = 0;
 
-int cumulative_energy = 0;
+int32_t od_cumulative_energy = 0;
 
 // =============================================================================
 // Global Variables
@@ -150,10 +150,10 @@ void setup() {
     registerODEntry(0x6061, 0x00, 2, sizeof(od_condition_mode), &od_condition_mode);        // SDO - 8bit
     registerODEntry(0x6060, 0x00, 2, sizeof(od_direction_mode), &od_direction_mode);        // SDO - 8bit
     registerODEntry(0x6062, 0x00, 2, sizeof(od_challenge_mode), &od_challenge_mode);        // SDO - 8bit
-    registerODEntry(0x2000, 0x03, 2, sizeof(od_current_power), &od_current_power);    // RPDO - 32bit
+    registerODEntry(0x2000, 0x03, 2, sizeof(od_power), &od_power);    // RPDO - 32bit
     registerODEntry(0x2000, 0x04, 2, sizeof(od_recovered_energy), &od_recovered_energy);    // RPDO - 32bit
     registerODEntry(0x1050, 0x00, 2, sizeof(od_autostop_detection), &od_autostop_detection);    // SDO - 8bit
-    registerODEntry(0x2000, 0x05, 2, sizeof(cumulative_energy), &cumulative_energy);   
+    registerODEntry(0x2000, 0x05, 2, sizeof(od_cumulative_energy), &od_cumulative_energy);   
     
     
     // When adding a new pair, ensure to update numFloatPairs
@@ -350,7 +350,7 @@ void OperationalMode() {
 
 }
 
-void limit_speed(float current_speed, int max_speed){
+void limit_speed(float current_speed, float max_speed){
     
     //accesses global variables, motor_dac and brake_dac
     float damping_factor = 0.999;
