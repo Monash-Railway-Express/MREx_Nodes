@@ -260,7 +260,8 @@ void updateNextion() {
 
   // ── THROTTLE ────────────────────────────────────────────────
   int throttlePct = map(od_motor_command, 0, 1023, 0, 100);
-  if (throttlePct != prevThrottle) {
+  // if (throttlePct != prevThrottle) {
+  if (true) {
     sendText("t_throttle", String(throttlePct) + " %");
     sendProgressBar("j_throttle", throttlePct);
     prevThrottle = throttlePct;
@@ -268,7 +269,8 @@ void updateNextion() {
 
   // ── BRAKE ───────────────────────────────────────────────────
   int brakePct = map(od_regen_brake, 0, 1023, 0, 100);
-  if (brakePct != prevBrake) {
+  // if (brakePct != prevBrake) {
+  if (true) {
     sendText("t_brakepct", String(brakePct) + " %");
     sendProgressBar("j_brake", brakePct);
     prevBrake = brakePct;
@@ -280,7 +282,7 @@ void updateNextion() {
     if (brakeFault) {
       sendText("t_brakestatus", "Fault");
       sendColour("t_brakestatus", "pco", NEX_RED);
-    } else if (od_service_brake_dc == 1) {
+    } else if (od_service_brake_dc) {
       sendText("t_brakestatus", "Applied");
       sendColour("t_brakestatus", "pco", NEX_RED);
     } else {
