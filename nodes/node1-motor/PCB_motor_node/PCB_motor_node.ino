@@ -140,7 +140,7 @@ void setup() {
 
     pinMode(REVERSING_CONTACTOR, OUTPUT);
     pinMode(ISOLATING_RELAY, OUTPUT);
-    pinMode(BRAKE_SWITCH, OUTPUT);
+    pinMode(REGEN_BRAKE_SWITCH, OUTPUT);
 
     // --- Register OD entries ---
     registerODEntry(0x606C, 0x00, 2, sizeof(od_true_speed), &od_true_speed);                // TPDO - 32bit
@@ -238,9 +238,9 @@ void loop() {
  * @brief Stopped state — zero all outputs, reset integrator and put preferences to NVM.
  */
 void StoppedMode() {
-    WriteDAC(THROTTLE_CHANNEL, uint16_t(motor_dac * over_speed_damping));
+    WriteDAC(THROTTLE_CHANNEL, 0);
     WriteDAC(REGEN_CHANNEL, 0);
-    digitalWrite(BRAKE_SWITCH, LOW);
+    digitalWrite(REGEN_BRAKE_SWITCH, REGEN_OFF);
     integrator = 0.0f;
     PutPreferences(); // we need to add a params dirty od entry so we only update these when they change
 }
@@ -253,9 +253,9 @@ void StoppedMode() {
  * Mode 1 = reverse, 2 = neutral (contactor off), 3 = forward.
  */
 void PreOpMode() {
-    WriteDAC(THROTTLE_CHANNEL, uint16_t(motor_dac * over_speed_damping));
+    WriteDAC(THROTTLE_CHANNEL, 0);
     WriteDAC(REGEN_CHANNEL, 0);
-    digitalWrite(BRAKE_SWITCH, LOW);
+    digitalWrite(REGEN_BRAKE_SWITCH, REGEN_OFF);
 
 
     integrator = 0.0f;
@@ -266,7 +266,7 @@ void PreOpMode() {
             DualSerial.println("[PreOp] Direction: Reverse");
             break;
         case NEUTRAL_MODE:  // Neutral — open contactor
-            digitalWrite(REVERSING_CONTACTOR, LOW);
+            digitalWrite(REVERSING_CONTACTOR, LOW); // forward
             DualSerial.println("[PreOp] Direction: Neutral");
             break;
         case FORWARD_MODE:  // Forward
@@ -274,7 +274,7 @@ void PreOpMode() {
             DualSerial.println("[PreOp] Direction: Forward");
             break;
         default:  // Unknown — fail safe to neutral
-            digitalWrite(REVERSING_CONTACTOR, LOW);
+            digitalWrite(REVERSING_CONTACTOR, LOW); // forward
             DualSerial.print("[PreOp] Unknown direction mode: ");
             DualSerial.println(od_direction_mode);
             break;
@@ -410,37 +410,18 @@ void OnChallengeModeEnter(uint8_t new_mode) {
  * @param speed_kmh Current measured speed in km/h.
  */
 void ThrottleControl(float speed_kmh) {
-    motor_dac = 0;
-    brake_dac = 0;
-
-    // if (od_motor_command > 0 && od_regen_brake <= 0) {
-    //     motor_dac = od_motor_command;   // full 10-bit range
-    //     brake_dac = 0;
-    // }
-    // else if (od_motor_command > 0 && od_regen_brake > 0) {
-    //     motor_dac = 0;
-    //     brake_dac = od_regen_brake;
-    // }
-    // else if (od_motor_command <= 0 && od_regen_brake > 0) {
-    //     motor_dac = 0;
-    //     brake_dac = od_regen_brake;
-    // }
-    // else {
-    //     motor_dac = 0;
-    //     brake_dac = 0;
-    // }
+    motor_dac = od_motor_command;
+    brake_dac = od_regen_brake;
 
     // Write to Throttle and Regen DACs
-    WriteDAC(THROTTLE_CHANNEL, uint16_t(od_motor_command*over_speed_damping));
-    WriteDAC(REGEN_CHANNEL, od_regen_brake);
-    if(od_regen_brake > 0){
-        digitalWrite(BRAKE_SWITCH, HIGH);
+    WriteDAC(THROTTLE_CHANNEL, uint16_t(motor_dac*over_speed_damping));
+    WriteDAC(REGEN_CHANNEL, brake_dac);
+    if(brake_dac > 0){
+        digitalWrite(REGEN_BRAKE_SWITCH, REGEN_ON);
     } else {
-        digitalWrite(BRAKE_SWITCH, LOW);
+        digitalWrite(REGEN_BRAKE_SWITCH, REGEN_OFF);
     }
 
-    DualSerial.print("[SpeedControl] CMD: ");
-    DualSerial.print(od_motor_command);
     DualSerial.print(" | Speed: ");
     DualSerial.print(speed_kmh);
     DualSerial.print(" | Motor DAC: ");
@@ -499,9 +480,9 @@ void SpeedControl(float speed_kmh) {
     WriteDAC(THROTTLE_CHANNEL, uint16_t(over_speed_damping * motor_dac));
     WriteDAC(REGEN_CHANNEL, brake_dac);
     if(brake_dac > 0){
-        digitalWrite(BRAKE_SWITCH, HIGH);
+        digitalWrite(REGEN_BRAKE_SWITCH, HIGH);
     } else {
-        digitalWrite(BRAKE_SWITCH, LOW);
+        digitalWrite(REGEN_BRAKE_SWITCH, LOW);
     }
     
     DualSerial.print("[SpeedControl] Setpoint: "); DualSerial.print(((float)od_motor_command / 1023.0f) * MAX_SPEED_KMH);
@@ -551,7 +532,7 @@ void AutoStopChallenge(float speed_kmh, int32_t pulse_accum) {
     if (speed_kmh <= 0.1f) {
         WriteDAC(THROTTLE_CHANNEL, 0);
         WriteDAC(REGEN_CHANNEL, 0);
-        digitalWrite(BRAKE_SWITCH, LOW);
+        digitalWrite(REGEN_BRAKE_SWITCH, LOW);
         integrator = 0.0f;
         SetServiceBrake(true);
         od_autostop_detection = 0;
@@ -566,7 +547,7 @@ void AutoStopChallenge(float speed_kmh, int32_t pulse_accum) {
         integrator = 0.0f;
         WriteDAC(THROTTLE_CHANNEL, 0);
         WriteDAC(REGEN_CHANNEL, DAC_MAX);
-        digitalWrite(BRAKE_SWITCH, HIGH);
+        digitalWrite(REGEN_BRAKE_SWITCH, HIGH);
         DualSerial.print("[AutoStop] Coasting to stop — Distance: "); DualSerial.print(distance_m);
         DualSerial.print("m | Speed: "); DualSerial.print(speed_kmh);
         DualSerial.print(" | Brake DAC: "); DualSerial.println(DAC_MAX);
@@ -579,7 +560,7 @@ void AutoStopChallenge(float speed_kmh, int32_t pulse_accum) {
     motor_dac = (uint16_t)(throttle_snapshot * distance_fraction);
     WriteDAC(THROTTLE_CHANNEL, motor_dac);
     WriteDAC(REGEN_CHANNEL, 0);
-    digitalWrite(BRAKE_SWITCH, LOW);
+    digitalWrite(REGEN_BRAKE_SWITCH, LOW);
     DualSerial.print("[AutoStop] Tapering — Distance: "); DualSerial.print(distance_m);
     DualSerial.print(" | Fraction: ");                    DualSerial.print(distance_fraction);
     DualSerial.print(" | Motor DAC: ");                   DualSerial.print(motor_dac);
@@ -692,9 +673,9 @@ void EnergyRecoveryChallenge(float speed_kmh) {
             WriteDAC(THROTTLE_CHANNEL, 0);
             WriteDAC(REGEN_CHANNEL, brake_dac);
             if(od_regen_brake > 0){
-                digitalWrite(BRAKE_SWITCH, HIGH);
+                digitalWrite(REGEN_BRAKE_SWITCH, HIGH);
             } else {
-                digitalWrite(BRAKE_SWITCH, LOW);
+                digitalWrite(REGEN_BRAKE_SWITCH, LOW);
             }
  
 
@@ -706,7 +687,7 @@ void EnergyRecoveryChallenge(float speed_kmh) {
                //od_service_brake_mc = 1;
                 WriteDAC(THROTTLE_CHANNEL, uint16_t(motor_dac * over_speed_damping));
                 WriteDAC(REGEN_CHANNEL, 0);
-                digitalWrite(BRAKE_SWITCH, LOW);
+                digitalWrite(REGEN_BRAKE_SWITCH, LOW);
                 phase = PHASE_STOPPED_IDLE;
 
                 DualSerial.print("[EnergyRecovery] Stopped — energy recovered: ");
@@ -723,7 +704,7 @@ void EnergyRecoveryChallenge(float speed_kmh) {
         // ----------------------------------------------------------------
             WriteDAC(THROTTLE_CHANNEL, uint16_t(motor_dac * over_speed_damping));
             WriteDAC(REGEN_CHANNEL, 0);
-            digitalWrite(BRAKE_SWITCH, LOW);
+            digitalWrite(REGEN_BRAKE_SWITCH, LOW);
            //od_service_brake_mc = 1;
 
             if (od_motor_command > 10) {
@@ -746,7 +727,7 @@ void EnergyRecoveryChallenge(float speed_kmh) {
             if (energy_used >= energy_recovered) {
                 WriteDAC(THROTTLE_CHANNEL, uint16_t(motor_dac * over_speed_damping));
                 WriteDAC(REGEN_CHANNEL, 0);
-                digitalWrite(BRAKE_SWITCH, LOW);
+                digitalWrite(REGEN_BRAKE_SWITCH, LOW);
                //od_service_brake_mc = 0;
                 phase            = PHASE_BUDGET_EXHAUSTED;
                 DualSerial.println("[EnergyRecovery] Energy budget exhausted — throttle cut.");
@@ -771,7 +752,7 @@ void EnergyRecoveryChallenge(float speed_kmh) {
             digitalWrite(ISOLATING_RELAY, HIGH);
             WriteDAC(THROTTLE_CHANNEL, 0);
             WriteDAC(REGEN_CHANNEL, 0);
-            digitalWrite(BRAKE_SWITCH, LOW);
+            digitalWrite(REGEN_BRAKE_SWITCH, LOW);
            //od_service_brake_mc = 0;
             integrator       = 0.0f;
 
@@ -814,7 +795,7 @@ float ReadSpeedKMH(unsigned long prev_time) {
     float rev       = count / PULSES_PER_REV;
     float meters    = rev * WHEEL_CIRCUMFERENCE_M;
     float speed_mps = meters / elapsed_s;
-    return speed_mps * 3.6f;
+    return speed_mps * 3.6f; // m/s to km/h
 }
 
 

@@ -52,7 +52,7 @@ uint8_t NODE_ID = 1;
 
 // --- GPIO Pins ---
 #define REVERSING_SWITCH_MC  GPIO_NUM_5
-#define BRAKE_SWITCH         GPIO_NUM_10
+#define REGEN_BRAKE_SWITCH         GPIO_NUM_10
 #define FORWARD_SWITCH       GPIO_NUM_4 
 #define MOTOR1_GREEN_LED     GPIO_NUM_7
 #define MOTOR2_GREEN_LED     GPIO_NUM_15
@@ -77,7 +77,8 @@ uint8_t NODE_ID = 1;
 
 // --- Physical Constants ---
 const float PULSES_PER_REV       = 200.0f;
-const float WHEEL_CIRCUMFERENCE_M = 0.3*3.14159f;
+const float WHEEL_DIAMETER_M = 0.275f;
+const float WHEEL_CIRCUMFERENCE_M = WHEEL_DIAMETER_M*3.14159f;
 
 // --- Control Limits ---
 #define DAC_MAX              1023
@@ -99,6 +100,9 @@ const float WHEEL_CIRCUMFERENCE_M = 0.3*3.14159f;
 //challenge variable
 #define AUTO_STOP_DISTANCE_M  25.0f   // Target stop distance for AutoStop challenge (m)
 
+// pin values
+#define REGEN_ON HIGH
+#define REGEN_OFF LOW
 
 // --- Operating Modes ---
 enum OperatingMode : uint8_t {
