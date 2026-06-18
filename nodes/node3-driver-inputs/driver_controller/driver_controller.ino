@@ -50,7 +50,7 @@ uint16_t od_motor_command = 0;
 uint8_t od_direction_mode = 3;
 
 // OD 0x6062:00 - Challenge mode (1=throttle, 2=speed, 3=autostop, 4=regen, 5=traction).
-uint8_t od_challenge_mode = 0;
+uint8_t od_challenge_mode = 1;
 
 // OD 0x6065:00 - Horn toggle (1=active, 0=default).
 uint8_t od_horn_toggle = 0;
@@ -249,12 +249,12 @@ void updateNextion() {
 
   // ── SPEED — x10 scaled, clamp for display only
   float speedF = constrain(float(od_true_speed)/10, 0.0, 15.0);
-  int speedInt = (int)(speedF);  // for cache comparison
+  int speedInt = (int)(od_true_speed);  // for cache comparison
   if (speedInt != prevSpeed) {
     char buf[10];
     dtostrf(speedF, 4, 1, buf);
     sendText("t_speed", String(buf) + " km/h");
-    sendProgressBar("j_speed", map(speedInt/10, 0, 150, 0, 100));
+    sendProgressBar("j_speed", map(speedInt/10, 0, 15, 0, 100));
     prevSpeed = speedInt;
   }
 
