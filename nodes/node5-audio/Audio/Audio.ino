@@ -38,11 +38,7 @@ DFPlayer - A Mini MP3 Player For Arduino
  <https://www.dfrobot.com/wiki/index.php/DFPlayer_Mini_SKU:DFR0299#Connection_Diagram>
  ****************************************************/
 
-/*CURRENT AUDIO ORDERING: 
-(This is in the order they were copied onto the SD card. 
-To reorder them, you have to delete and recopy them in the sequence you want. 
-File names mean nothing.)
-IMPORTANT: 
+/*
 USE 16 bit .wav files for horn. Using MP3 adds small silences at start and end of clip, making looping sound choppy.
 */
 #include <CAN_MREx.h> // inlcudes all CAN MREX files
@@ -60,7 +56,7 @@ uint8_t nodeID = 5;  // Node 5 - Audio
 #define TX_GPIO_NUM GPIO_NUM_36 // Set GPIO pin for CAN Transmit
 #define RX_GPIO_NUM GPIO_NUM_35 // Set GPIO pins for CAN Receive
 
-#define STATUS_LED 5
+#define STATUS_LED 5 
 #define PREOP_LED 4
 
 // --- OD definitions ---
@@ -73,7 +69,7 @@ uint8_t od_loc_counter = 0;
 /*
 Sound index definition
 Note: These are the sounds in the order that they are copied to the SD card.
-To change any sound, it is better to move all audio files out of SD card and recopy them in this order
+The DFPlayer indexes songs in order that they were copied into the SD Card. These values reflect that.
 */
 #define STARTUP_FB_SOUND 1
 #define HORN_LOOP_SOUND 2
@@ -175,7 +171,7 @@ void setup() {
 
 
   // --- DFPlayer Setup ---
-  player_serial.begin(9600, SERIAL_8N1, /*rx =*/18, /*tx =*/17);
+  player_serial.begin(9600, SERIAL_8N1, /*rx =*/18, /*tx =*/17); //this is the UART port to communicate with DFPlayer module. 
   Serial.println();
   Serial.println(F("Initializing DFPlayer ... (May take 3~5 seconds)"));
   
@@ -192,7 +188,7 @@ void setup() {
   Serial.println(F("Audio system online."));
   myDFPlayer.volume(30);  //Set volume value. From 0 to 30
   delay(500);
-  myDFPlayer.play(STARTUP_FB_SOUND);
+  myDFPlayer.play(STARTUP_FB_SOUND); 
   // --- Set pin modes ---
   pinMode(DFBUSY, INPUT);
   pinMode(STATUS_LED, OUTPUT);
@@ -236,13 +232,16 @@ void OperationalMode(){
   Serial.println("Loop run");
 }
 /*
-* @brief Handles logic for playing the horn. 
+* @brief Handles logic for playing the horn. This used to have support to play a "start" "middle" and "end" sound to make
+* the horn sound more real, but this has entirely been scrapped for a single looping sound because the ESP kept crashing.
+* it was tested just before train was loaded and seems to be working fine, hence I (AP) will not touch it to make it cleaner in case
+* I break it again.
 *
 * @return Nothing
 */
 void HandleHorn() {
-  static bool hornStatePrev;
-  static uint8_t hornStateMNo = 1; //for horn state machin
+  static bool hornStatePrev; //previous state of the horn button. Used for edge detection.
+  static uint8_t hornStateMNo = 1; //the counter value for the horn state machine. 
   hornStatePrev = (bool)od_horn;
   //Serial.print("Horn state:");
   //Serial.println(hornStatePrev);
@@ -290,7 +289,7 @@ void HandleAutoStop(){
   //play sound every time location counter updates
   if(prevCounter != od_loc_counter){
     prevCounter = od_loc_counter;
-    myDFPlayer.play(locationAnnounceSoundMap[od_loc_counter]);  
+    myDFPlayer.play(locationAnnounceSoundMap[od_loc_counter]);  //retrieves the appropriate track number from the map. 
     Serial.print("Played location");
     Serial.println(od_loc_counter);
   }
