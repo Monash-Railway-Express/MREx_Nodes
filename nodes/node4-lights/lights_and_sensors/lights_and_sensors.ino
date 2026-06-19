@@ -36,6 +36,7 @@ uint32_t dir_mode32; // Will these eventually be ODs?
 uint8_t dir_mode;
 uint8_t drive_state = OFF;
 
+//all of this is sensor stuff which I believe Oscar is putting on another board.
 bool smokeLock = false;
 bool heatFrontLock = false;
 bool heatRearLock = false;
@@ -75,6 +76,7 @@ void setup() {
   registerODEntry(0x6060, 0x00, 2, sizeof(dir_mode), &dir_mode); 
 
   // --- Register TPDOs ---
+  //TPDOs for sensors. Oscar is working on a separate board for this now, can ignore.
   configureTPDO(0, 0x184 + NODE_ID, 255, 100, 100);
 
   PdoMapEntry tpdoEntries[] = {
@@ -161,7 +163,6 @@ void HandleDirStates()
   //dir_mode = (uint8_t)dir_mode32;
 
   //switches the drive state based on the motor direction
-  //TODO: clarify codes and implement accordingly. Currently using 3 for fwd and 1 for rev.
   if(dir_mode == 2)
   {
     drive_state = NEUTRAL;
@@ -203,7 +204,7 @@ void LightsSelfTest()
 }
 
 /**
- * @brief Function that flashes writes to the Light pins depending on the drive state (direction/operating mode) of the locomotive
+ * @brief Function that writes to the Light pins depending on the drive state (direction/operating mode) of the locomotive
  */
 void HandleOpMode()
 {
