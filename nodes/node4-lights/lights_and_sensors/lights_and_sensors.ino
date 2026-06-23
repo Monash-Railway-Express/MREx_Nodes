@@ -116,9 +116,10 @@ void loop() {
   //User Code begin loop() ----------------------------------------------------
   unsigned long  currentMillis = millis();
   
+  // Check the sensors no matter what mode we are in
   if (currentMillis >= next_sensor_time)
     {
-      //CheckSensors();
+      CheckSensors();
       next_sensor_time = currentMillis + 200;
     }
 
@@ -245,6 +246,8 @@ void HandleOpMode()
 
 /**
  * @brief Function for Checking the Temperature and Air Quality of the Sensors. Assumes we are using the digital Output of the Smoke Detector
+ * Smoke & Temperature Sensors will output EMCY onto CANBus when their respective sensors have triggered for more than 5 seconds
+ * EMCY's will continue to be sent every 5 seconds if the sensors are still triggered to not flood the canbus.
  */
 void CheckSensors(){
 
