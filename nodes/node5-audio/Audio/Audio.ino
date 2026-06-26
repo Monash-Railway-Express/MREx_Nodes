@@ -17,7 +17,7 @@
  */
 
 /**
-TODO: invert horn signal before use PLEASE!!!!!
+NOTE: invert horn signal before use PLEASE!!!!!
 */
  /***************************************************
 DFPlayer - A Mini MP3 Player For Arduino
@@ -227,8 +227,8 @@ void PreOpMode(){
 void OperationalMode(){
   digitalWrite(STATUS_LED, HIGH);
   digitalWrite(PREOP_LED, LOW);
+  HandleLocation();
   HandleHorn();
-  HandleAutoStop();
   Serial.println("Loop run");
 }
 /*
@@ -282,7 +282,7 @@ void HandleHorn() {
 *
 * @return Nothing
 */
-void HandleAutoStop(){
+void HandleLocation(){
   static uint8_t prevCounter = 0; //state variable used for tracking changes to the autostop counter
 
 

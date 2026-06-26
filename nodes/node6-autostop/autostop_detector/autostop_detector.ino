@@ -354,7 +354,6 @@ static void _HandleAutostop(void) {
 
 static void _SendPassing() {
     executeSDOWrite(NODE_ID, AUDIO_ID, 0x1051, 0x00, sizeof(od_location_counter), &od_location_counter);
-    delay(10);
     executeSDOWrite(NODE_ID, DRIVER_ID, 0x1051, 0x00, sizeof(od_location_counter), &od_location_counter);
 }
 
