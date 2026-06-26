@@ -56,7 +56,7 @@ uint8_t od_challenge_mode = 1;
 uint8_t od_horn_toggle = 0;
 
 // OD 0x3012:02 - Service brake (0=not braking, 1=braking).
-uint8_t od_service_brake_dc = 1;
+uint8_t od_service_brake_dc = BRAKE_APPLIED;
 
 // Free
 uint8_t od_switch_2 = 0;
@@ -284,7 +284,8 @@ void updateNextion() {
     if (brakeFault) {
       sendText("t_brakestatus", "Fault");
       sendColour("t_brakestatus", "pco", NEX_RED);
-    } else if (od_service_brake_dc) {
+    } else if (od_service_brake_dc == BRAKE_APPLIED) {
+
       sendText("t_brakestatus", "Applied");
       sendColour("t_brakestatus", "pco", NEX_RED);
     } else {
@@ -652,7 +653,7 @@ void SendAllNMT(uint8_t operatingMode) {
 
 void HandleInputs() {
   od_regen_brake = 1023 - GetAverage(&brakeBuf);
-  if (!od_service_brake_dc) {
+  if (od_service_brake_dc = BRAKE_RELEASED) {
     od_motor_command = 1023 - GetAverage(&throttleBuf);
   } else {
     od_motor_command = 0;

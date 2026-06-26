@@ -93,6 +93,9 @@ Note: 2 and 3 are skipped as these are the traction challenge markers passed ove
 #define NEX_CYAN   1055
 #define NEX_DARK   10
 
+#define BRAKE_APPLIED 0
+#define BRAKE_RELEASED 1
+
 // Defining operating mode enum
 enum OperatingMode : uint8_t {
     MODE_STOPPED       = 0x02,
