@@ -653,7 +653,7 @@ void SendAllNMT(uint8_t operatingMode) {
 
 void HandleInputs() {
   od_regen_brake = 1023 - GetAverage(&brakeBuf);
-  if (od_service_brake_dc = BRAKE_RELEASED) {
+  if (od_service_brake_dc == BRAKE_RELEASED) {
     od_motor_command = 1023 - GetAverage(&throttleBuf);
   } else {
     od_motor_command = 0;
