@@ -45,7 +45,7 @@ void InitBuffer(ADCBuffer* buf, int pin);
 #define EMCY_CLEAR_PIN    GPIO_NUM_16
 #define LOCATION_BUTTON_PIN    GPIO_NUM_12
 // #define BUTTON_2_PIN   GPIO_NUM_16  // commented out — GPIO16 used for Nextion RX
-#define BUTTON_2_PIN      GPIO_NUM_13   // temp reassignment — button unconnected
+#define CHALLENGE_BUTTON_PIN      GPIO_NUM_14   // temp reassignment — button unconnected
 #define SERVICE_BRAKE_PIN GPIO_NUM_36
 #define SWITCH_2_PIN      37
 

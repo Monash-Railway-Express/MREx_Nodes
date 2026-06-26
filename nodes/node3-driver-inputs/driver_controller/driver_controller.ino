@@ -480,6 +480,7 @@ void setup() {
   pinMode(LOCATION_BUTTON_PIN,  INPUT_PULLUP);
   pinMode(SERVICE_BRAKE_PIN,    INPUT_PULLUP);
   pinMode(SWITCH_2_PIN,         INPUT_PULLUP);
+  pinMode(CHALLENGE_BUTTON_PIN,         INPUT_PULLUP);
   pinMode(DIRECTION_MODE_PIN,   INPUT);
   pinMode(OP_MODE_PIN,          INPUT);
   pinMode(CHALLENGE_MODE_PIN,   INPUT);
@@ -773,14 +774,16 @@ void HandleDirection() {
 }
 
 void HandleChallenge() {
-  Serial.print("   ||   Challenge Handle: ");
-  int newChallengeMode = ReadStable5PosBuffered(&challengeBuf);
-  Serial.print(newChallengeMode);
-  if ((od_challenge_mode != newChallengeMode) && (newChallengeMode > 0)) {
-    od_challenge_mode = newChallengeMode;
-    executeSDOWrite(NODE_ID, MOTOR_ID,    0x6062, 0x00, sizeof(od_challenge_mode), &od_challenge_mode);
-    executeSDOWrite(NODE_ID, AUTOSTOP_ID, 0x6062, 0x00, sizeof(od_challenge_mode), &od_challenge_mode);
-    Serial.print("Sending Challenge: "); Serial.println(od_challenge_mode);
+  if (!(digitalRead(CHALLENGE_BUTTON_PIN))) {
+    Serial.print("   ||   Challenge Handle: ");
+    int newChallengeMode = ReadStable5PosBuffered(&challengeBuf);
+    Serial.print(newChallengeMode);
+    if ((od_challenge_mode != newChallengeMode) && (newChallengeMode > 0)) {
+      od_challenge_mode = newChallengeMode;
+      executeSDOWrite(NODE_ID, MOTOR_ID,    0x6062, 0x00, sizeof(od_challenge_mode), &od_challenge_mode);
+      executeSDOWrite(NODE_ID, AUTOSTOP_ID, 0x6062, 0x00, sizeof(od_challenge_mode), &od_challenge_mode);
+      Serial.print("Sending Challenge: "); Serial.println(od_challenge_mode);
+    }
   }
 }
 
