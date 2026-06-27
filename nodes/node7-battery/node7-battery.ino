@@ -73,6 +73,12 @@ bool prev_sample_2 = false; // flag that is set to true after the first power sa
 unsigned long currentMillis = 0;
 unsigned long last_data_received_time = 0;
 const unsigned long shunt_data_interval = 1500; // If 1.5s pass without receiving data from the shunt, then send error message
+int32_t prev_time = 0;
+// OD 0x3012:00 – Regen brake request (0–1023). RW. Mapped to RPDO0.
+uint16_t od_regen_brake = 0;
+
+// OD 0x606A:00 – Raw motor command (0–255). RW. Mapped to RPDO0.
+uint16_t od_motor_command = 0;
 
 VeDirectFrameHandler veParser;
 
@@ -111,6 +117,8 @@ void setup() {
   registerODEntry(0x2000, 0x04, 2, sizeof(recovered_energy_can), &recovered_energy_can);
   registerODEntry(0x2000, 0x05, 2, sizeof(cumulative_energy), &cumulative_energy);
   registerODEntry(0x606C, 0x00, 2, sizeof(od_true_speed), &od_true_speed);
+  registerODEntry(0x3012, 0x00, 2, sizeof(od_regen_brake), &od_regen_brake);              // RPDO - 16bit
+  registerODEntry(0x606A, 0x00, 2, sizeof(od_motor_command), &od_motor_command); 
   // --- Configure TPDOs and RPDOs ---
 
   configureTPDO(0, 0x180 + NODE_ID, 255, 100, 1000);  // TPDO 1, COB-ID, transType, inhibit, timer
@@ -145,7 +153,17 @@ void setup() {
   PdoMapEntry rpdo1[] = {
     {0x606C, 0x00, 32},  // true speed
   };
+
+
+
   mapRPDO(0, rpdo1, 1);
+
+  configureRPDO(1, 0x183, 255, 0);
+  PdoMapEntry rpdo_entries[] = {
+      {0x3012, 0x00, 16},  // od_regen_brake
+      {0x606A, 0x00, 16}   // od_motor_command
+  };
+  mapRPDO(1, rpdo_entries, 2);
 
 }
 
@@ -209,7 +227,7 @@ void findRecoveredEnergy() {
     cumulative_energy += slice_area;               // accumulate recovered energy
     prev_power_sample = new_power_sample;
   }
-  else if (power > 0 && (od_true_speed/10) > 0.5 && (od_true_speed/10) < 30) {
+  else if ((power > 0) && (od_motor_command >= 50)) {
     prev_sample_1 = false;
     if (recovered_energy <= 0) {
       recovered_energy = 0;
@@ -236,6 +254,20 @@ void findRecoveredEnergy() {
     }
     prev_power_sample = new_power_sample;
   }
+  // int energy = 0;
+
+  // if (power < 0){  
+  //     if (od_motor_command > 80)){
+  //         power_sample = power; 
+  //         energy = power_sample;
+  //     }
+  // } else {
+  //     power_sample = power; 
+  //     energy = power_sample; 
+  // }
+
+  // recovered_energy = recovered_energy - energy;
+
   recovered_energy_can = (uint32_t)recovered_energy;
 }
 /**
@@ -258,9 +290,8 @@ void updateODentries(){
        }
        else if (strcmp(veParser.veData[i].veName, "P") == 0){
         power = -atoi(veParser.veData[i].veValue);
-        power = power - 55;
+        power = power - 80;
         power_can = power; 
-        findRecoveredEnergy(); 
        }
   }
   veParser.clearData();
@@ -306,6 +337,11 @@ case MODE_OPERATIONAL:
       printf("recovered_energy_can: %lu J\n",   recovered_energy_can);
       printf("cumulative_energy:    %d J\n",    cumulative_energy);
       printf("------------------\n");
+    }
+    if((millis() - prev_time) > 1000){
+      prev_time = millis();
+      findRecoveredEnergy();
+
     }
   }
   break;
