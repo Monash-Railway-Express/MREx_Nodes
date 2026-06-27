@@ -85,12 +85,13 @@ void loop() {
   // PRE‑OPERATIONAL
   else if (nodeOperatingMode == 0x80) {
     // Neutral => allow pushing
-    if (od_service_brake_dc) {
-      out = HIGH;
+    // 0 od entry means brakes on
+    if (od_service_brake_dc == 0) {
+      out = LOW;
       pixel.setPixelColor(0, pixel.Color(50, 50, 0)); // Yellow
     }
     else {
-      out = LOW;
+      out = HIGH;
       pixel.setPixelColor(0, pixel.Color(50, 0, 0));  // Red
     }
   }
@@ -99,12 +100,12 @@ void loop() {
   else if (nodeOperatingMode == 0x01) {
 
     // Service brake requested
-    if (od_service_brake_dc) {
-      out = HIGH;
+    if ((od_service_brake_dc == 0) || (od_service_brake_mc == 0)) {
+      out = LOW;
       pixel.setPixelColor(0, pixel.Color(50, 0, 0));  // Red
     }
     else {
-      out = LOW;
+      out = HIGH;
       pixel.setPixelColor(0, pixel.Color(0, 50, 0));  // Green
     }
   }
