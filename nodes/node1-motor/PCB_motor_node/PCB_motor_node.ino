@@ -43,7 +43,7 @@ uint32_t od_true_speed = 0;
 uint16_t od_regen_brake = 0;
 
 // OD 0x3012:01 – Service brake active flag (1 = "Braking", 0 = "Not Braking"). RW. Mapped to SDO.
-uint8_t od_service_brake_mc = 0;
+uint8_t od_service_brake_mc = 1;
 
 // OD 0x606A:00 – Raw motor command (0–255). RW. Mapped to RPDO0.
 uint16_t od_motor_command = 0;
@@ -366,13 +366,16 @@ void limit_speed(float current_speed, float max_speed){
  */
 void OnChallengeModeExit(uint8_t old_mode) {
     if (old_mode == CHALLENGE_AUTO_STOP) {
-        SetServiceBrake(0);   // release
+        SetServiceBrake(1);   // release
         new_autostop_instance = 1;
+        pulse_start       = 0;
+        total_pulse_accum = 0;
+
     }
     if (old_mode == CHALLENGE_ENERGY_RECOVERY) {
         digitalWrite(ISOLATING_RELAY, LOW);
         reset_energy_recovery = 1;
-        SetServiceBrake(0);   // release
+        SetServiceBrake(1);   // release
     }
 }
 
@@ -540,8 +543,15 @@ void AutoStopChallenge(float speed_kmh, int32_t pulse_accum) {
             integrator = 0.0f;
             WriteDAC(THROTTLE_CHANNEL, 0);
             WriteDAC(REGEN_CHANNEL, DAC_MAX);
-            od_service_brake_mc = 1;
-            executeSDOWrite(NODE_ID, BRAKES_ID, , 0x02, sizeof(od_service_brake_mc), &od_service_brake_mc);
+            if (od_service_brake_mc == 1){
+                od_service_brake_mc = 0;
+                executeSDOWrite(NODE_ID, BRAKES_ID, 0x3012, 0x01, sizeof(od_service_brake_mc), &od_service_brake_mc);
+            }
+
+            od_autostop_detection = 0;
+            entered_auto_stop     = false;
+            new_autostop_instance = false;
+
             digitalWrite(REGEN_BRAKE_SWITCH, REGEN_ON);
             DualSerial.print("[AutoStop] Regen braking to stop — Distance: "); DualSerial.print(distance_m);
             DualSerial.print("m | Speed: "); DualSerial.print(speed_kmh);
