@@ -775,7 +775,7 @@ void HandleDirection() {
 }
 
 void HandleChallenge() {
-  if (!(digitalRead(CHALLENGE_BUTTON_PIN))) {
+  
     Serial.print("   ||   Challenge Handle: ");
     int newChallengeMode = ReadStable5PosBuffered(&challengeBuf);
     Serial.print(newChallengeMode);
@@ -785,7 +785,6 @@ void HandleChallenge() {
       executeSDOWrite(NODE_ID, AUTOSTOP_ID, 0x6062, 0x00, sizeof(od_challenge_mode), &od_challenge_mode);
       Serial.print("Sending Challenge: "); Serial.println(od_challenge_mode);
     }
-  }
 }
 
 // ═══════════════════════════════════════════════════════════════
