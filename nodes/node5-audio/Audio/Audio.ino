@@ -41,7 +41,7 @@ DFPlayer - A Mini MP3 Player For Arduino
 /*
 USE 16 bit .wav files for horn. Using MP3 adds small silences at start and end of clip, making looping sound choppy.
 */
-#include <CAN_MREx.h> // inlcudes all CAN MREX files
+#include "CAN_MREx.h" // inlcudes all CAN MREX files
 #include "Arduino.h"
 #include "DFRobotDFPlayerMini.h"
 #include <HardwareSerial.h>

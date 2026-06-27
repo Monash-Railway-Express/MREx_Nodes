@@ -1,4 +1,4 @@
-#include <CAN_MREx.h>
+#include "CAN_MREx.h"
 #include <Adafruit_NeoPixel.h>
 
 uint8_t nodeID = 2; // brakes node id is 2

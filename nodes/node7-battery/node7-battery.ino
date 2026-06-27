@@ -13,7 +13,7 @@
 
 #include <Arduino.h>
 #include <stdint.h>
-#include <CAN_MREx.h>
+#include "CAN_MREx.h"
 #include <HardwareSerial.h>
 
 #include "VeDirectFrameHandler.h" // ve direct parser

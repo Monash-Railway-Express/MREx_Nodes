@@ -20,7 +20,7 @@
  * @see CHANGELOG.md
  */
 
-#include <CAN_MREx.h>
+#include "CAN_MREx.h"
 #include <Arduino.h>
 #include <Wire.h>
 #include <Preferences.h>
