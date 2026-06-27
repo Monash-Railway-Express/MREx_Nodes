@@ -366,13 +366,13 @@ void limit_speed(float current_speed, float max_speed){
  */
 void OnChallengeModeExit(uint8_t old_mode) {
     if (old_mode == CHALLENGE_AUTO_STOP) {
-        SetServiceBrake(false);   // release
-        new_autostop_instance = true;
+        SetServiceBrake(0);   // release
+        new_autostop_instance = 1;
     }
     if (old_mode == CHALLENGE_ENERGY_RECOVERY) {
         digitalWrite(ISOLATING_RELAY, LOW);
-        reset_energy_recovery = true;
-        SetServiceBrake(false);   // release
+        reset_energy_recovery = 1;
+        SetServiceBrake(0);   // release
     }
 }
 
@@ -522,24 +522,26 @@ void AutoStopChallenge(float speed_kmh, int32_t pulse_accum) {
 
 
         // --- Zone 2: Stopped ---
-        if (speed_kmh <= 0.1f) {
-            WriteDAC(THROTTLE_CHANNEL, 0);
-            WriteDAC(REGEN_CHANNEL, 0);
-            digitalWrite(REGEN_BRAKE_SWITCH, REGEN_OFF);
-            integrator = 0.0f;
-            SetServiceBrake(true);
-            od_autostop_detection = 0;
-            entered_auto_stop     = false;
-            new_autostop_instance = false;
-            DualSerial.println("[AutoStop] Stopped — service brake applied.");
-            return;
-        }
+        // if (speed_kmh <= 0.1f) {
+        //     WriteDAC(THROTTLE_CHANNEL, 0);
+        //     WriteDAC(REGEN_CHANNEL, 0);
+        //     digitalWrite(REGEN_BRAKE_SWITCH, REGEN_OFF);
+        //     integrator = 0.0f;
+        //     SetServiceBrake(true);
+        //     od_autostop_detection = 0;
+        //     entered_auto_stop     = false;
+        //     new_autostop_instance = false;
+        //     DualSerial.println("[AutoStop] Stopped — service brake applied.");
+        //     return;
+        // }
 
         // --- Zone 3: 25m reached — full regen brake ---
         if (distance_m >= AUTO_STOP_DISTANCE_M) {
             integrator = 0.0f;
             WriteDAC(THROTTLE_CHANNEL, 0);
             WriteDAC(REGEN_CHANNEL, DAC_MAX);
+            od_service_brake_mc = 1;
+            executeSDOWrite(NODE_ID, BRAKES_ID, , 0x02, sizeof(od_service_brake_mc), &od_service_brake_mc);
             digitalWrite(REGEN_BRAKE_SWITCH, REGEN_ON);
             DualSerial.print("[AutoStop] Regen braking to stop — Distance: "); DualSerial.print(distance_m);
             DualSerial.print("m | Speed: "); DualSerial.print(speed_kmh);

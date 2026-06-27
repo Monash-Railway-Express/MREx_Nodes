@@ -98,7 +98,7 @@ const float WHEEL_CIRCUMFERENCE_M = WHEEL_DIAMETER_M*3.14159f;
 #define CHALLENGE_TRACTION        5
 
 //challenge variable
-#define AUTO_STOP_DISTANCE_M  25.0f   // Target stop distance for AutoStop challenge (m)
+#define AUTO_STOP_DISTANCE_M  20.0f   // Target stop distance for AutoStop challenge (m)
 
 // pin values
 #define REGEN_ON HIGH

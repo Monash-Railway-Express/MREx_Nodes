@@ -17,7 +17,7 @@ uint8_t lastOut = 255 ;// remembers what the brake output was last time
 
 
 // OD 0x3012:02 – Service brake request from motor node (1 = no brake, 0 = apply)
-uint8_t od_service_brake_dc = 1;
+uint8_t od_service_brake_dc = 0;
 
 // OD 0x3012:01 – Service brake request from motor node (1 = no brake, 0 = apply)
 uint8_t od_service_brake_mc = 0;
